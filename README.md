@@ -11,11 +11,26 @@ conventions live in [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
 
 ## Status
 
-Project skeleton + environment verification. Model code not started yet.
+**M0 complete** (`v0.0-setup-complete`): environment verified, TensorBoard logging works,
+Crafter visual smoke GIF generated. Model code starts at M1.
+
+See [`MILESTONES.md`](MILESTONES.md) for the full gated plan and
+[`PROJECT_BRIEF.md`](PROJECT_BRIEF.md) for architecture conventions.
 
 ## Setup
 
 Requires [Miniforge](https://github.com/conda-forge/miniforge) (conda) on macOS Apple Silicon.
+
+If `conda activate` says *"Run 'conda init' before 'conda activate"* in Terminal/Cursor,
+your shell is almost certainly **zsh** and conda was only initialized for bash. Fix once:
+
+```bash
+conda init zsh
+# then close this terminal tab and open a new one
+conda activate worldmodel
+```
+
+Full env setup:
 
 ```bash
 # Create / update the env (Python 3.11)
@@ -27,17 +42,30 @@ conda activate worldmodel
 pip install -e .
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 
-# Verify MPS + Crafter
-python scripts/smoke_test_crafter.py
+# Verify all M0 checks (MPS + Crafter + TensorBoard log + visual GIF)
+python scripts/verify_m0.py
 ```
 
 > Note: upstream `crafter` only auto-registers with the legacy `gym` package.
 > This repo wraps it for Gymnasium in `src/envs/crafter_env.py` and exposes the
 > same IDs (`CrafterReward-v1`, `CrafterNoReward-v1`).
 
+### Day-to-day terminals
 
-Expected smoke-test output includes `MPS available: True` and
-`Observation shape: (64, 64, 3)`.
+1. **Train / scripts** — `conda activate worldmodel`, run Python scripts
+2. **TensorBoard** — leave running while developing:
+
+```bash
+conda activate worldmodel
+tensorboard --logdir runs
+# open http://localhost:6006
+```
+
+3. **Optional** — git / notes
+
+Expected `verify_m0.py` output includes `MPS available: True`, Crafter obs shape
+`(64, 64, 3)`, a TensorBoard event under `runs/m0_dummy/`, and
+`results/m0_random_rollout.gif`.
 
 ## Repository layout
 

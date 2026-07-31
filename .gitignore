@@ -33,10 +33,13 @@ results/**
 !results/.gitkeep
 !results/.gitkeep
 
-# TensorBoard
+# TensorBoard (keep M0 dummy events out of git; regenerate via scripts)
 runs/
 logs/
 tb_logs/
+
+# Local visual artifacts from smoke scripts (regenerate via scripts/watch_crafter.py)
+results/m0_random_rollout.gif
 
 # MkDocs
 site/
