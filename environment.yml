@@ -7,12 +7,12 @@ dependencies:
   - pip:
       - torch
       - torchvision
-      - "jax[cpu]"
-      - craftax
+      - gymnasium
+      - crafter
+      - minigrid
       - pyyaml
       - tensorboard
       - mkdocs-material
       - numpy
       - pillow
-      - imageio
       - -e .

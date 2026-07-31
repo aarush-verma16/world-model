@@ -5,19 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "world-model"
 version = "0.1.0"
-description = "Dreamer-style world model on Craftax-Classic (Pixels)"
+description = "Dreamer-style world model on Crafter"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "torch",
   "torchvision",
-  "jax[cpu]",
-  "craftax",
+  "gymnasium",
+  "crafter",
+  "minigrid",
   "pyyaml",
   "tensorboard",
   "numpy",
   "pillow",
-  "imageio",
 ]
 
 [tool.setuptools.packages.find]

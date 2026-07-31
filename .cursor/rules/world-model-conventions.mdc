@@ -1,5 +1,5 @@
 ---
-description: Core conventions for the Dreamer-style world model (tensors, naming, MPS, Craftax)
+description: Core conventions for the Dreamer-style world model (tensors, naming, MPS)
 alwaysApply: true
 ---
 
@@ -9,10 +9,8 @@ Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguo
 
 ## Hardware / Runtime
 
-- Learning device is **PyTorch MPS** (Apple Silicon), never CUDA.
-- Environment sim is **JAX CPU only** — do not install `jax-metal` or Metal/GPU JAX plugins.
+- Target device is **MPS** (Apple Silicon), never CUDA.
 - Verify `torch.backends.mps.is_available()` before training work.
-- Verify `jax.default_backend() == "cpu"` for Craftax.
 - Set `PYTORCH_ENABLE_MPS_FALLBACK=1` during development.
 - Keep batch sizes, sequence lengths, and latent dims small enough for 24GB unified memory.
 
@@ -29,8 +27,7 @@ Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguo
 
 ## Scope
 
-- Environment: Craftax-Classic Pixels only (`Craftax-Classic-Pixels-v1` via `CraftaxClassicPixelsEnv`).
-- Wrapper always exposes `(64, 64, 3)` observations to the model stack.
+- Environment: Crafter only (`CrafterReward-v1`). MiniGrid is optional for early debugging.
 - No external model/API calls in the training or inference path.
 - Experiment tracking is local TensorBoard only.
 

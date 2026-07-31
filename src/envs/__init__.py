@@ -1,5 +1,7 @@
-"""Environment wrappers for Craftax-Classic (Pixels)."""
+"""Environment wrappers and Gymnasium registrations."""
 
-from envs.craftax_wrapper import CraftaxClassicPixelsEnv
+from envs.crafter_env import CrafterEnv, register_crafter_envs
 
-__all__ = ["CraftaxClassicPixelsEnv"]
+register_crafter_envs()
+
+__all__ = ["CrafterEnv", "register_crafter_envs"]
