@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg-info/**
+.eggs/
+dist/
+build/
+*.egg
+.venv/
+venv/
+src/*.egg-info/
+
+# Conda
+.conda/
+
+# Checkpoints & replay (track via Git LFS when needed)
+*.pt
+*.ckpt
+*.pth
+checkpoints/
+replay/
+*.pkl
+*.npz
+
+# Experiment artifacts (keep folder structure, ignore run outputs)
+experiments/*/
+!experiments/.gitkeep
+
+# Results artifacts
+results/**
+!results/.gitkeep
+!results/.gitkeep
+
+# TensorBoard
+runs/
+logs/
+tb_logs/
+
+# MkDocs
+site/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Env / secrets
+.env
+.env.*
+
+# Videos (track via Git LFS when needed)
+*.mp4
+*.gif
+!docs/**/*.gif
