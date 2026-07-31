@@ -1,21 +1,20 @@
-"""Smoke-test that CrafterReward-v1 resets/steps with the expected observation shape.
+"""Smoke-test Craftax-Classic-Pixels via CraftaxClassicPixelsEnv (M0).
 
 Run from the repo root with the worldmodel conda env active:
-    python scripts/smoke_test_crafter.py
+    python scripts/smoke_test_craftax.py
 """
 
 from __future__ import annotations
 
 import sys
 
-import gymnasium as gym
+import jax
 import numpy as np
 import torch
 
-import envs  # noqa: F401  — registers CrafterReward-v1 with Gymnasium
+from envs import CraftaxClassicPixelsEnv
 
 
-ENV_ID = "CrafterReward-v1"
 EXPECTED_OBS_SHAPE = (64, 64, 3)
 NUM_STEPS = 5
 
@@ -28,8 +27,22 @@ def check_mps() -> None:
         raise SystemExit("FAIL: torch.backends.mps.is_available() is False")
 
 
-def check_crafter() -> None:
-    env = gym.make(ENV_ID)
+def check_jax_cpu() -> None:
+    devices = jax.devices()
+    backend = jax.default_backend()
+    print(f"jax {jax.__version__}")
+    print(f"jax.devices(): {devices}")
+    print(f"jax.default_backend(): {backend}")
+    if backend != "cpu":
+        raise SystemExit(f"FAIL: expected JAX CPU backend, got {backend!r}")
+    if not any(d.platform == "cpu" for d in devices):
+        raise SystemExit(f"FAIL: no CPU device in jax.devices(): {devices}")
+    if any(d.platform == "METAL" or "metal" in str(d).lower() for d in devices):
+        raise SystemExit(f"FAIL: Metal JAX device present (not allowed): {devices}")
+
+
+def check_craftax() -> None:
+    env = CraftaxClassicPixelsEnv(seed=0)
     try:
         obs, info = env.reset(seed=0)
         if not isinstance(obs, np.ndarray):
@@ -41,9 +54,11 @@ def check_crafter() -> None:
         if obs.dtype != np.uint8:
             print(f"WARN: observation dtype is {obs.dtype}, expected uint8")
 
-        action_space = env.action_space
+        n = env.action_space_n
+        print(f"Env: Craftax-Classic-Pixels-v1 (wrapped)")
+        print(f"action_space_n: {n}")
         for step_i in range(NUM_STEPS):
-            action = action_space.sample()
+            action = int(np.random.randint(0, n))
             obs, reward, terminated, truncated, info = env.step(action)
             if obs.shape != EXPECTED_OBS_SHAPE:
                 raise SystemExit(
@@ -53,9 +68,7 @@ def check_crafter() -> None:
             if terminated or truncated:
                 obs, info = env.reset()
 
-        print(f"Env: {ENV_ID}")
         print(f"Observation shape: {obs.shape}")
-        print(f"Action space: {action_space}")
         print(f"Stepped {NUM_STEPS} times successfully")
     finally:
         env.close()
@@ -63,8 +76,9 @@ def check_crafter() -> None:
 
 def main() -> int:
     check_mps()
-    check_crafter()
-    print("PASS: Crafter smoke test succeeded")
+    check_jax_cpu()
+    check_craftax()
+    print("PASS: Craftax smoke test succeeded")
     return 0
 
 

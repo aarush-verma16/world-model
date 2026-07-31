@@ -34,7 +34,7 @@ M0 (Setup)
            └─> M3 (Full World Model Loss + Replay Buffer)
                 └─> M4 (Imagination + Actor-Critic)
                      └─> M5 (Full Outer Loop Integration)
-                          └─> M6 (Baseline Result on Crafter)
+                          └─> M6 (Baseline Result on Craftax-Classic)
                                ├─> M7 (Ablation Study)
                                └─> M8 (Analysis + Paper Writing)
                                     └─> M9 (Docs, Repo Polish, Release)
@@ -55,13 +55,15 @@ code gets written.
 
 **Tasks:**
 - Conda environment, PyTorch install, MPS verification
-- Gymnasium + Crafter + MiniGrid install and smoke test
+- Craftax-Classic Pixels + JAX (CPU-only) install and smoke test
 - Repo skeleton, `.cursor/rules`, `PROJECT_BRIEF.md` committed
 - TensorBoard working locally (log one dummy scalar and confirm it renders)
 
 **Exit criteria:**
 - `torch.backends.mps.is_available()` returns `True`
-- `CrafterReward-v1` resets and steps, returns `(64, 64, 3)` observations
+- `jax.default_backend()` is `cpu` (no Metal JAX plugin)
+- `Craftax-Classic-Pixels-v1` via `CraftaxClassicPixelsEnv` resets and steps, returns
+  wrapped `(64, 64, 3)` observations
 - A dummy TensorBoard scalar log is viewable in the browser
 - Repo pushed to GitHub with a real README stub (not the default)
 
@@ -69,10 +71,11 @@ code gets written.
 - MPS silently falls back to CPU on certain ops without erroring — you won't notice until
   training is mysteriously slow. Mitigation: set `PYTORCH_ENABLE_MPS_FALLBACK=1` now and
   grep logs for fallback warnings once you have real training code running.
-- Crafter install conflicts with a system-level OpenGL/rendering dependency on macOS —
-  mitigation: install inside the conda env only, never system Python.
+- Accidentally installing `jax-metal` / a Metal JAX plugin — Apple's plugin is unmaintained
+  and community forks are alpha-stage. Stay on `jax[cpu]`; the real-env step budget under
+  Dreamer is small enough that CPU Craftax is fine.
 
-**Artifact:** tag `v0.0-setup-complete`.
+**Artifact:** tag `v0.0-setup-complete-craftax`.
 
 ---
 
@@ -86,7 +89,7 @@ code gets written.
 - CNN encoder: 64x64x3 → embedding vector
 - CNN decoder: embedding → reconstructed 64x64x3
 - Train on pure reconstruction loss only (no RSSM, no reward, no actions yet) using a
-  small buffer of random-policy Crafter frames
+  small buffer of random-policy Craftax-Classic frames
 - Log reconstruction loss curve + periodic sample reconstructions to TensorBoard as images
 
 **Exit criteria:**
@@ -99,9 +102,9 @@ code gets written.
 - Normalizing pixel values inconsistently between encoder input and decoder output (e.g.
   forgetting to rescale to `[-1, 1]` or `[0, 1]` consistently) — produces reconstructions
   that are uniformly wrong in a specific, diagnosable way (washed out, inverted, clipped).
-- Using too small a random-policy dataset — a random Crafter agent rarely explores past the
-  first biome, so your encoder overfits to a narrow visual distribution. Collect from several
-  hundred random episodes, not a handful.
+- Using too small a random-policy dataset — a random Craftax-Classic agent rarely explores
+  past the first biome, so your encoder overfits to a narrow visual distribution. Collect
+  from several hundred random episodes, not a handful.
 
 **Artifact:** tag `v0.1-encoder-decoder-working`, saved sample reconstructions in `results/`.
 
@@ -253,32 +256,37 @@ over time, not just working components in isolation.
 
 ---
 
-## Milestone 6 — Baseline Result on Crafter
+## Milestone 6 — Baseline Result on Craftax-Classic
 
-**Goal:** one clean, complete, honestly-reported baseline training run with a real Crafter
-score, directly comparable to published numbers.
+**Goal:** one clean, complete, honestly-reported baseline training run with a real
+Craftax-Classic score, comparable (with caveats) to published Crafter/DreamerV3 numbers.
 
 **Depends on:** M5.
 
 **Tasks:**
 - Hyperparameter pass suited to your 24GB memory budget (batch size, sequence length, latent
   grid size)
-- Implement the Crafter evaluation harness matching the paper's metric (achievement
-  percentages + geometric mean score)
+- Implement the Craftax-Classic evaluation harness matching the Crafter-style metric
+  (achievement percentages + geometric mean score)
 - Run the full baseline training run to completion (likely several hours to overnight)
 - Record final score, reward curve, and a handful of qualitative rollout recordings
 
 **Exit criteria:**
-- A completed run with a final Crafter score computed via the standard metric
+- A completed run with a final Craftax-Classic score computed via the standard metric
 - Reward curve and score are saved, reproducible from the exact logged config
 - You can honestly state your result is real and specific, even if far below published
   DreamerV3 numbers (this is expected — you're running at a fraction of the compute)
+- Comparisons against published DreamerV3 / original-Python-Crafter numbers explicitly note
+  that Craftax-Classic is a faithful but non-identical codebase (same task family, different
+  implementation), so scores are comparable in spirit, not bit-identical to the original env
 
 **Common failure modes:**
 - Comparing against published numbers without matching the evaluation protocol
   (e.g. different episode counts, different achievement definitions) — produces a comparison
   that looks better or worse than it actually is. Match the metric definition exactly before
   quoting a comparison in the paper.
+- Omitting the Craftax-vs-original-Crafter caveat when citing DreamerV3 tables — overstates
+  how directly the numbers line up.
 
 **Artifact:** tag `v1.0-baseline-result`. This is the most important tag in the whole project —
 everything downstream depends on this being a real, verified, reproducible number.
@@ -388,13 +396,13 @@ cold — a reviewer, an admissions reader, a future employer.
 
 | Milestone | Approx. duration | Cumulative |
 |---|---|---|
-| M0 — Setup | 1 day | Day 1 |
+| M0 — Setup (Craftax-Classic) | 1 day | Day 1 |
 | M1 — Encoder/Decoder | 1 day | Day 2 |
 | M2 — RSSM core | 1-2 days | Day 3-4 |
 | M3 — Full world model | 2 days | Day 5-6 |
 | M4 — Imagination + actor-critic | 2 days | Day 7-9 |
 | M5 — Full loop integration | 2 days | Day 10-11 |
-| M6 — Baseline result | 2-3 days | Day 12-14 |
+| M6 — Baseline result (Craftax-Classic) | 2-3 days | Day 12-14 |
 | M7 — Ablation study | 3 days | Day 15-17 |
 | M8 — Paper (overlaps M7) | 3 days | Day 17-19 |
 | M9 — Docs & release | 2 days | Day 20-21 |

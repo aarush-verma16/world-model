@@ -38,7 +38,7 @@ runs/
 logs/
 tb_logs/
 
-# Local visual artifacts from smoke scripts (regenerate via scripts/watch_crafter.py)
+# Local visual artifacts from smoke scripts (regenerate via scripts/watch_craftax.py)
 results/m0_random_rollout.gif
 
 # MkDocs
