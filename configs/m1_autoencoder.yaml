@@ -1,0 +1,32 @@
+# Milestone 1 — near pixel-identical perception autoencoder.
+# Full-res stem skip (64x64) + stem→RGB with zero-init residual.
+# Best weights: checkpoints/m1_autoencoder_finetune/ckpt_best.pt
+#   full30k within1≈0.966, mad≈0.097 (visually left≈right)
+
+seed: 0
+embed_dim: 8192
+encoder_channels: [64, 128, 256, 512]
+stem_channels: 64
+
+collect:
+  num_frames: 30000
+  max_episode_steps: 500
+  out_path: data/m1_random_frames.pt
+
+train:
+  batch_size: 16
+  lr: 3.0e-4
+  steps: 15000
+  cosine_lr: true
+  uint8_loss_weight: 2.0
+  log_every: 50
+  image_every: 500
+  checkpoint_every: 2500
+  num_vis_samples: 8
+  diverse_vis: true
+  min_steps_before_early_stop: 2000
+  target_within1: 0.98
+  target_uint8_mad: 0.35
+  log_dir: runs/m1_autoencoder_stem_rgb
+  checkpoint_dir: checkpoints/m1_autoencoder_stem_rgb
+  results_dir: results/m1

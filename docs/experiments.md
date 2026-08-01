@@ -17,3 +17,13 @@ Living log of approaches tried, including failures and why they failed.
   `src/envs/crafter_env.py`.
 - On zsh, `conda init` (no args) may only patch `.bash_profile` — use `conda init zsh`
   and open a new shell before `conda activate worldmodel`.
+- Craftax migration was tried and reverted; benchmark remains original Python Crafter.
+
+## M1 — Encoder/Decoder
+
+- Baseline (`6afa8f6`): plain encode→decode MSE, embed 256 — loss dropped, but sprites
+  smeared into grass (MSE + tight bottleneck). TB also logged near-identical spawn frames.
+- Sharpness pass: `PerceptionAutoencoder` with U-Net skips + L1, diverse vis frames,
+  `embed_dim=8192`. This is for M1 visual trust; later RSSM still uses the skip-free
+  `Encoder` embedding path. Config: `configs/m1_autoencoder.yaml`.
+  Logs: `runs/m1_autoencoder_sharp`. Check `results/m1/recon_final.png`.

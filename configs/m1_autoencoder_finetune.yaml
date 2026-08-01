@@ -1,0 +1,28 @@
+# Fine-tune stem→RGB AE toward pixel-identical uint8 reconstructions.
+
+seed: 0
+embed_dim: 8192
+encoder_channels: [64, 128, 256, 512]
+stem_channels: 64
+
+collect:
+  num_frames: 30000
+  max_episode_steps: 500
+  out_path: data/m1_random_frames.pt
+
+train:
+  batch_size: 24
+  lr: 5.0e-5
+  steps: 10000
+  cosine_lr: true
+  uint8_loss_weight: 2.0
+  log_every: 50
+  image_every: 500
+  checkpoint_every: 2000
+  num_vis_samples: 8
+  diverse_vis: true
+  target_within1: 0.98
+  target_uint8_mad: 0.35
+  log_dir: runs/m1_autoencoder_finetune
+  checkpoint_dir: checkpoints/m1_autoencoder_finetune
+  results_dir: results/m1

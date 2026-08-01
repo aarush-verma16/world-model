@@ -20,6 +20,7 @@ src/*.egg-info/
 *.ckpt
 *.pth
 checkpoints/
+data/
 replay/
 *.pkl
 *.npz
@@ -28,18 +29,18 @@ replay/
 experiments/*/
 !experiments/.gitkeep
 
-# Results artifacts
+# Results artifacts (keep milestone proof images tracked)
 results/**
 !results/.gitkeep
-!results/.gitkeep
+!results/m0_random_rollout.gif
+!results/m1/
+!results/m1/recon_final.png
+!results/m1/recon_diverse_check.png
 
 # TensorBoard (keep M0 dummy events out of git; regenerate via scripts)
 runs/
 logs/
 tb_logs/
-
-# Local visual artifacts from smoke scripts (regenerate via scripts/watch_crafter.py)
-results/m0_random_rollout.gif
 
 # MkDocs
 site/

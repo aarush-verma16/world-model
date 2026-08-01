@@ -83,13 +83,30 @@ results/          # final plots, tables, rollout GIFs
 scripts/          # smoke tests and utilities
 ```
 
+## Milestone 1 — Encoder / Decoder
+
+```bash
+conda activate worldmodel
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+python scripts/collect_random_frames.py
+python scripts/train_autoencoder.py
+# Terminal 2:
+tensorboard --logdir runs
+# open http://localhost:6006  -> m1/recon_l1 + m1/real_vs_recon
+# In Images, scrub to the latest step (not step 1 — that one is grey mush).
+open results/m1/recon_final.png
+pytest -q
+```
+
+M1 trains a U-Net-style `PerceptionAutoencoder` so left/right frames stay visually
+close. The skip-free `Encoder` / `Decoder` modules remain for later RSSM wiring.
+
 ## Next milestones
 
-1. Encoder + decoder on Crafter observations
-2. Discrete categorical RSSM with KL balancing
-3. Replay buffer + world-model training loop
-4. Actor-critic trained on imagined rollouts
-5. Baseline result, then ablation
+1. Discrete categorical RSSM with KL balancing
+2. Replay buffer + world-model training loop
+3. Actor-critic trained on imagined rollouts
+4. Baseline result, then ablation
 
 ## License
 
