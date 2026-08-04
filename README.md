@@ -101,12 +101,31 @@ pytest -q
 M1 trains a U-Net-style `PerceptionAutoencoder` so left/right frames stay visually
 close. The skip-free `Encoder` / `Decoder` modules remain for later RSSM wiring.
 
+## Milestone 2 — RSSM forward pass
+
+```bash
+conda activate worldmodel
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+python scripts/verify_rssm_forward.py
+python scripts/visualize_rssm.py
+open results/m2/*.png
+pytest -q tests/test_rssm_shapes.py
+```
+
+Discrete categorical RSSM: `h` via a DreamerV3-style layer-normalized GRU cell,
+`z_prior` / `z_posterior` categoricals with a unimix floor (no class can go
+fully dead) and straight-through gradients. `verify_rssm_forward.py` checks
+shapes, naming, STE grads, and long-horizon finite values.
+`visualize_rssm.py` renders mechanism diagnostics on the (still untrained)
+model — latent entropy/occupancy, `h` trajectory PCA, and imagination drift
+vs horizon — into `results/m2/`. Full world-model training (KL loss, KL
+balancing) is M3.
+
 ## Next milestones
 
-1. Discrete categorical RSSM with KL balancing
-2. Replay buffer + world-model training loop
-3. Actor-critic trained on imagined rollouts
-4. Baseline result, then ablation
+1. Full world-model loss + KL balancing + replay buffer (M3)
+2. Actor-critic trained on imagined rollouts
+3. Baseline result, then ablation
 
 ## License
 

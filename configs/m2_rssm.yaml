@@ -1,0 +1,42 @@
+# Milestone 2 — RSSM forward-pass verification (no end-to-end WM training yet).
+# Latent grid 16x16 (not DreamerV3's 32x32) for M4 Pro memory headroom.
+
+seed: 0
+
+encoder:
+  embed_dim: 1024
+  channels: [32, 64, 128, 256]
+
+rssm:
+  deter_dim: 512
+  stoch: 16
+  classes: 16
+  hidden: 512
+  # DreamerV3 unimix: floor probability mass mixed into every categorical
+  # class so none can ever hit exactly zero (dead-latent prevention).
+  unimix: 0.01
+  # Candidate-gate activation inside the layer-norm GRU cell (DreamerV3 uses
+  # the network's default act, not textbook GRU's tanh).
+  act: silu
+  # "learned": h_0 is a trainable parameter (tanh-squashed), z_0 sampled from
+  # the prior net conditioned on h_0. "zeros": fixed zero h_0, uniform z_0.
+  initial: learned
+  # Extra GRU-cell applications per outer timestep. 1 = standard single step.
+  rec_depth: 1
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+verify:
+  batch_size: 4
+  seq_len: 64
+  long_horizon: 128
+  num_episodes: 4
+  max_episode_steps: 200
+
+diagnostics:
+  results_dir: results/m2
+  log_dir: runs/m2_rssm_diagnostics
+  imagination_horizon: 30
+  imagination_num_starts: 6

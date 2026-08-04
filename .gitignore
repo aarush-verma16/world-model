@@ -36,6 +36,11 @@ results/**
 !results/m1/
 !results/m1/recon_final.png
 !results/m1/recon_diverse_check.png
+!results/m2/
+!results/m2/*.png
+
+# Matplotlib cache (created by scripts/visualize_rssm.py in sandboxed HOME dirs)
+.mplcache/
 
 # TensorBoard (keep M0 dummy events out of git; regenerate via scripts)
 runs/
