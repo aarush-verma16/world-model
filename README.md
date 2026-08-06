@@ -76,11 +76,28 @@ src/
   models/         # encoder, RSSM, decoder, heads
   agents/         # actor-critic
   training/       # world-model / agent training, replay buffer
+notebooks/        # interactive visuals / smoke checks (not the training path)
 experiments/      # per-run configs + logged metrics
 docs/             # MkDocs source
 paper/            # paper draft + figures
 results/          # final plots, tables, rollout GIFs
-scripts/          # smoke tests and utilities
+scripts/          # reproducible CLI smoke tests and utilities
+```
+
+### Notebooks
+
+`notebooks/` is an ongoing work surface — create notebooks as features land so
+you can run real functionality and see graphs inline (reconstructions, RSSM
+diagnostics, later loss/imagination plots). Scripts under `scripts/` stay the
+canonical CI / verify path; shared plot helpers live in `src/` so both stay
+aligned. See `notebooks/README.md`.
+
+```bash
+conda activate worldmodel
+pip install -e ".[dev]"
+python -m ipykernel install --user --name worldmodel --display-name "Python (worldmodel)"
+jupyter notebook notebooks/
+# start with 01_perception_reconstructions.ipynb or 02_rssm_live_diagnostics.ipynb
 ```
 
 ## Milestone 1 — Encoder / Decoder

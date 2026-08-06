@@ -33,5 +33,6 @@ Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguo
 
 ## Git
 
-- `main` stays working; feature work on short-lived `feature/*` branches.
-- Squash-merge into `main` with a why-focused summary message.
+- Work and push directly on `main` — do not create feature branches.
+- Prefer small, frequent commits with why-focused messages.
+- Keep `main` working; do not push known-broken code.

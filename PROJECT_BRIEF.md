@@ -157,16 +157,11 @@ world-model/
 
 ## 6. Git Workflow
 
-- `main` is always in a working state — never commit broken code directly to it.
-- One short-lived feature branch per component: `feature/encoder-decoder`, `feature/rssm`,
-  `feature/kl-balancing`, `feature/actor-critic`, `feature/replay-buffer`, etc.
-- Commit freely and often within a branch (messy intermediate commits are fine and expected).
-- When a feature is working, merge into `main` using **squash-and-merge**, with a summary
-  commit message capturing not just what changed but *why* (e.g. "RSSM working: switched from
-  continuous Gaussian to discrete categorical latents after Gaussian caused posterior
-  collapse"). This is solo-project practice — no PR review needed, but the summary message
-  itself is the valuable artifact, since it becomes the raw material for the paper's method
-  section and the docs site's experiment log later.
+- Work and push **directly on `main`** — no feature branches.
+- Prefer small, frequent commits with why-focused messages (e.g. "RSSM: switch to discrete
+  categoricals after Gaussian posterior collapse"). The commit history is raw material for
+  the paper method section and the docs experiment log later.
+- Keep `main` working; do not push known-broken code.
 - Tag milestones on `main`: `v0.1-encoder-working`, `v0.2-rssm-working`,
   `v1.0-baseline-result`, `v2.0-ablation-complete`.
 - `.gitignore` all checkpoints and replay buffer dumps unless tracked via Git LFS.

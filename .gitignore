@@ -12,6 +12,10 @@ build/
 venv/
 src/*.egg-info/
 
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
 # Conda
 .conda/
 

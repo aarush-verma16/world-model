@@ -15,4 +15,7 @@ dependencies:
       - mkdocs-material
       - numpy
       - pillow
+      - matplotlib
+      - jupyter
+      - ipykernel
       - -e .
