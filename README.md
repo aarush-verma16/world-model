@@ -1,149 +1,118 @@
-# Dreamer-Style World Model on Crafter
+# World Model
 
-A faithful, small-scale implementation of the Dreamer/RSSM recipe trained on
-[`CrafterReward-v1`](https://github.com/danijar/crafter). The agent learns a compressed
-predictive world model from real experience, then trains its actor-critic almost entirely
-inside imagined rollouts from that model.
+A Dreamer-style world model for [Crafter](https://github.com/danijar/crafter): learn a compressed predictive model of the environment from pixels, then train a policy inside imagined rollouts instead of on every real interaction.
 
-This is a research / learning project: reproduce the baseline under a fixed laptop compute
-budget (Apple M4 Pro, MPS), then run a controlled ablation. Full architecture and workflow
-conventions live in [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md).
+Built in PyTorch for Apple Silicon (MPS). No cloud APIs in the training or inference path — everything runs locally.
 
-## Status
+<p align="center">
+  <img src="results/m1/recon_final.png" alt="Real vs reconstructed Crafter frames" width="720" />
+  <br />
+  <em>Real frames (left) vs autoencoder reconstructions (right).</em>
+</p>
 
-**M0 complete** (`v0.0-setup-complete`): environment verified, TensorBoard logging works,
-Crafter visual smoke GIF generated. Model code starts at M1.
+## How it works
 
-See [`MILESTONES.md`](MILESTONES.md) for the full gated plan and
-[`PROJECT_BRIEF.md`](PROJECT_BRIEF.md) for architecture conventions.
+Dreamer separates **world modeling** from **decision making**:
 
-## Setup
+1. An **encoder** compresses each 64×64 RGB observation into an embedding.
+2. An **RSSM** (recurrent state-space model) tracks a deterministic memory state `h` and discrete categorical latents. On real data it forms a posterior `z_posterior` from `h` and the embedding; in imagination it samples a prior `z_prior` from `h` alone.
+3. A **decoder** and auxiliary heads reconstruct observations and predict reward / continuation, which train the world model.
+4. An **actor-critic** acts in latent imagination — rolling the world model forward with `z_prior` only — so most learning happens without stepping the real environment.
 
-Requires [Miniforge](https://github.com/conda-forge/miniforge) (conda) on macOS Apple Silicon.
+This repo follows the DreamerV2/V3 recipe (discrete latents, straight-through gradients, unimix categorical floor, layer-normalized GRU) at a scale that fits ~24GB unified memory (e.g. 16×16 categorical latents rather than 32×32).
 
-If `conda activate` says *"Run 'conda init' before 'conda activate"* in Terminal/Cursor,
-your shell is almost certainly **zsh** and conda was only initialized for bash. Fix once:
+## What’s included
+
+- Gymnasium wrapper for `CrafterReward-v1` / `CrafterNoReward-v1`
+- Perception autoencoder with U-Net skips for sharp reconstructions
+- Discrete categorical RSSM (`h`, `z_prior`, `z_posterior`, STE)
+- Training configs, CLI scripts, and interactive notebooks with inline plots
+- Local TensorBoard logging and mechanism diagnostics (latent entropy, occupancy, imagination drift)
+
+Architecture notes and naming conventions live in [`PROJECT_BRIEF.md`](PROJECT_BRIEF.md). Experiment history is in [`docs/experiments.md`](docs/experiments.md).
+
+## Requirements
+
+- macOS on Apple Silicon (MPS)
+- [Miniforge](https://github.com/conda-forge/miniforge) / conda
+- Python 3.11
+
+CUDA is not supported. Set `PYTORCH_ENABLE_MPS_FALLBACK=1` so unsupported ops fall back to CPU cleanly.
+
+## Install
 
 ```bash
-conda init zsh
-# then close this terminal tab and open a new one
-conda activate worldmodel
-```
-
-Full env setup:
-
-```bash
-# Create / update the env (Python 3.11)
 conda env create -f environment.yml
-# or, if the env already exists:
-# conda env update -f environment.yml --prune
-
-conda activate worldmodel
-pip install -e .
-export PYTORCH_ENABLE_MPS_FALLBACK=1
-
-# Verify all M0 checks (MPS + Crafter + TensorBoard log + visual GIF)
-python scripts/verify_m0.py
-```
-
-> Note: upstream `crafter` only auto-registers with the legacy `gym` package.
-> This repo wraps it for Gymnasium in `src/envs/crafter_env.py` and exposes the
-> same IDs (`CrafterReward-v1`, `CrafterNoReward-v1`).
-
-### Day-to-day terminals
-
-1. **Train / scripts** — `conda activate worldmodel`, run Python scripts
-2. **TensorBoard** — leave running while developing:
-
-```bash
-conda activate worldmodel
-tensorboard --logdir runs
-# open http://localhost:6006
-```
-
-3. **Optional** — git / notes
-
-Expected `verify_m0.py` output includes `MPS available: True`, Crafter obs shape
-`(64, 64, 3)`, a TensorBoard event under `runs/m0_dummy/`, and
-`results/m0_random_rollout.gif`.
-
-## Repository layout
-
-```
-configs/          # YAML configs, one per experiment/ablation
-src/
-  envs/           # Crafter / MiniGrid wrappers
-  models/         # encoder, RSSM, decoder, heads
-  agents/         # actor-critic
-  training/       # world-model / agent training, replay buffer
-notebooks/        # interactive visuals / smoke checks (not the training path)
-experiments/      # per-run configs + logged metrics
-docs/             # MkDocs source
-paper/            # paper draft + figures
-results/          # final plots, tables, rollout GIFs
-scripts/          # reproducible CLI smoke tests and utilities
-```
-
-### Notebooks
-
-`notebooks/` is an ongoing work surface — create notebooks as features land so
-you can run real functionality and see graphs inline (reconstructions, RSSM
-diagnostics, later loss/imagination plots). Scripts under `scripts/` stay the
-canonical CI / verify path; shared plot helpers live in `src/` so both stay
-aligned. See `notebooks/README.md`.
-
-```bash
 conda activate worldmodel
 pip install -e ".[dev]"
-python -m ipykernel install --user --name worldmodel --display-name "Python (worldmodel)"
-jupyter notebook notebooks/
-# start with 01_perception_reconstructions.ipynb or 02_rssm_live_diagnostics.ipynb
+export PYTORCH_ENABLE_MPS_FALLBACK=1
 ```
 
-## Milestone 1 — Encoder / Decoder
+If `conda activate` fails on zsh, run `conda init zsh`, open a new shell, and try again.
+
+Upstream `crafter` registers only with the legacy `gym` package. This repo re-registers the same env IDs for Gymnasium via `src/envs/crafter_env.py`.
+
+Smoke-check the stack:
 
 ```bash
-conda activate worldmodel
-export PYTORCH_ENABLE_MPS_FALLBACK=1
-python scripts/collect_random_frames.py
-python scripts/train_autoencoder.py
-# Terminal 2:
-tensorboard --logdir runs
-# open http://localhost:6006  -> m1/recon_l1 + m1/real_vs_recon
-# In Images, scrub to the latest step (not step 1 — that one is grey mush).
-open results/m1/recon_final.png
+python scripts/verify_m0.py
 pytest -q
 ```
 
-M1 trains a U-Net-style `PerceptionAutoencoder` so left/right frames stay visually
-close. The skip-free `Encoder` / `Decoder` modules remain for later RSSM wiring.
+## Usage
 
-## Milestone 2 — RSSM forward pass
+**Perception (autoencoder)**
 
 ```bash
-conda activate worldmodel
-export PYTORCH_ENABLE_MPS_FALLBACK=1
-python scripts/verify_rssm_forward.py
-python scripts/visualize_rssm.py
-open results/m2/*.png
-pytest -q tests/test_rssm_shapes.py
+python scripts/collect_random_frames.py
+python scripts/train_autoencoder.py --config configs/m1_autoencoder.yaml
+# optional fine-tune:
+# python scripts/train_autoencoder.py --config configs/m1_autoencoder_finetune.yaml \
+#   --resume checkpoints/m1_autoencoder_stem_rgb/ckpt_best.pt
 ```
 
-Discrete categorical RSSM: `h` via a DreamerV3-style layer-normalized GRU cell,
-`z_prior` / `z_posterior` categoricals with a unimix floor (no class can go
-fully dead) and straight-through gradients. `verify_rssm_forward.py` checks
-shapes, naming, STE grads, and long-horizon finite values.
-`visualize_rssm.py` renders mechanism diagnostics on the (still untrained)
-model — latent entropy/occupancy, `h` trajectory PCA, and imagination drift
-vs horizon — into `results/m2/`. Full world-model training (KL loss, KL
-balancing) is M3.
+**RSSM**
 
-## Next milestones
+```bash
+python scripts/verify_rssm_forward.py
+python scripts/visualize_rssm.py
+```
 
-1. Full world-model loss + KL balancing + replay buffer (M3)
-2. Actor-critic trained on imagined rollouts
-3. Baseline result, then ablation
+**Notebooks** — reconstructions, live RSSM plots, and env checks:
+
+```bash
+python -m ipykernel install --user --name worldmodel --display-name "Python (worldmodel)"
+jupyter notebook notebooks/
+```
+
+**TensorBoard**
+
+```bash
+tensorboard --logdir runs
+# http://localhost:6006
+```
+
+## Layout
+
+```
+configs/       Experiment YAML
+src/envs/      Crafter / MiniGrid wrappers
+src/models/    Encoder, decoder, autoencoder, RSSM
+src/training/  Device helpers, rollouts, diagnostics
+src/agents/    Actor-critic
+notebooks/     Interactive exploration (inline figures)
+scripts/       CLI entry points
+results/       Figures and rollouts
+docs/          MkDocs source
+paper/         Paper draft and figures
+```
+
+## References
+
+- Hafner et al., [*Mastering Diverse Domains through World Models*](https://arxiv.org/abs/2301.04104) (DreamerV3)
+- Hafner et al., [*Mastering Atari with Discrete World Models*](https://arxiv.org/abs/2010.02193) (DreamerV2)
+- Hafner, [*Crafter*](https://danijar.com/project/crafter/)
 
 ## License
 
-TBD.
+MIT
