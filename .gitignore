@@ -42,6 +42,9 @@ results/**
 !results/m1/recon_diverse_check.png
 !results/m2/
 !results/m2/*.png
+!results/m3/
+!results/m3/*.png
+!results/m3/train_metrics.json
 
 # Matplotlib cache (created by scripts/visualize_rssm.py in sandboxed HOME dirs)
 .mplcache/

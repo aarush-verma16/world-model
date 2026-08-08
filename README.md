@@ -26,6 +26,7 @@ This repo follows the DreamerV2/V3 recipe (discrete latents, straight-through gr
 - Gymnasium wrapper for `CrafterReward-v1` / `CrafterNoReward-v1`
 - Perception autoencoder with U-Net skips for sharp reconstructions
 - Discrete categorical RSSM (`h`, `z_prior`, `z_posterior`, STE)
+- Full world-model training: decoder + reward/continue heads, KL balancing, sequential replay
 - Training configs, CLI scripts, and interactive notebooks with inline plots
 - Local TensorBoard logging and mechanism diagnostics (latent entropy, occupancy, imagination drift)
 
@@ -71,7 +72,15 @@ python scripts/train_autoencoder.py --config configs/m1_autoencoder.yaml
 #   --resume checkpoints/m1_autoencoder_stem_rgb/ckpt_best.pt
 ```
 
-**RSSM**
+**World model**
+
+```bash
+python scripts/collect_replay.py --config configs/m3_world_model.yaml
+python scripts/train_world_model.py --config configs/m3_world_model.yaml
+tensorboard --logdir runs   # m3/recon, m3/reward, m3/continue, m3/kl, …
+```
+
+**RSSM diagnostics**
 
 ```bash
 python scripts/verify_rssm_forward.py

@@ -1,0 +1,54 @@
+# Milestone 3 — full world-model training (recon + reward + continue + KL balance).
+# Dims match M2 scale for 24GB MPS headroom.
+
+seed: 0
+
+encoder:
+  embed_dim: 1024
+  channels: [32, 64, 128, 256]
+
+rssm:
+  deter_dim: 512
+  stoch: 16
+  classes: 16
+  hidden: 512
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+
+decoder:
+  channels: [256, 128, 64, 32]
+
+heads:
+  hidden: 512
+  layers: 2
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+collect:
+  num_episodes: 40
+  max_episode_steps: 400
+  out_path: data/m3_replay.pt
+
+train:
+  batch_size: 8
+  seq_len: 32
+  lr: 1.0e-4
+  steps: 5000
+  log_every: 50
+  checkpoint_every: 1000
+  image_every: 500
+  # KL balancing (Dreamer-style). dyn trains prior→post; rep trains post→prior.
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0
+  log_dir: runs/m3_world_model
+  checkpoint_dir: checkpoints/m3_world_model
+  results_dir: results/m3
