@@ -13,6 +13,7 @@ Do this continuously as features land; do not wait for a milestone tag.
 | `02_rssm_live_diagnostics.ipynb` | Collect a short rollout, run RSSM observe/imagine, plot mechanism graphs inline |
 | `03_world_model_loss.ipynb` | World-model forward + per-term losses (recon/reward/continue/KL) plotted inline |
 | `04_inspect_replay.ipynb` | Load `data/m3_replay.pt`, browse frames, reward histograms, sample training windows |
+| `05_train_world_model.ipynb` | Full world-model training with inline loss curves + recon grids (no CLI) |
 
 ## Conventions
 
