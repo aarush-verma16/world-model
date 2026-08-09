@@ -1,20 +1,20 @@
-# Milestone 3 — world-model training (recon-heavy, higher capacity).
-# Tuned after two underpowered runs that produced green mush: KL sat on the
-# free-nats floor so z carried almost no detail. This config forces the
-# representation to do more work and gives encoder/decoder room to express it.
+# Milestone 3 — world-model training (balanced Dreamer-style recipe).
+#
+# Failed experiment (stop if still running): recon_scale=40 + kl_scale=0.1 made
+# z ~ noise; decoder collapsed to solid mean background color by ~step 500.
+# This config restores KL pressure, adds an encoder→pixel aux recon so the
+# encoder stays sharp, and keeps a stronger but not oversized latent.
 
 seed: 0
 
 encoder:
-  # Was 1024 / [32,64,128,256] — too weak vs M1's perception stack.
   embed_dim: 2048
   channels: [64, 128, 256, 512]
 
 rssm:
   deter_dim: 512
-  # Was 16x16. 32x32 matches DreamerV3's latent grid (still ok on 24GB at batch 4).
-  stoch: 32
-  classes: 32
+  stoch: 16
+  classes: 16
   hidden: 512
   unimix: 0.01
   act: silu
@@ -38,23 +38,24 @@ collect:
   out_path: data/m3_replay.pt
 
 train:
-  # Smaller batch for the larger latent on MPS.
-  batch_size: 4
+  batch_size: 8
   seq_len: 32
   lr: 1.0e-4
-  steps: 15000
+  steps: 12000
   log_every: 50
   checkpoint_every: 1000
   image_every: 500
   dyn_scale: 0.5
   rep_scale: 0.1
-  # Low free-nats so the floor doesn't hide an unused latent.
-  free_nats: 0.1
+  free_nats: 1.0
   recon_loss: l1
-  recon_scale: 40.0
+  # Primary: decode from [h, z_posterior]
+  recon_scale: 5.0
+  # Aux: decode from encoder embed (keeps perception sharp early)
+  recon_embed_scale: 5.0
   reward_scale: 1.0
   continue_scale: 1.0
-  kl_scale: 0.1
+  kl_scale: 1.0
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3

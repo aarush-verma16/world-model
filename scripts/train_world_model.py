@@ -135,6 +135,7 @@ def main() -> None:
         loss = world_model_loss(
             obs=obs_f,
             recon=out.recon,
+            recon_embed=out.recon_embed,
             reward=rewards,
             reward_pred=out.reward_pred,
             cont=cont,
@@ -146,6 +147,7 @@ def main() -> None:
             rep_scale=float(train["rep_scale"]),
             free_nats=float(train["free_nats"]),
             recon_scale=float(train["recon_scale"]),
+            recon_embed_scale=float(train.get("recon_embed_scale", 1.0)),
             reward_scale=float(train["reward_scale"]),
             continue_scale=float(train["continue_scale"]),
             kl_scale=float(train["kl_scale"]),
@@ -160,6 +162,7 @@ def main() -> None:
         metrics = {
             "total": float(loss.total.detach()),
             "recon": float(loss.recon.detach()),
+            "recon_embed": float(loss.recon_embed.detach()),
             "reward": float(loss.reward.detach()),
             "continue": float(loss.continue_loss.detach()),
             "kl": float(loss.kl.detach()),
@@ -175,8 +178,9 @@ def main() -> None:
             history.append({"step": step, **metrics})
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
-                f"recon={metrics['recon']:.4f}  rew={metrics['reward']:.4f}  "
-                f"cont={metrics['continue']:.4f}  kl={metrics['kl']:.4f} "
+                f"recon={metrics['recon']:.4f}  emb={metrics['recon_embed']:.4f}  "
+                f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
+                f"kl={metrics['kl']:.4f} "
                 f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})"
             )
 

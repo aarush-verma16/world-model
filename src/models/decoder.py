@@ -11,7 +11,7 @@ from torch import Tensor, nn
 
 
 def _upsample_block(in_ch: int, out_ch: int) -> nn.Sequential:
-    """×2 nearest upsample then two 3×3 convs (extra capacity vs single conv)."""
+    """×2 nearest upsample then two 3×3 convs."""
     return nn.Sequential(
         nn.Upsample(scale_factor=2, mode="nearest"),
         nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1),
@@ -24,7 +24,7 @@ def _upsample_block(in_ch: int, out_ch: int) -> nn.Sequential:
 class Decoder(nn.Module):
     """Embedding → image: `[B, embed_dim]` → `[B, 3, 64, 64]` in `[-1, 1]`.
 
-    Path: embed → 4×4 map, then four (nearest×2 + dual-conv) stages to 64×64.
+    Path: embed → `start_res`×`start_res` map, then nearest×2 stages up to 64×64.
     """
 
     def __init__(
@@ -32,23 +32,27 @@ class Decoder(nn.Module):
         embed_dim: int = 8192,
         out_channels: int = 3,
         channels: tuple[int, ...] = (512, 256, 128, 64),
+        start_res: int = 4,
     ) -> None:
         super().__init__()
-        if len(channels) != 4:
-            raise ValueError(f"expected 4 upsample channel sizes, got {channels}")
-
-        flat_dim = channels[0] * 4 * 4
-        self.channels0 = channels[0]
-        self.channels = tuple(channels)
-        self.fc: nn.Module
-        if embed_dim == flat_dim:
-            self.fc = nn.Identity()
-        else:
-            self.fc = nn.Sequential(
-                nn.Linear(embed_dim, flat_dim),
-                nn.LayerNorm(flat_dim),
-                nn.SiLU(),
+        if start_res not in (4, 8):
+            raise ValueError(f"start_res must be 4 or 8, got {start_res}")
+        # 4→8→16→32→64 needs 4 upsamples; 8→16→32→64 needs 3.
+        n_up = 4 if start_res == 4 else 3
+        if len(channels) != n_up:
+            raise ValueError(
+                f"with start_res={start_res} expected {n_up} channel sizes, got {channels}"
             )
+
+        flat_dim = channels[0] * start_res * start_res
+        self.channels0 = channels[0]
+        self.start_res = start_res
+        self.channels = tuple(channels)
+        # Plain linear — LayerNorm-over-flat was washing out spatial structure
+        # early in training (decoder collapsed to mean color).
+        self.fc: nn.Module = (
+            nn.Identity() if embed_dim == flat_dim else nn.Linear(embed_dim, flat_dim)
+        )
 
         stages: list[nn.Module] = []
         prev = channels[0]
@@ -79,7 +83,7 @@ class Decoder(nn.Module):
                 f"expected embed shape [B, {self.embed_dim}], got {tuple(embed.shape)}"
             )
         x = self.fc(embed)
-        x = x.view(-1, self.channels0, 4, 4)
+        x = x.view(-1, self.channels0, self.start_res, self.start_res)
         out = self.up(x)
         if out.shape[1:] != (3, 64, 64):
             raise RuntimeError(f"decoder produced unexpected shape {tuple(out.shape)}")

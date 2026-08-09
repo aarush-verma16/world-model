@@ -1,7 +1,7 @@
 """World-model loss terms, including Dreamer-style KL balancing.
 
-Loss = recon + reward + continue + KL, logged separately so a healthy sum
-cannot hide a collapsed/exploding KL (M3 exit criterion).
+Loss = recon_[h,z] + recon_embed + reward + continue + KL, logged separately so
+a healthy sum cannot hide a collapsed/exploding KL (M3 exit criterion).
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ class WorldModelLossBreakdown:
 
     total: Tensor
     recon: Tensor
+    recon_embed: Tensor
     reward: Tensor
     continue_loss: Tensor
     kl: Tensor
@@ -43,12 +44,10 @@ def categorical_kl(
     Returns:
         KL `[..., stoch]` in nats (summed over classes).
     """
-    # Local import avoids a circular dependency through models.__init__.
     from models.rssm import unimix_probs
 
     post = unimix_probs(post_logits, unimix)
     prior = unimix_probs(prior_logits, unimix)
-    # KL(p||q) = sum p * (log p - log q)
     return (post * (post.clamp_min(1e-8).log() - prior.clamp_min(1e-8).log())).sum(dim=-1)
 
 
@@ -60,27 +59,14 @@ def kl_balance(
     dyn_scale: float = 0.5,
     rep_scale: float = 0.1,
     free_nats: float = 1.0,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
     """DreamerV2/V3 KL balancing with free-nats floor.
 
-    - `kl_dyn`: train prior toward posterior (`post` stopgrad) — dynamics learning
-    - `kl_rep`: train posterior toward prior (`prior` stopgrad) — representation
-    - Each side is clamped below by `free_nats` (per categorical variable) so
-      the model is not forced to crush tiny informative KLs to zero.
-
-    Args:
-        post_logits / prior_logits: `[B, T, stoch, classes]`
-        dyn_scale / rep_scale: asymmetric weights (Dreamer defaults ≈ 0.5 / 0.1)
-        free_nats: minimum KL credited per categorical variable
-
     Returns:
-        `(kl_loss, kl_dyn_mean, kl_rep_mean)` — `kl_loss` is the scalar used in
-        the total loss; the means are for TensorBoard.
+        `(kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean)`
     """
     kl_dyn_raw = categorical_kl(post_logits.detach(), prior_logits, unimix=unimix)
     kl_rep_raw = categorical_kl(post_logits, prior_logits.detach(), unimix=unimix)
-    # Means *before* the free-nats floor — if these stay ≈ floor, latents are
-    # not carrying observation-specific information (decoder painting averages).
     kl_dyn_raw_mean = kl_dyn_raw.mean()
     kl_rep_raw_mean = kl_rep_raw.mean()
     kl_dyn = kl_dyn_raw.clamp_min(free_nats) if free_nats > 0.0 else kl_dyn_raw
@@ -91,10 +77,19 @@ def kl_balance(
     return kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean
 
 
+def _pixel_loss(pred: Tensor, target: Tensor, kind: str) -> Tensor:
+    if kind == "l1":
+        return F.l1_loss(pred, target)
+    if kind == "mse":
+        return F.mse_loss(pred, target)
+    raise ValueError(f"unknown recon_loss_type {kind!r}")
+
+
 def world_model_loss(
     *,
     obs: Tensor,
     recon: Tensor,
+    recon_embed: Tensor,
     reward: Tensor,
     reward_pred: Tensor,
     cont: Tensor,
@@ -106,31 +101,23 @@ def world_model_loss(
     rep_scale: float = 0.1,
     free_nats: float = 1.0,
     recon_scale: float = 1.0,
+    recon_embed_scale: float = 1.0,
     reward_scale: float = 1.0,
     continue_scale: float = 1.0,
     kl_scale: float = 1.0,
     recon_loss_type: str = "l1",
 ) -> WorldModelLossBreakdown:
-    """Assemble the four world-model terms.
+    """Assemble world-model terms.
 
     Args:
-        obs / recon: float images `[B, T, 3, H, W]` in `[-1, 1]`
-        reward: `[B, T]` target rewards
-        reward_pred: `[B, T, 1]` or `[B, T]` predictions
-        cont: `[B, T]` continue targets in `{0, 1}`
-        cont_logit: `[B, T, 1]` or `[B, T]` continue logits
+        obs / recon / recon_embed: float images `[B, T, 3, H, W]` in `[-1, 1]`
+        reward: `[B, T]`
+        reward_pred / cont_logit: `[B, T, 1]` or `[B, T]`
+        cont: `[B, T]` in `{0, 1}`
         post_logits / prior_logits: `[B, T, stoch, classes]`
-        recon_loss_type: `"l1"` (sharper for pixel art) or `"mse"`
-
-    Returns:
-        `WorldModelLossBreakdown` with scalar tensors (keep graph on `total`).
     """
-    if recon_loss_type == "l1":
-        recon_loss = F.l1_loss(recon, obs)
-    elif recon_loss_type == "mse":
-        recon_loss = F.mse_loss(recon, obs)
-    else:
-        raise ValueError(f"unknown recon_loss_type {recon_loss_type!r}")
+    recon_loss = _pixel_loss(recon, obs, recon_loss_type)
+    recon_embed_loss = _pixel_loss(recon_embed, obs, recon_loss_type)
 
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
@@ -149,6 +136,7 @@ def world_model_loss(
 
     total = (
         recon_scale * recon_loss
+        + recon_embed_scale * recon_embed_loss
         + reward_scale * reward_loss
         + continue_scale * continue_loss
         + kl_scale * kl_loss
@@ -156,6 +144,7 @@ def world_model_loss(
     return WorldModelLossBreakdown(
         total=total,
         recon=recon_loss,
+        recon_embed=recon_embed_loss,
         reward=reward_loss,
         continue_loss=continue_loss,
         kl=kl_loss,
