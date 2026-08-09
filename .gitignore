@@ -33,7 +33,7 @@ replay/
 experiments/*/
 !experiments/.gitkeep
 
-# Results artifacts (keep milestone proof images tracked)
+# Results artifacts (keep select milestone proof images tracked)
 results/**
 !results/.gitkeep
 !results/m0_random_rollout.gif
@@ -42,9 +42,8 @@ results/**
 !results/m1/recon_diverse_check.png
 !results/m2/
 !results/m2/*.png
-!results/m3/
-!results/m3/*.png
-!results/m3/train_metrics.json
+# M3 run outputs stay local (intermediate recon grids + metrics are noisy).
+# Un-ignore a single proof image later if/when quality is worth committing.
 
 # Matplotlib cache (created by scripts/visualize_rssm.py in sandboxed HOME dirs)
 .mplcache/

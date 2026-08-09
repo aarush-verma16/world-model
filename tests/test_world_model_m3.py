@@ -95,6 +95,7 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
         post_logits=out.rssm.posterior_logits,
         prior_logits=out.rssm.prior_logits,
         unimix=wm.rssm.unimix,
+        recon_loss_type="l1",
     )
     assert torch.isfinite(loss.total)
     loss.total.backward()

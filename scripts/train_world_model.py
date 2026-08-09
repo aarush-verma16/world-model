@@ -149,6 +149,7 @@ def main() -> None:
             reward_scale=float(train["reward_scale"]),
             continue_scale=float(train["continue_scale"]),
             kl_scale=float(train["kl_scale"]),
+            recon_loss_type=str(train.get("recon_loss", "l1")),
         )
 
         optim.zero_grad(set_to_none=True)

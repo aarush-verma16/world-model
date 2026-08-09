@@ -105,6 +105,7 @@ def world_model_loss(
     reward_scale: float = 1.0,
     continue_scale: float = 1.0,
     kl_scale: float = 1.0,
+    recon_loss_type: str = "l1",
 ) -> WorldModelLossBreakdown:
     """Assemble the four world-model terms.
 
@@ -115,11 +116,17 @@ def world_model_loss(
         cont: `[B, T]` continue targets in `{0, 1}`
         cont_logit: `[B, T, 1]` or `[B, T]` continue logits
         post_logits / prior_logits: `[B, T, stoch, classes]`
+        recon_loss_type: `"l1"` (sharper for pixel art) or `"mse"`
 
     Returns:
         `WorldModelLossBreakdown` with scalar tensors (keep graph on `total`).
     """
-    recon_loss = F.mse_loss(recon, obs)
+    if recon_loss_type == "l1":
+        recon_loss = F.l1_loss(recon, obs)
+    elif recon_loss_type == "mse":
+        recon_loss = F.mse_loss(recon, obs)
+    else:
+        raise ValueError(f"unknown recon_loss_type {recon_loss_type!r}")
 
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)

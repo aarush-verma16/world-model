@@ -1,5 +1,9 @@
 # Milestone 3 — full world-model training (recon + reward + continue + KL balance).
 # Dims match M2 scale for 24GB MPS headroom.
+#
+# First 5k-step run used MSE recon @ scale 1.0 → blurry mean-color mush and KL
+# stuck on the free-nats floor. This config pushes L1 recon harder, gives the
+# decoder more channels, and lowers free_nats so latents have to carry detail.
 
 seed: 0
 
@@ -18,7 +22,8 @@ rssm:
   rec_depth: 1
 
 decoder:
-  channels: [256, 128, 64, 32]
+  # Was [256, 128, 64, 32] — too weak for readable Crafter sprites/UI.
+  channels: [512, 256, 128, 64]
 
 heads:
   hidden: 512
@@ -36,19 +41,20 @@ collect:
 train:
   batch_size: 8
   seq_len: 32
-  lr: 1.0e-4
-  steps: 5000
+  lr: 2.0e-4
+  steps: 8000
   log_every: 50
   checkpoint_every: 1000
   image_every: 500
   # KL balancing (Dreamer-style). dyn trains prior→post; rep trains post→prior.
   dyn_scale: 0.5
   rep_scale: 0.1
-  free_nats: 1.0
-  recon_scale: 1.0
+  free_nats: 0.5
+  recon_loss: l1
+  recon_scale: 10.0
   reward_scale: 1.0
   continue_scale: 1.0
-  kl_scale: 1.0
+  kl_scale: 0.5
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3
