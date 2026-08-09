@@ -44,7 +44,10 @@ train:
   steps: 12000
   log_every: 50
   checkpoint_every: 1000
-  image_every: 500
+  # Must stay <= log_every, or the displayed recon grid goes stale between
+  # refreshes and looks "collapsed" even though training is progressing
+  # (this is what happened: image panel was 500 steps behind the loss curve).
+  image_every: 50
   dyn_scale: 0.5
   rep_scale: 0.1
   free_nats: 1.0

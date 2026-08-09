@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +51,73 @@ def save_recon_grid(obs_u8: torch.Tensor, recon: torch.Tensor, path: Path) -> No
     Image.fromarray(np.concatenate(strips, axis=0), mode="RGB").save(path)
 
 
+def print_exit_criteria(
+    history: list[dict[str, float]],
+    *,
+    obs_std: float,
+    recon_std: float,
+    embed_std: float,
+) -> bool:
+    """Print PASS/FAIL against M3's exit criteria. Returns overall pass/fail."""
+    if len(history) < 2:
+        print("[SKIP] not enough logged steps to judge a trend")
+        return False
+
+    first, last = history[0], history[-1]
+
+    def pct_drop(key: str) -> float:
+        return 1.0 - (last[key] / max(first[key], 1e-8))
+
+    checks: list[tuple[str, bool, str]] = []
+    for key, min_drop in [("recon", 0.5), ("recon_embed", 0.5)]:
+        drop = pct_drop(key)
+        checks.append(
+            (
+                f"{key} loss dropped >= {min_drop:.0%} "
+                f"(first={first[key]:.4f} -> last={last[key]:.4f}, actual={drop:.0%})",
+                drop >= min_drop,
+                "recon isn't improving -- check lr, recon_scale, or a decoder/data bug",
+            )
+        )
+
+    kl_dyn_last = last["kl_dyn_raw"]
+    checks.append(
+        (
+            f"kl_dyn_raw is rising (first={first['kl_dyn_raw']:.3f} -> last={kl_dyn_last:.3f})",
+            kl_dyn_last > first["kl_dyn_raw"],
+            "posterior isn't learning to diverge from the prior at all",
+        )
+    )
+    checks.append(
+        (
+            f"kl_dyn_raw in a sane range (0.01 < {kl_dyn_last:.3f} < 8.0)",
+            0.01 < kl_dyn_last < 8.0,
+            "either dead latent (~0) or posterior fully ignoring the prior (huge)",
+        )
+    )
+
+    for name, std in [("recon", recon_std), ("recon_embed", embed_std)]:
+        ratio = std / max(obs_std, 1e-8)
+        checks.append(
+            (
+                f"{name} pixel std is close to real "
+                f"({name}_std={std:.4f} vs obs_std={obs_std:.4f}, ratio={ratio:.2f})",
+                ratio > 0.4,
+                f"{name} has collapsed toward a constant (solid-color) output",
+            )
+        )
+
+    all_pass = True
+    for description, ok, hint in checks:
+        status = "PASS" if ok else "FAIL"
+        print(f"[{status}] {description}")
+        if not ok:
+            print(f"       -> {hint}")
+            all_pass = False
+    print("RESULT:", "PASS -- M3 world model looks healthy" if all_pass else "FAIL -- see hints above")
+    return all_pass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=Path("configs/m3_world_model.yaml"))
@@ -61,6 +129,11 @@ def main() -> None:
     set_seed(int(cfg["seed"]))
     device = get_device()
     print(f"device: {device}")
+    if device.type != "mps":
+        print(
+            "WARNING: not running on MPS -- training will be ~10-20x slower on CPU. "
+            "Check torch.backends.mps.is_available()."
+        )
 
     replay_path = Path(cfg["collect"]["out_path"])
     if not replay_path.exists():
@@ -120,6 +193,8 @@ def main() -> None:
 
     model.train()
     history: list[dict[str, float]] = []
+    last_log_time = time.time()
+    last_log_step = start_step
     for step in range(start_step + 1, start_step + steps + 1):
         batch = buffer.sample(batch_size, seq_len)
         obs = batch["obs"].to(device)
@@ -176,12 +251,16 @@ def main() -> None:
             for k, v in metrics.items():
                 writer.add_scalar(f"m3/{k}", v, step)
             history.append({"step": step, **metrics})
+            now = time.time()
+            steps_per_sec = (step - last_log_step) / max(now - last_log_time, 1e-6)
+            last_log_time, last_log_step = now, step
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
                 f"recon={metrics['recon']:.4f}  emb={metrics['recon_embed']:.4f}  "
                 f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
                 f"kl={metrics['kl']:.4f} "
-                f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})"
+                f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})  "
+                f"{steps_per_sec:.2f} steps/s"
             )
 
         if step % image_every == 0 or step == 1:
@@ -215,7 +294,20 @@ def main() -> None:
     metrics_path.write_text(json.dumps(history, indent=2))
     writer.flush()
     writer.close()
+
+    model.eval()
+    with torch.no_grad():
+        vis = buffer.sample(8, seq_len)
+        v_out = model(vis["obs"].to(device), vis["actions"].to(device))
+        save_recon_grid(vis["obs"], v_out.recon, results_dir / "recon_final.png")
+        obs_std = float(
+            nhwc_uint8_to_nchw_float(vis["obs"].to(device)).std()
+        )
+        recon_std = float(v_out.recon.std())
+        embed_std = float(v_out.recon_embed.std())
+
     print(f"done. final ckpt={final} metrics={metrics_path}")
+    print_exit_criteria(history, obs_std=obs_std, recon_std=recon_std, embed_std=embed_std)
 
 
 if __name__ == "__main__":
