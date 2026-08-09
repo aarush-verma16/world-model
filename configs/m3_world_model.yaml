@@ -26,6 +26,20 @@
 # rewards matching *where* the image changes -- i.e. edges/outlines/text --
 # not just its color. This is the standard fix for "loss keeps dropping but
 # output stays smeared" in pixel-reconstruction models.
+#
+# grad_scale=15 (first attempt) was miscalibrated and had to be corrected
+# down to 1.5: it was tuned by matching grad_raw vs recon_raw on an UNTRAINED
+# model, where the two are similar magnitude (~0.4 vs ~0.7). But recon/embed
+# converge fast while grad_raw barely drops -- Crafter's dithered
+# grass/dirt textures have per-pixel noise, and matching that noise's exact
+# gradient is much harder than matching overall color even for an otherwise
+# good reconstruction. So a ratio tuned at step 0 inverted almost
+# immediately: by step 400 grad was ~70% of the total loss (scaled
+# contribution 5.1 vs recon+embed's combined 1.5), dominating and dragging
+# training toward near-unlearnable texture-noise-matching instead of actual
+# image quality. Keep grad's scaled contribution as a MINORITY of
+# recon+embed's combined scaled contribution -- it's a sharpening nudge, not
+# the primary objective.
 
 seed: 0
 
@@ -82,10 +96,11 @@ train:
   continue_scale: 1.0
   kl_scale: 1.0
   # Edge-aware term on [h,z] + embed decodes combined (see comment above).
-  # Sized against an untrained-model check: grad_l1 raw values run ~4x
-  # smaller than pixel L1 at the same point in training, so this scale is set
-  # noticeably higher than recon_scale to give edges real weight in the total.
-  grad_scale: 15.0
+  # Calibrated against a live run's step-400 numbers (grad_raw=0.34,
+  # recon_raw=0.20, recon_embed_raw=0.10) to land grad's scaled contribution
+  # at roughly a third of recon+embed's combined scaled contribution --
+  # enough to meaningfully push on edges without overriding pixel accuracy.
+  grad_scale: 1.5
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3
