@@ -24,6 +24,8 @@ class WorldModelLossBreakdown:
     kl: Tensor
     kl_dyn: Tensor
     kl_rep: Tensor
+    kl_dyn_raw: Tensor
+    kl_rep_raw: Tensor
 
 
 def categorical_kl(
@@ -75,16 +77,18 @@ def kl_balance(
         `(kl_loss, kl_dyn_mean, kl_rep_mean)` — `kl_loss` is the scalar used in
         the total loss; the means are for TensorBoard.
     """
-    kl_dyn = categorical_kl(post_logits.detach(), prior_logits, unimix=unimix)
-    kl_rep = categorical_kl(post_logits, prior_logits.detach(), unimix=unimix)
-    if free_nats > 0.0:
-        kl_dyn = kl_dyn.clamp_min(free_nats)
-        kl_rep = kl_rep.clamp_min(free_nats)
-    # Mean over batch, time, and categorical variables.
+    kl_dyn_raw = categorical_kl(post_logits.detach(), prior_logits, unimix=unimix)
+    kl_rep_raw = categorical_kl(post_logits, prior_logits.detach(), unimix=unimix)
+    # Means *before* the free-nats floor — if these stay ≈ floor, latents are
+    # not carrying observation-specific information (decoder painting averages).
+    kl_dyn_raw_mean = kl_dyn_raw.mean()
+    kl_rep_raw_mean = kl_rep_raw.mean()
+    kl_dyn = kl_dyn_raw.clamp_min(free_nats) if free_nats > 0.0 else kl_dyn_raw
+    kl_rep = kl_rep_raw.clamp_min(free_nats) if free_nats > 0.0 else kl_rep_raw
     kl_dyn_mean = kl_dyn.mean()
     kl_rep_mean = kl_rep.mean()
     kl_loss = dyn_scale * kl_dyn_mean + rep_scale * kl_rep_mean
-    return kl_loss, kl_dyn_mean, kl_rep_mean
+    return kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean
 
 
 def world_model_loss(
@@ -134,7 +138,7 @@ def world_model_loss(
     cont_logit = cont_logit.squeeze(-1)
     continue_loss = F.binary_cross_entropy_with_logits(cont_logit, cont.float())
 
-    kl_loss, kl_dyn, kl_rep = kl_balance(
+    kl_loss, kl_dyn, kl_rep, kl_dyn_raw, kl_rep_raw = kl_balance(
         post_logits,
         prior_logits,
         unimix=unimix,
@@ -157,4 +161,6 @@ def world_model_loss(
         kl=kl_loss,
         kl_dyn=kl_dyn,
         kl_rep=kl_rep,
+        kl_dyn_raw=kl_dyn_raw,
+        kl_rep_raw=kl_rep_raw,
     )

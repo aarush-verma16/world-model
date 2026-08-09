@@ -50,11 +50,13 @@ def test_heads_forward_and_grad() -> None:
 def test_kl_balance_asymmetric_and_finite() -> None:
     post = torch.randn(2, 4, 3, 5, requires_grad=True)
     prior = torch.randn(2, 4, 3, 5, requires_grad=True)
-    kl, dyn, rep = kl_balance(
+    kl, dyn, rep, dyn_raw, rep_raw = kl_balance(
         post, prior, unimix=0.01, dyn_scale=0.5, rep_scale=0.1, free_nats=1.0
     )
     assert torch.isfinite(kl)
     assert dyn.item() >= 1.0 - 1e-5  # free-nats floor after mean ≥ 1 if all clamped
+    assert dyn_raw.item() <= dyn.item() + 1e-5
+    assert rep_raw.item() <= rep.item() + 1e-5
     kl.backward()
     assert prior.grad is not None and post.grad is not None
     # dyn path stopgrads post for that term; rep path stopgrads prior — both

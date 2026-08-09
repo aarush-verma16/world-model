@@ -1,11 +1,8 @@
-"""CNN decoder: reconstructs Crafter frames from an embedding.
+"""CNN decoder: reconstructs Crafter frames from an embedding / RSSM feature.
 
-Role in the Dreamer loop (M1): reconstruction target for the encoder. Later the
-decoder will condition on `[h, z]` from the RSSM; for M1 it only sees the
-encoder embedding (no recurrence yet).
-
-Uses nearest-neighbor upsample + conv (not ConvTranspose2d) to avoid the
-blurry/checkerboard look that hurts pixel-art reconstructions.
+Used by the M1 skip-free encode→decode path and by the M3 world model
+(decoding from `concat(h, flatten(z))`). Nearest upsample + conv avoids
+ConvTranspose checkerboard artifacts on pixel art.
 """
 
 from __future__ import annotations
@@ -13,10 +10,21 @@ from __future__ import annotations
 from torch import Tensor, nn
 
 
+def _upsample_block(in_ch: int, out_ch: int) -> nn.Sequential:
+    """×2 nearest upsample then two 3×3 convs (extra capacity vs single conv)."""
+    return nn.Sequential(
+        nn.Upsample(scale_factor=2, mode="nearest"),
+        nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1),
+        nn.SiLU(),
+        nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1),
+        nn.SiLU(),
+    )
+
+
 class Decoder(nn.Module):
     """Embedding → image: `[B, embed_dim]` → `[B, 3, 64, 64]` in `[-1, 1]`.
 
-    Path: embed → 4x4 map, then four (nearest×2 + Conv3x3) stages to 64x64.
+    Path: embed → 4×4 map, then four (nearest×2 + dual-conv) stages to 64×64.
     """
 
     def __init__(
@@ -36,18 +44,16 @@ class Decoder(nn.Module):
         if embed_dim == flat_dim:
             self.fc = nn.Identity()
         else:
-            self.fc = nn.Linear(embed_dim, flat_dim)
+            self.fc = nn.Sequential(
+                nn.Linear(embed_dim, flat_dim),
+                nn.LayerNorm(flat_dim),
+                nn.SiLU(),
+            )
 
         stages: list[nn.Module] = []
         prev = channels[0]
         for ch in channels[1:]:
-            stages.append(
-                nn.Sequential(
-                    nn.Upsample(scale_factor=2, mode="nearest"),
-                    nn.Conv2d(prev, ch, kernel_size=3, padding=1),
-                    nn.SiLU(),
-                )
-            )
+            stages.append(_upsample_block(prev, ch))
             prev = ch
         stages.append(
             nn.Sequential(

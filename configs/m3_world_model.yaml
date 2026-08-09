@@ -1,20 +1,20 @@
-# Milestone 3 — full world-model training (recon + reward + continue + KL balance).
-# Dims match M2 scale for 24GB MPS headroom.
-#
-# First 5k-step run used MSE recon @ scale 1.0 → blurry mean-color mush and KL
-# stuck on the free-nats floor. This config pushes L1 recon harder, gives the
-# decoder more channels, and lowers free_nats so latents have to carry detail.
+# Milestone 3 — world-model training (recon-heavy, higher capacity).
+# Tuned after two underpowered runs that produced green mush: KL sat on the
+# free-nats floor so z carried almost no detail. This config forces the
+# representation to do more work and gives encoder/decoder room to express it.
 
 seed: 0
 
 encoder:
-  embed_dim: 1024
-  channels: [32, 64, 128, 256]
+  # Was 1024 / [32,64,128,256] — too weak vs M1's perception stack.
+  embed_dim: 2048
+  channels: [64, 128, 256, 512]
 
 rssm:
   deter_dim: 512
-  stoch: 16
-  classes: 16
+  # Was 16x16. 32x32 matches DreamerV3's latent grid (still ok on 24GB at batch 4).
+  stoch: 32
+  classes: 32
   hidden: 512
   unimix: 0.01
   act: silu
@@ -22,7 +22,6 @@ rssm:
   rec_depth: 1
 
 decoder:
-  # Was [256, 128, 64, 32] — too weak for readable Crafter sprites/UI.
   channels: [512, 256, 128, 64]
 
 heads:
@@ -34,27 +33,28 @@ env:
   action_dim: 17
 
 collect:
-  num_episodes: 40
+  num_episodes: 80
   max_episode_steps: 400
   out_path: data/m3_replay.pt
 
 train:
-  batch_size: 8
+  # Smaller batch for the larger latent on MPS.
+  batch_size: 4
   seq_len: 32
-  lr: 2.0e-4
-  steps: 8000
+  lr: 1.0e-4
+  steps: 15000
   log_every: 50
   checkpoint_every: 1000
   image_every: 500
-  # KL balancing (Dreamer-style). dyn trains prior→post; rep trains post→prior.
   dyn_scale: 0.5
   rep_scale: 0.1
-  free_nats: 0.5
+  # Low free-nats so the floor doesn't hide an unused latent.
+  free_nats: 0.1
   recon_loss: l1
-  recon_scale: 10.0
+  recon_scale: 40.0
   reward_scale: 1.0
   continue_scale: 1.0
-  kl_scale: 0.5
+  kl_scale: 0.1
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3

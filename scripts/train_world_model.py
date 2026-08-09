@@ -165,6 +165,8 @@ def main() -> None:
             "kl": float(loss.kl.detach()),
             "kl_dyn": float(loss.kl_dyn.detach()),
             "kl_rep": float(loss.kl_rep.detach()),
+            "kl_dyn_raw": float(loss.kl_dyn_raw.detach()),
+            "kl_rep_raw": float(loss.kl_rep_raw.detach()),
         }
 
         if step % log_every == 0 or step == 1:
@@ -175,7 +177,7 @@ def main() -> None:
                 f"step {step:5d}  total={metrics['total']:.4f}  "
                 f"recon={metrics['recon']:.4f}  rew={metrics['reward']:.4f}  "
                 f"cont={metrics['continue']:.4f}  kl={metrics['kl']:.4f} "
-                f"(dyn={metrics['kl_dyn']:.3f} rep={metrics['kl_rep']:.3f})"
+                f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})"
             )
 
         if step % image_every == 0 or step == 1:
