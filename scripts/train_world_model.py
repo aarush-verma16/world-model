@@ -80,19 +80,24 @@ def print_exit_criteria(
             )
         )
 
+    # kl_dyn_raw is the TOTAL KL of the latent (summed over stoch groups). It's
+    # expected to sit at/below free_nats for most (or all) of training -- that's
+    # what the free-nats floor is for, not a target to exceed. Real failure
+    # modes are collapse toward ~0 (dead latent) or blowing up (posterior
+    # ignoring the prior, bad for imagination rollouts).
     kl_dyn_last = last["kl_dyn_raw"]
     checks.append(
         (
-            f"kl_dyn_raw is rising (first={first['kl_dyn_raw']:.3f} -> last={kl_dyn_last:.3f})",
-            kl_dyn_last > first["kl_dyn_raw"],
-            "posterior isn't learning to diverge from the prior at all",
+            f"kl_dyn_raw isn't dead (last={kl_dyn_last:.3f} > 0.02)",
+            kl_dyn_last > 0.02,
+            "posterior has collapsed onto the prior -- latent carries ~no information",
         )
     )
     checks.append(
         (
-            f"kl_dyn_raw in a sane range (0.01 < {kl_dyn_last:.3f} < 8.0)",
-            0.01 < kl_dyn_last < 8.0,
-            "either dead latent (~0) or posterior fully ignoring the prior (huge)",
+            f"kl_dyn_raw hasn't exploded (last={kl_dyn_last:.3f} < 30.0)",
+            kl_dyn_last < 30.0,
+            "posterior is ignoring the prior entirely -- imagination rollouts will drift badly",
         )
     )
 

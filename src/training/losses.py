@@ -60,13 +60,24 @@ def kl_balance(
     rep_scale: float = 0.1,
     free_nats: float = 1.0,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-    """DreamerV2/V3 KL balancing with free-nats floor.
+    """DreamerV2/V3 KL balancing with a free-nats floor on the *whole latent*.
+
+    The `stoch` categorical variables are independent, so the joint KL of the
+    full latent at one timestep is the **sum** (not average) of the per-variable
+    KLs. Dreamer's `max(free_nats, KL)` floor applies to that per-timestep sum.
+    Clamping each of the ~16-32 categorical variables individually (i.e. before
+    summing) makes the floor far too strict — it would require *every single*
+    variable to individually carry a full free nat, instead of the latent as a
+    whole carrying one. That bug kept the KL loss pinned at the floor almost
+    indefinitely even once the latent was already informative.
 
     Returns:
         `(kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean)`
+        where the `_raw` values are the mean per-timestep *total* KL (summed
+        over `stoch`, averaged over batch/time) before the free-nats floor.
     """
-    kl_dyn_raw = categorical_kl(post_logits.detach(), prior_logits, unimix=unimix)
-    kl_rep_raw = categorical_kl(post_logits, prior_logits.detach(), unimix=unimix)
+    kl_dyn_raw = categorical_kl(post_logits.detach(), prior_logits, unimix=unimix).sum(dim=-1)
+    kl_rep_raw = categorical_kl(post_logits, prior_logits.detach(), unimix=unimix).sum(dim=-1)
     kl_dyn_raw_mean = kl_dyn_raw.mean()
     kl_rep_raw_mean = kl_rep_raw.mean()
     kl_dyn = kl_dyn_raw.clamp_min(free_nats) if free_nats > 0.0 else kl_dyn_raw
