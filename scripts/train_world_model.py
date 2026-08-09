@@ -231,6 +231,7 @@ def main() -> None:
             reward_scale=float(train["reward_scale"]),
             continue_scale=float(train["continue_scale"]),
             kl_scale=float(train["kl_scale"]),
+            grad_scale=float(train.get("grad_scale", 0.0)),
             recon_loss_type=str(train.get("recon_loss", "l1")),
         )
 
@@ -243,6 +244,7 @@ def main() -> None:
             "total": float(loss.total.detach()),
             "recon": float(loss.recon.detach()),
             "recon_embed": float(loss.recon_embed.detach()),
+            "grad": float(loss.grad.detach()),
             "reward": float(loss.reward.detach()),
             "continue": float(loss.continue_loss.detach()),
             "kl": float(loss.kl.detach()),
@@ -262,6 +264,7 @@ def main() -> None:
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
                 f"recon={metrics['recon']:.4f}  emb={metrics['recon_embed']:.4f}  "
+                f"grad={metrics['grad']:.4f}  "
                 f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
                 f"kl={metrics['kl']:.4f} "
                 f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})  "

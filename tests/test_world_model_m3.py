@@ -7,7 +7,7 @@ import torch
 from models.heads import ContinueHead, RewardHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_float
 from models.world_model import WorldModel
-from training.losses import categorical_kl, kl_balance, world_model_loss
+from training.losses import categorical_kl, gradient_l1_loss, kl_balance, world_model_loss
 from training.replay_buffer import ReplayBuffer
 
 
@@ -69,6 +69,26 @@ def test_categorical_kl_zero_when_identical() -> None:
     assert torch.allclose(kl, torch.zeros_like(kl), atol=1e-5)
 
 
+def test_gradient_l1_loss_zero_when_identical_and_positive_when_shifted() -> None:
+    img = torch.rand(2, 3, 3, 8, 8)
+    assert torch.allclose(gradient_l1_loss(img, img), torch.zeros(()), atol=1e-6)
+
+    flat = torch.zeros(2, 3, 3, 8, 8)
+    edgy = flat.clone()
+    edgy[..., 4:] = 1.0  # a hard edge the flat target doesn't have
+    loss = gradient_l1_loss(edgy, flat)
+    assert loss.item() > 0.0
+
+
+def test_gradient_l1_loss_backward() -> None:
+    pred = torch.randn(2, 3, 8, 8, requires_grad=True)
+    target = torch.randn(2, 3, 8, 8)
+    loss = gradient_l1_loss(pred, target)
+    loss.backward()
+    assert pred.grad is not None
+    assert torch.isfinite(pred.grad).all()
+
+
 def test_world_model_forward_shapes_and_loss_backward() -> None:
     wm = _tiny_wm()
     b, t = 2, 6
@@ -97,9 +117,11 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
         post_logits=out.rssm.posterior_logits,
         prior_logits=out.rssm.prior_logits,
         unimix=wm.rssm.unimix,
+        grad_scale=2.0,
         recon_loss_type="l1",
     )
     assert torch.isfinite(loss.total)
+    assert torch.isfinite(loss.grad)
     loss.total.backward()
     assert wm.encoder.conv[0].weight.grad is not None
     assert wm.rssm.prior_net[0].weight.grad is not None

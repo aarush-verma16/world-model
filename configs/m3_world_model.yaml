@@ -8,12 +8,24 @@
 # stoch/classes bumped 16x16 -> 32x32: that's DreamerV3's standard latent size
 # across all their published model scales (arXiv:2301.04104). A 16x16 latent
 # (256 total classes) has ~4x less raw representational capacity than what the
-# recipe this repo follows actually uses, which is the real reason a prior run
-# plateaued at a noticeably blurry `[h,z]` reconstruction around step 8-9k
-# instead of continuing to sharpen. Note that the primary `[h,z]` decoder can
-# never use U-Net skip connections like M1's autoencoder does (imagined
-# rollouts have no raw pixels to skip from), so the *only* legitimate lever
-# for its sharpness is genuine latent/model capacity -- not a decoder trick.
+# recipe this repo follows actually uses. Note that the primary `[h,z]`
+# decoder can never use U-Net skip connections like M1's autoencoder does
+# (imagined rollouts have no raw pixels to skip from), so genuine latent/model
+# capacity is one legitimate lever for its sharpness -- but it's not the only
+# one, see grad_scale below.
+#
+# grad_scale added: a run at the 32x32 latent was still visibly improving
+# (recon trend was -10% i.e. still dropping, not plateaued) at step ~9k, yet
+# the background and HUD bar stayed blurry/illegible. Root cause isn't
+# capacity, it's the objective: plain per-pixel L1 rewards matching a region's
+# *average* color, so a 1-2px sprite outline or HUD icon/number stroke (a
+# small fraction of a region's pixels, confirmed by inspecting a real frame --
+# the HUD bar's icon/number detail lives in ~4 of its ~15 rows, the rest is
+# flat black) barely moves that average. `grad_scale` adds an L1 loss on
+# image finite-difference gradients (see `gradient_l1_loss`), which explicitly
+# rewards matching *where* the image changes -- i.e. edges/outlines/text --
+# not just its color. This is the standard fix for "loss keeps dropping but
+# output stays smeared" in pixel-reconstruction models.
 
 seed: 0
 
@@ -69,6 +81,11 @@ train:
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0
+  # Edge-aware term on [h,z] + embed decodes combined (see comment above).
+  # Sized against an untrained-model check: grad_l1 raw values run ~4x
+  # smaller than pixel L1 at the same point in training, so this scale is set
+  # noticeably higher than recon_scale to give edges real weight in the total.
+  grad_scale: 15.0
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3

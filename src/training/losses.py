@@ -1,7 +1,8 @@
 """World-model loss terms, including Dreamer-style KL balancing.
 
-Loss = recon_[h,z] + recon_embed + reward + continue + KL, logged separately so
-a healthy sum cannot hide a collapsed/exploding KL (M3 exit criterion).
+Loss = recon_[h,z] + recon_embed + grad (edge-aware) + reward + continue + KL,
+logged separately so a healthy sum cannot hide a collapsed/exploding KL (M3
+exit criterion).
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ class WorldModelLossBreakdown:
     total: Tensor
     recon: Tensor
     recon_embed: Tensor
+    grad: Tensor
     reward: Tensor
     continue_loss: Tensor
     kl: Tensor
@@ -96,6 +98,28 @@ def _pixel_loss(pred: Tensor, target: Tensor, kind: str) -> Tensor:
     raise ValueError(f"unknown recon_loss_type {kind!r}")
 
 
+def gradient_l1_loss(pred: Tensor, target: Tensor) -> Tensor:
+    """L1 loss between image finite-difference gradients (edge-aware term).
+
+    Plain per-pixel L1/MSE rewards matching a region's *average* color, so a
+    1-2px sprite outline or HUD icon/number stroke (a tiny fraction of a
+    region's pixels) barely moves that average -- the optimizer has little
+    incentive to sharpen it even as pixel loss keeps dropping. Comparing
+    horizontal/vertical finite differences instead explicitly rewards
+    matching *where* the image changes, which is what "sharp edges" actually
+    means. This directly targets blurry backgrounds and illegible HUD bars
+    that persist despite falling pixel loss.
+
+    Args:
+        pred / target: `[..., C, H, W]`, any leading dims.
+    """
+    pred_dx = pred[..., :, 1:] - pred[..., :, :-1]
+    pred_dy = pred[..., 1:, :] - pred[..., :-1, :]
+    target_dx = target[..., :, 1:] - target[..., :, :-1]
+    target_dy = target[..., 1:, :] - target[..., :-1, :]
+    return F.l1_loss(pred_dx, target_dx) + F.l1_loss(pred_dy, target_dy)
+
+
 def world_model_loss(
     *,
     obs: Tensor,
@@ -116,6 +140,7 @@ def world_model_loss(
     reward_scale: float = 1.0,
     continue_scale: float = 1.0,
     kl_scale: float = 1.0,
+    grad_scale: float = 0.0,
     recon_loss_type: str = "l1",
 ) -> WorldModelLossBreakdown:
     """Assemble world-model terms.
@@ -126,9 +151,13 @@ def world_model_loss(
         reward_pred / cont_logit: `[B, T, 1]` or `[B, T]`
         cont: `[B, T]` in `{0, 1}`
         post_logits / prior_logits: `[B, T, stoch, classes]`
+        grad_scale: weight on the edge-aware gradient term (see
+            `gradient_l1_loss`); `0.0` disables it entirely (default, for
+            backward compat with earlier checkpoints/configs).
     """
     recon_loss = _pixel_loss(recon, obs, recon_loss_type)
     recon_embed_loss = _pixel_loss(recon_embed, obs, recon_loss_type)
+    grad_loss = gradient_l1_loss(recon, obs) + gradient_l1_loss(recon_embed, obs)
 
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
@@ -151,11 +180,13 @@ def world_model_loss(
         + reward_scale * reward_loss
         + continue_scale * continue_loss
         + kl_scale * kl_loss
+        + grad_scale * grad_loss
     )
     return WorldModelLossBreakdown(
         total=total,
         recon=recon_loss,
         recon_embed=recon_embed_loss,
+        grad=grad_loss,
         reward=reward_loss,
         continue_loss=continue_loss,
         kl=kl_loss,
