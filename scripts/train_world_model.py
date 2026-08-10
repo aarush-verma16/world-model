@@ -57,6 +57,8 @@ def print_exit_criteria(
     obs_std: float,
     recon_std: float,
     embed_std: float,
+    reward_true: np.ndarray | None = None,
+    reward_pred: np.ndarray | None = None,
 ) -> bool:
     """Print PASS/FAIL against M3's exit criteria. Returns overall pass/fail."""
     if len(history) < 2:
@@ -108,9 +110,39 @@ def print_exit_criteria(
                 f"{name} pixel std is close to real "
                 f"({name}_std={std:.4f} vs obs_std={obs_std:.4f}, ratio={ratio:.2f})",
                 ratio > 0.4,
-                f"{name} has collapsed toward a constant (solid-color) output",
+                f"{name} has collapsed toward a constant (solid-color) output -- "
+                "note: this only checks AGGREGATE pixel variance, not WHETHER that "
+                "variance is in the right place. A model that nails big-block "
+                "background color while dropping every small object (HUD digits, "
+                "mobs, precise player pose) can still pass this check -- eyeball "
+                "recon_final.png, don't rely on this alone.",
             )
         )
+
+    # M3's actual documented exit criterion (milestones.md) is reward prediction
+    # CORRELATION with real reward, not pixel fidelity -- this is the check that
+    # matters for whether the latent is control-useful, independent of how the
+    # `[h,z]` panel looks.
+    if reward_true is not None and reward_pred is not None:
+        if reward_true.std() > 1e-8 and reward_pred.std() > 1e-8:
+            corr = float(np.corrcoef(reward_true, reward_pred)[0, 1])
+            checks.append(
+                (
+                    f"reward prediction correlates with real reward (r={corr:.2f})",
+                    corr > 0.3,
+                    "reward head isn't tracking real reward -- latent may not be "
+                    "carrying reward-relevant information",
+                )
+            )
+        else:
+            checks.append(
+                (
+                    "reward prediction correlation: SKIPPED (degenerate std -- too "
+                    "few nonzero-reward examples in this sample)",
+                    True,
+                    "",
+                )
+            )
 
     all_pass = True
     for description, ok, hint in checks:
@@ -314,8 +346,27 @@ def main() -> None:
         recon_std = float(v_out.recon.std())
         embed_std = float(v_out.recon_embed.std())
 
+        # Held-out-ish reward correlation check (M3's actual documented exit
+        # criterion): sample several fresh sequences the loss wasn't just
+        # computed on.
+        true_chunks, pred_chunks = [], []
+        for _ in range(20):
+            rb = buffer.sample(batch_size, seq_len)
+            r_out = model(rb["obs"].to(device), rb["actions"].to(device))
+            true_chunks.append(rb["rewards"].numpy().reshape(-1))
+            pred_chunks.append(r_out.reward_pred.squeeze(-1).cpu().numpy().reshape(-1))
+        reward_true = np.concatenate(true_chunks)
+        reward_pred = np.concatenate(pred_chunks)
+
     print(f"done. final ckpt={final} metrics={metrics_path}")
-    print_exit_criteria(history, obs_std=obs_std, recon_std=recon_std, embed_std=embed_std)
+    print_exit_criteria(
+        history,
+        obs_std=obs_std,
+        recon_std=recon_std,
+        embed_std=embed_std,
+        reward_true=reward_true,
+        reward_pred=reward_pred,
+    )
 
 
 if __name__ == "__main__":
