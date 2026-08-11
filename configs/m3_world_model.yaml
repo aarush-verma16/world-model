@@ -43,8 +43,20 @@
 
 seed: 0
 
+# embed_dim=8192 == channels[-1]*4*4 (512*4*4) so the encoder's flatten IS
+# the embedding, no mixing nn.Linear in between (see Encoder's own docstring).
+# It was previously 2048, which silently inserted a Linear(8192, 2048) that
+# mixes every spatial location together before the RSSM ever sees it -- a
+# real structural bottleneck, not a loss-tuning problem. M1's config already
+# used embed_dim=8192 with these same channels for exactly this reason (it's
+# why M1 hit near-pixel-identical recon); M3 lost that when embed_dim was
+# bumped for "more capacity" without preserving the flat_dim match. This is
+# almost certainly why scattered mobs/trees/rocks/HUD digits never made it
+# into [h,z] or even the embed-only recon, regardless of RSSM latent size,
+# grad_scale, or free_nats -- the encoder was throwing the spatial detail
+# away before any of those ever got a chance to use it.
 encoder:
-  embed_dim: 2048
+  embed_dim: 8192
   channels: [64, 128, 256, 512]
 
 rssm:
@@ -86,6 +98,17 @@ train:
   image_every: 50
   dyn_scale: 0.5
   rep_scale: 0.1
+  # Reverted 3.0 -> 1.0 (DreamerV3 default). The free_nats=3.0 experiment
+  # (resuming the 12k ckpt) made kl's scaled contribution balloon (most
+  # per-timestep KL values sit below 3.0 and get clamp_min'd UP to exactly
+  # 3.0 for the loss average -- clamp_min's gradient is zero there, so this
+  # inflated the displayed loss without adding any real upward pressure) AND
+  # recon regressed (-11.7% trend, i.e. got worse) rather than improved.
+  # Root cause turned out to be upstream of the KL floor entirely: the
+  # encoder's embed_dim mismatch (see above) was throwing away spatial detail
+  # before the RSSM ever saw it, so no KL-floor tuning could have fixed this.
+  # Reverting here isolates that fix -- re-test free_nats separately later
+  # if content is still missing once the encoder bottleneck is gone.
   free_nats: 1.0
   recon_loss: l1
   # Primary: decode from [h, z_posterior]
