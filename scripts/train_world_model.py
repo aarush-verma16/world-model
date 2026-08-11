@@ -202,6 +202,7 @@ def main() -> None:
         decoder_channels=tuple(int(c) for c in dec.get("channels", [256, 128, 64, 32])),
         head_hidden=int(heads.get("hidden", 512)),
         head_layers=int(heads.get("layers", 2)),
+        stem_channels=int(enc.get("stem_channels", 64)),
     ).to(device)
 
     optim = torch.optim.Adam(model.parameters(), lr=float(train["lr"]))

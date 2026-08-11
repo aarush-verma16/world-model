@@ -40,6 +40,26 @@
 # image quality. Keep grad's scaled contribution as a MINORITY of
 # recon+embed's combined scaled contribution -- it's a sharpening nudge, not
 # the primary objective.
+#
+# BIG architecture change: recon_embed now decodes through M1's
+# PerceptionAutoencoder (full U-Net skips: stem@64 + 3 intermediate
+# resolutions), not a plain skip-free Decoder. Evidence this was the real
+# remaining bottleneck: even after the embed_dim fix above, at step 9600
+# BOTH [h,z] recon AND recon_embed still had zero trees/mobs/HUD digits and
+# a mostly-blank inventory bar. recon_embed has NO RSSM/KL involved at all --
+# it's a pure encoder(real frame)->embed->decoder(embed) round trip, exactly
+# the M1 problem M1 already solved to near-pixel-identical quality. The only
+# structural difference from M1's proven setup was the missing skip
+# connections (M1's own no-skip ablation, results/m1/recon_no_obs_skip.png,
+# already showed skip-free reconstruction losing sharp small-object detail).
+# Skips are legitimate here specifically because recon_embed always decodes
+# an embedding computed from a REAL frame, so that same frame's own
+# intermediate encoder activations are available -- unlike the primary
+# [h,z] decoder, which must stay skip-free since imagination has no real
+# frame to skip from. This does NOT fix [h,z] recon directly, but a much
+# better-supervised encoder (real gradient signal for actually preserving
+# small objects, not just average color) should feed the RSSM a richer
+# embedding to compress into z.
 
 seed: 0
 
@@ -58,6 +78,8 @@ seed: 0
 encoder:
   embed_dim: 8192
   channels: [64, 128, 256, 512]
+  # Full-res stem for the recon_embed U-Net skip path (see PerceptionAutoencoder).
+  stem_channels: 64
 
 rssm:
   deter_dim: 512

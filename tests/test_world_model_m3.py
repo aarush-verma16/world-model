@@ -123,11 +123,11 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     assert torch.isfinite(loss.total)
     assert torch.isfinite(loss.grad)
     loss.total.backward()
-    assert wm.encoder.conv[0].weight.grad is not None
+    assert wm.perception.stem[0].weight.grad is not None
     assert wm.rssm.prior_net[0].weight.grad is not None
     assert wm.reward_head.net[0].weight.grad is not None
-    assert wm.embed_decoder.fc.weight.grad is not None or isinstance(
-        wm.embed_decoder.fc, torch.nn.Identity
+    assert wm.perception.from_embed.weight.grad is not None or isinstance(
+        wm.perception.from_embed, torch.nn.Identity
     )
 
 
