@@ -100,6 +100,7 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     out = wm(obs, actions)
     assert out.recon.shape == (b, t, 3, 64, 64)
     assert out.recon_embed.shape == (b, t, 3, 64, 64)
+    assert out.recon_bottleneck.shape == (b, t, 3, 64, 64)
     assert out.reward_pred.shape == (b, t, 1)
     assert out.cont_logit.shape == (b, t, 1)
     assert out.rssm.z_prior.shape == (b, t, 4, 4)
@@ -110,6 +111,7 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
         obs=obs_f,
         recon=out.recon,
         recon_embed=out.recon_embed,
+        recon_bottleneck=out.recon_bottleneck,
         reward=rewards,
         reward_pred=out.reward_pred,
         cont=cont,
@@ -128,6 +130,9 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     assert wm.reward_head.net[0].weight.grad is not None
     assert wm.perception.from_embed.weight.grad is not None or isinstance(
         wm.perception.from_embed, torch.nn.Identity
+    )
+    assert wm.embed_decoder_bottleneck.fc.weight.grad is not None or isinstance(
+        wm.embed_decoder_bottleneck.fc, torch.nn.Identity
     )
 
 

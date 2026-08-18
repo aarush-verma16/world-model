@@ -60,6 +60,20 @@
 # better-supervised encoder (real gradient signal for actually preserving
 # small objects, not just average color) should feed the RSSM a richer
 # embedding to compress into z.
+#
+# CORRECTION to the above, found via decoder-probe testing the resulting 3k-
+# step checkpoint: recon_embed's near-instant convergence to ~0.004 L1 did NOT
+# mean the embedding got richer. A skip-free decode of the exact same frozen
+# embedding (no skips at all -- what the RSSM actually sees) scored ~0.17 L1,
+# statistically the same as [h,z]'s ~0.16 -- both just as blind to
+# rocks/water/sand. The U-Net skips were doing nearly all of recon_embed's
+# work; the bottleneck vector itself was never forced to carry that content.
+# Since the RSSM only ever receives the embedding (never the skips), that low
+# recon_embed loss was not evidence of a richer signal reaching [h,z] at all.
+# Fix: `recon_bottleneck_scale` below adds a THIRD decode head -- embedding
+# alone, no skips -- so the only way to lower ITS loss is for the embedding
+# itself to encode the content. See `WorldModel`'s docstring and
+# `training/losses.py` for the full writeup.
 
 seed: 0
 
@@ -135,8 +149,13 @@ train:
   recon_loss: l1
   # Primary: decode from [h, z_posterior]
   recon_scale: 5.0
-  # Aux: decode from encoder embed (keeps perception sharp early)
+  # Aux #1: decode from embed + U-Net skips (tests encoder CNN capability).
   recon_embed_scale: 5.0
+  # Aux #2: decode from embed ALONE, no skips -- the one that actually
+  # supervises what the RSSM receives. Same scale as recon_embed_scale to
+  # start; watch this term specifically, not recon_embed, when judging
+  # whether the embedding is getting richer.
+  recon_bottleneck_scale: 5.0
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0

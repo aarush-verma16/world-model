@@ -57,6 +57,7 @@ def print_exit_criteria(
     obs_std: float,
     recon_std: float,
     embed_std: float,
+    bottleneck_std: float,
     reward_true: np.ndarray | None = None,
     reward_pred: np.ndarray | None = None,
 ) -> bool:
@@ -71,7 +72,7 @@ def print_exit_criteria(
         return 1.0 - (last[key] / max(first[key], 1e-8))
 
     checks: list[tuple[str, bool, str]] = []
-    for key, min_drop in [("recon", 0.5), ("recon_embed", 0.5)]:
+    for key, min_drop in [("recon", 0.5), ("recon_embed", 0.5), ("recon_bottleneck", 0.5)]:
         drop = pct_drop(key)
         checks.append(
             (
@@ -103,7 +104,11 @@ def print_exit_criteria(
         )
     )
 
-    for name, std in [("recon", recon_std), ("recon_embed", embed_std)]:
+    for name, std in [
+        ("recon", recon_std),
+        ("recon_embed", embed_std),
+        ("recon_bottleneck", bottleneck_std),
+    ]:
         ratio = std / max(obs_std, 1e-8)
         checks.append(
             (
@@ -249,6 +254,7 @@ def main() -> None:
             obs=obs_f,
             recon=out.recon,
             recon_embed=out.recon_embed,
+            recon_bottleneck=out.recon_bottleneck,
             reward=rewards,
             reward_pred=out.reward_pred,
             cont=cont,
@@ -261,6 +267,7 @@ def main() -> None:
             free_nats=float(train["free_nats"]),
             recon_scale=float(train["recon_scale"]),
             recon_embed_scale=float(train.get("recon_embed_scale", 1.0)),
+            recon_bottleneck_scale=float(train.get("recon_bottleneck_scale", 1.0)),
             reward_scale=float(train["reward_scale"]),
             continue_scale=float(train["continue_scale"]),
             kl_scale=float(train["kl_scale"]),
@@ -277,6 +284,7 @@ def main() -> None:
             "total": float(loss.total.detach()),
             "recon": float(loss.recon.detach()),
             "recon_embed": float(loss.recon_embed.detach()),
+            "recon_bottleneck": float(loss.recon_bottleneck.detach()),
             "grad": float(loss.grad.detach()),
             "reward": float(loss.reward.detach()),
             "continue": float(loss.continue_loss.detach()),
@@ -297,6 +305,7 @@ def main() -> None:
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
                 f"recon={metrics['recon']:.4f}  emb={metrics['recon_embed']:.4f}  "
+                f"bneck={metrics['recon_bottleneck']:.4f}  "
                 f"grad={metrics['grad']:.4f}  "
                 f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
                 f"kl={metrics['kl']:.4f} "
@@ -346,6 +355,7 @@ def main() -> None:
         )
         recon_std = float(v_out.recon.std())
         embed_std = float(v_out.recon_embed.std())
+        bottleneck_std = float(v_out.recon_bottleneck.std())
 
         # Held-out-ish reward correlation check (M3's actual documented exit
         # criterion): sample several fresh sequences the loss wasn't just
@@ -365,6 +375,7 @@ def main() -> None:
         obs_std=obs_std,
         recon_std=recon_std,
         embed_std=embed_std,
+        bottleneck_std=bottleneck_std,
         reward_true=reward_true,
         reward_pred=reward_pred,
     )

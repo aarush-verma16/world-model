@@ -2,19 +2,27 @@
 
 Trains on real replay sequences (M3). Imagination / actor-critic is M4.
 
-Also keeps an **embed path** (obs → encoder → pixels) as an auxiliary
-reconstruction target, reusing M1's `PerceptionAutoencoder` (full U-Net
-skips) rather than a plain skip-free decoder. That distinction matters: the
-primary `[h, z]` decoder must stay skip-free because during imagination
-there is no real frame to skip from -- but `recon_embed` always decodes an
-embedding computed from a REAL, currently-observed frame, so skip
-connections from that same frame's own encoder activations are completely
-legitimate (identical in spirit to M1, which used skips to hit
-near-pixel-identical recon). A plain skip-free embed decoder was verified
-(via `notebooks/06_decoder_probe.ipynb`) to still lose small/sparse content
-(HUD digits, mobs, trees) regardless of embedding width -- funneling all
-spatial detail through one 4x4 bottleneck with no intermediate skips is the
-real bottleneck, not raw embedding capacity.
+Keeps THREE decode heads, each answering a different question:
+  - `decoder` ([h,z] -> pixels): skip-free, since imagination has no real
+    frame to skip from. This is the one that actually matters long-term.
+  - `perception.decode` (embed + U-Net skips -> pixels): tests whether the
+    encoder CNN *can* extract fine detail at all (M1-proven mechanism).
+  - `embed_decoder_bottleneck` (embed alone, no skips -> pixels): tests
+    whether the bottleneck embedding *itself* -- the only thing the RSSM
+    ever sees -- actually carries that detail.
+
+That third head exists because of a failure mode the other two hid: once
+skips were added, `perception.decode`'s loss converged to near-zero almost
+immediately, which looked like the encoder had been "fixed". But a
+probe-decoder test (`notebooks/06_decoder_probe.ipynb`) showed a skip-free
+decode of that exact same frozen embedding was just as blind to
+rocks/water/sand as `[h,z]` (~0.17 L1 either way, vs ~0.004 with skips) --
+the skips did nearly all the work, so the embedding was never actually
+forced to encode that content. Since the RSSM only ever receives the
+embedding (never the skips), that low `recon_embed` loss was not evidence
+of a richer signal reaching the RSSM. `embed_decoder_bottleneck` closes that
+gap: the only way to lower its loss is for `embed` itself to carry the
+content, which is what can actually help `[h,z]`.
 """
 
 from __future__ import annotations
@@ -40,6 +48,7 @@ class WorldModelOutput:
     feat: Tensor
     recon: Tensor
     recon_embed: Tensor
+    recon_bottleneck: Tensor
     reward_pred: Tensor
     cont_logit: Tensor
 
@@ -52,6 +61,8 @@ class WorldModel(nn.Module):
     (encoder + U-Net skip decoder, M1's `PerceptionAutoencoder`) reconstructs
     `recon_embed` straight from a real frame's own embedding + that same
     frame's skips -- legitimate since it never runs during imagination.
+    `embed_decoder_bottleneck` decodes that same embedding with NO skips, to
+    directly supervise the bottleneck vector itself (see module docstring).
     """
 
     def __init__(
@@ -59,6 +70,7 @@ class WorldModel(nn.Module):
         perception: PerceptionAutoencoder,
         rssm: RSSM,
         decoder: Decoder,
+        embed_decoder_bottleneck: Decoder,
         reward_head: RewardHead,
         continue_head: ContinueHead,
     ) -> None:
@@ -66,6 +78,7 @@ class WorldModel(nn.Module):
         self.perception = perception
         self.rssm = rssm
         self.decoder = decoder
+        self.embed_decoder_bottleneck = embed_decoder_bottleneck
         self.reward_head = reward_head
         self.continue_head = continue_head
         feat_dim = rssm.deter_dim + rssm.z_flat_dim
@@ -78,6 +91,11 @@ class WorldModel(nn.Module):
             raise ValueError(
                 f"perception.embed_dim={perception.embed_dim} != "
                 f"rssm.embed_dim={rssm.embed_dim}"
+            )
+        if embed_decoder_bottleneck.embed_dim != rssm.embed_dim:
+            raise ValueError(
+                f"embed_decoder_bottleneck.embed_dim={embed_decoder_bottleneck.embed_dim} "
+                f"!= rssm.embed_dim={rssm.embed_dim}"
             )
         if reward_head.in_dim != feat_dim or continue_head.in_dim != feat_dim:
             raise ValueError("reward/continue heads must match RSSM feature dim")
@@ -124,9 +142,12 @@ class WorldModel(nn.Module):
         )
         feat_dim = deter_dim + stoch * classes
         decoder = Decoder(embed_dim=feat_dim, channels=decoder_channels)
+        embed_decoder_bottleneck = Decoder(embed_dim=embed_dim, channels=decoder_channels)
         reward_head = RewardHead(feat_dim, hidden=head_hidden, layers=head_layers)
         continue_head = ContinueHead(feat_dim, hidden=head_hidden, layers=head_layers)
-        return cls(perception, rssm, decoder, reward_head, continue_head)
+        return cls(
+            perception, rssm, decoder, embed_decoder_bottleneck, reward_head, continue_head
+        )
 
     def encode(self, obs_u8: Tensor) -> Tensor:
         """uint8 obs `[B, T, H, W, C]` or `[B, H, W, C]` → embeds with time dim.
@@ -165,7 +186,10 @@ class WorldModel(nn.Module):
               - rssm fields `[B, T, ...]`
               - feat `[B, T, feat_dim]`
               - recon `[B, T, 3, 64, 64]` from `[h, z_posterior]`
-              - recon_embed `[B, T, 3, 64, 64]` from encoder embedding
+              - recon_embed `[B, T, 3, 64, 64]` from embedding + U-Net skips
+              - recon_bottleneck `[B, T, 3, 64, 64]` from embedding alone,
+                no skips -- the term that actually supervises what the RSSM
+                receives (see module docstring)
               - reward_pred / cont_logit `[B, T, 1]`
         """
         if obs_u8.ndim != 5:
@@ -184,6 +208,7 @@ class WorldModel(nn.Module):
         flat_feat = feat.reshape(batch * time, feat_dim)
         recon = self.decoder(flat_feat).view(batch, time, 3, 64, 64)
         recon_embed = self.perception.decode(flat_embed, skips).view(batch, time, 3, 64, 64)
+        recon_bottleneck = self.embed_decoder_bottleneck(flat_embed).view(batch, time, 3, 64, 64)
         reward_pred = self.reward_head(flat_feat).view(batch, time, 1)
         cont_logit = self.continue_head(flat_feat).view(batch, time, 1)
         return WorldModelOutput(
@@ -192,6 +217,7 @@ class WorldModel(nn.Module):
             feat=feat,
             recon=recon,
             recon_embed=recon_embed,
+            recon_bottleneck=recon_bottleneck,
             reward_pred=reward_pred,
             cont_logit=cont_logit,
         )

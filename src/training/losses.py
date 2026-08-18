@@ -1,8 +1,23 @@
 """World-model loss terms, including Dreamer-style KL balancing.
 
-Loss = recon_[h,z] + recon_embed + grad (edge-aware) + reward + continue + KL,
-logged separately so a healthy sum cannot hide a collapsed/exploding KL (M3
-exit criterion).
+Loss = recon_[h,z] + recon_embed + recon_bottleneck + grad (edge-aware) +
+reward + continue + KL, logged separately so a healthy sum cannot hide a
+collapsed/exploding KL (M3 exit criterion).
+
+`recon_bottleneck` exists because of a subtle failure mode discovered via the
+decoder probe: `recon_embed` decodes `embed` *with* U-Net skips from the same
+real frame (see `WorldModel`/`PerceptionAutoencoder`), and it converges to
+near-pixel-perfect almost immediately -- but a side-by-side probe showed that
+was achieved almost entirely *through the skips*. A skip-free decode of the
+exact same frozen `embed` vector was just as blind to rocks/water/sand as
+`[h,z]` (~0.17 L1 either way, vs `recon_embed`'s ~0.004 with skips). Since the
+RSSM only ever sees `embed` (never the skips), `recon_embed` being sharp told
+us nothing about whether the RSSM was getting richer information -- the skips
+let the encoder "cheat" its way to a low aux loss without the bottleneck
+vector itself ever being forced to carry that content. `recon_bottleneck`
+decodes `embed` with NO skips, so the only way to lower this loss is for
+`embed` itself to encode the content -- which is the one thing that actually
+helps the RSSM.
 """
 
 from __future__ import annotations
@@ -21,6 +36,7 @@ class WorldModelLossBreakdown:
     total: Tensor
     recon: Tensor
     recon_embed: Tensor
+    recon_bottleneck: Tensor
     grad: Tensor
     reward: Tensor
     continue_loss: Tensor
@@ -125,6 +141,7 @@ def world_model_loss(
     obs: Tensor,
     recon: Tensor,
     recon_embed: Tensor,
+    recon_bottleneck: Tensor,
     reward: Tensor,
     reward_pred: Tensor,
     cont: Tensor,
@@ -137,6 +154,7 @@ def world_model_loss(
     free_nats: float = 1.0,
     recon_scale: float = 1.0,
     recon_embed_scale: float = 1.0,
+    recon_bottleneck_scale: float = 1.0,
     reward_scale: float = 1.0,
     continue_scale: float = 1.0,
     kl_scale: float = 1.0,
@@ -146,7 +164,8 @@ def world_model_loss(
     """Assemble world-model terms.
 
     Args:
-        obs / recon / recon_embed: float images `[B, T, 3, H, W]` in `[-1, 1]`
+        obs / recon / recon_embed / recon_bottleneck: float images
+            `[B, T, 3, H, W]` in `[-1, 1]`
         reward: `[B, T]`
         reward_pred / cont_logit: `[B, T, 1]` or `[B, T]`
         cont: `[B, T]` in `{0, 1}`
@@ -157,7 +176,12 @@ def world_model_loss(
     """
     recon_loss = _pixel_loss(recon, obs, recon_loss_type)
     recon_embed_loss = _pixel_loss(recon_embed, obs, recon_loss_type)
-    grad_loss = gradient_l1_loss(recon, obs) + gradient_l1_loss(recon_embed, obs)
+    recon_bottleneck_loss = _pixel_loss(recon_bottleneck, obs, recon_loss_type)
+    grad_loss = (
+        gradient_l1_loss(recon, obs)
+        + gradient_l1_loss(recon_embed, obs)
+        + gradient_l1_loss(recon_bottleneck, obs)
+    )
 
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
@@ -177,6 +201,7 @@ def world_model_loss(
     total = (
         recon_scale * recon_loss
         + recon_embed_scale * recon_embed_loss
+        + recon_bottleneck_scale * recon_bottleneck_loss
         + reward_scale * reward_loss
         + continue_scale * continue_loss
         + kl_scale * kl_loss
@@ -186,6 +211,7 @@ def world_model_loss(
         total=total,
         recon=recon_loss,
         recon_embed=recon_embed_loss,
+        recon_bottleneck=recon_bottleneck_loss,
         grad=grad_loss,
         reward=reward_loss,
         continue_loss=continue_loss,
