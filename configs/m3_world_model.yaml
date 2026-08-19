@@ -159,7 +159,19 @@ collect:
   out_path: data/m3_replay.pt
 
 train:
-  batch_size: 8
+  # Halved 8 -> 4 after the channel-widening fix above blew the memory budget:
+  # WorldModel.forward encodes ALL batch_size*seq_len frames through the CNN
+  # in one batched pass, and autograd keeps every conv/upsample activation
+  # alive (across all 3 decode heads) until backward() finishes. Wider
+  # channels multiply that directly. Measured live: the training kernel
+  # process alone was using ~13GB with batch_size=8 on a 24GB unified-memory
+  # machine, pushing the WHOLE system into 13+GB of disk swap -- that's the
+  # actual cause of "steps are moving so slow", not raw compute (swap I/O is
+  # 100-1000x slower than RAM). Halving batch_size roughly halves that
+  # activation memory linearly, at the cost of a noisier per-step gradient
+  # estimate -- a much better trade than swapping. If it's still swapping,
+  # try seq_len 32 -> 16 next (also cuts the encoder's per-step frame count).
+  batch_size: 4
   seq_len: 32
   lr: 1.0e-4
   steps: 12000
