@@ -280,6 +280,7 @@ def main() -> None:
             kl_scale=float(train["kl_scale"]),
             grad_scale=float(train.get("grad_scale", 0.0)),
             recon_loss_type=str(train.get("recon_loss", "l1")),
+            edge_weight=float(train.get("edge_weight", 0.0)),
         )
 
         optim.zero_grad(set_to_none=True)

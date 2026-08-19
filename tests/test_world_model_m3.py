@@ -7,7 +7,14 @@ import torch
 from models.heads import ContinueHead, RewardHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_float
 from models.world_model import WorldModel
-from training.losses import categorical_kl, gradient_l1_loss, kl_balance, world_model_loss
+from training.losses import (
+    categorical_kl,
+    content_weight_map,
+    gradient_l1_loss,
+    kl_balance,
+    weighted_pixel_loss,
+    world_model_loss,
+)
 from training.replay_buffer import ReplayBuffer
 
 
@@ -89,6 +96,41 @@ def test_gradient_l1_loss_backward() -> None:
     assert torch.isfinite(pred.grad).all()
 
 
+def test_content_weight_map_boosts_edges_over_flat_regions() -> None:
+    target = torch.zeros(2, 3, 8, 8)
+    target[..., 4:] = 1.0  # a hard edge down the middle
+    weight = content_weight_map(target, edge_weight=8.0)
+    assert weight.shape == (2, 1, 8, 8)
+    # flat interior (away from the edge) should sit near the base weight of 1.0
+    assert weight[..., 0, 0].allclose(torch.ones(2, 1), atol=1e-4)
+    # the column right at the edge should be boosted well above 1.0
+    assert (weight[..., :, 3] > 2.0).all()
+
+
+def test_content_weight_map_disabled_is_uniform_one() -> None:
+    target = torch.rand(2, 3, 8, 8)
+    weight = content_weight_map(target, edge_weight=0.0)
+    assert torch.allclose(weight, torch.ones_like(weight))
+
+
+def test_weighted_pixel_loss_matches_plain_when_edge_weight_zero() -> None:
+    pred = torch.rand(2, 3, 8, 8)
+    target = torch.rand(2, 3, 8, 8)
+    plain = torch.nn.functional.l1_loss(pred, target)
+    weighted = weighted_pixel_loss(pred, target, "l1", edge_weight=0.0)
+    assert torch.allclose(plain, weighted)
+
+
+def test_weighted_pixel_loss_backward() -> None:
+    pred = torch.rand(2, 3, 8, 8, requires_grad=True)
+    target = torch.rand(2, 3, 8, 8)
+    loss = weighted_pixel_loss(pred, target, "l1", edge_weight=5.0)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert pred.grad is not None
+    assert torch.isfinite(pred.grad).all()
+
+
 def test_world_model_forward_shapes_and_loss_backward() -> None:
     wm = _tiny_wm()
     b, t = 2, 6
@@ -121,6 +163,7 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
         unimix=wm.rssm.unimix,
         grad_scale=2.0,
         recon_loss_type="l1",
+        edge_weight=4.0,
     )
     assert torch.isfinite(loss.total)
     assert torch.isfinite(loss.grad)

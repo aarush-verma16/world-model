@@ -214,6 +214,20 @@ train:
   # at roughly a third of recon+embed's combined scaled contribution --
   # enough to meaningfully push on edges without overriding pixel accuracy.
   grad_scale: 1.5
+  # Content-weighted pixel loss (see `content_weight_map` in losses.py).
+  # Even with capacity + grad_scale fixed, a live run at step ~8750
+  # (recon=0.049, recon_bottleneck=0.044, both way down from ~0.10 early on)
+  # STILL showed a completely blank HUD bar and zero trees/mobs in [h,z] --
+  # while correctly filling in large regions like a water patch. Root cause:
+  # plain per-pixel L1 averages over the WHOLE frame, and Crafter scenes are
+  # ~90% flat grass/dirt, so nailing the background alone already gets loss
+  # very low -- HUD icons/sprites are too small a pixel fraction to move it.
+  # This reweights the pixel loss by the real frame's own local-gradient
+  # magnitude (squared, so grass/dirt dithering noise stays ~1x while sharp
+  # HUD/sprite/tile edges reach 10-100x). Calibrated against actual step-8700
+  # real frames: edge_weight=8 puts ~30% of total loss weight on just the
+  # top 1% most-structured pixels (icons/sprites/edges), vs <1% unweighted.
+  edge_weight: 8.0
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3

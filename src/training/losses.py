@@ -18,6 +18,16 @@ vector itself ever being forced to carry that content. `recon_bottleneck`
 decodes `embed` with NO skips, so the only way to lower this loss is for
 `embed` itself to encode the content -- which is the one thing that actually
 helps the RSSM.
+
+`edge_weight` (see `content_weight_map`) exists because of a second failure
+mode found *after* fixing the above: pixel loss can drop a lot while HUD
+icons/sprites/trees stay completely blank, because plain L1/MSE averages
+over all pixels and Crafter scenes are ~90% flat grass/dirt -- a handful of
+sprite or HUD pixels barely move that average. Confirmed via the training
+images themselves: `[h,z]` correctly learned large regions (e.g. water) but
+left the HUD bar and mobs/trees blank even as `recon` loss fell steadily.
+`edge_weight` reweights the pixel loss by the real frame's own local
+structure so sparse-but-important content actually matters to the loss.
 """
 
 from __future__ import annotations
@@ -114,6 +124,46 @@ def _pixel_loss(pred: Tensor, target: Tensor, kind: str) -> Tensor:
     raise ValueError(f"unknown recon_loss_type {kind!r}")
 
 
+def content_weight_map(target: Tensor, edge_weight: float) -> Tensor:
+    """Per-pixel weight `[..., 1, H, W]`, boosted where `target` has structure.
+
+    Plain per-pixel L1/MSE rewards matching each region's *average* color.
+    In Crafter, flat grass/dirt is ~90% of pixels while HUD icons, sprite
+    silhouettes, and tile edges -- the actually informative content -- are a
+    tiny minority. Getting the grass right already gets loss very low, so
+    the optimizer has little incentive to spend capacity on the sparse stuff
+    (confirmed via a probe: `[h,z]` correctly picks up large regions like
+    water, but leaves HUD/sprites blank even as pixel loss drops nicely).
+
+    This weights each pixel by the squared local gradient magnitude of the
+    *real* frame only (never the prediction -- it's a fixed target-side
+    weight, detached from the graph). Squaring matters: Crafter's grass/dirt
+    dithering has small but nonzero gradients everywhere, while HUD icon
+    edges and sprite outlines are near-maximal-contrast jumps. Squaring
+    keeps the dithering noise's weight close to 1x while sharp structural
+    edges reach 10-100x, so the loss actually cares whether icons/sprites
+    are there instead of averaging them away.
+
+    Args:
+        target: `[..., C, H, W]`, any leading dims, values in `[-1, 1]`.
+        edge_weight: strength of the boost; `0.0` means uniform weight `1.0`
+            (equivalent to unweighted L1/MSE).
+    """
+    dx = F.pad(target[..., :, 1:] - target[..., :, :-1], (0, 1, 0, 0))
+    dy = F.pad(target[..., 1:, :] - target[..., :-1, :], (0, 0, 0, 1))
+    mag = dx.abs().mean(dim=-3, keepdim=True) + dy.abs().mean(dim=-3, keepdim=True)
+    return 1.0 + edge_weight * mag.pow(2)
+
+
+def weighted_pixel_loss(pred: Tensor, target: Tensor, kind: str, edge_weight: float) -> Tensor:
+    """`_pixel_loss` but reweighted by `content_weight_map` when `edge_weight > 0`."""
+    if edge_weight <= 0.0:
+        return _pixel_loss(pred, target, kind)
+    weight = content_weight_map(target, edge_weight).detach()
+    diff = (pred - target).abs() if kind == "l1" else (pred - target).pow(2)
+    return (weight * diff).mean()
+
+
 def gradient_l1_loss(pred: Tensor, target: Tensor) -> Tensor:
     """L1 loss between image finite-difference gradients (edge-aware term).
 
@@ -160,6 +210,7 @@ def world_model_loss(
     kl_scale: float = 1.0,
     grad_scale: float = 0.0,
     recon_loss_type: str = "l1",
+    edge_weight: float = 0.0,
 ) -> WorldModelLossBreakdown:
     """Assemble world-model terms.
 
@@ -173,10 +224,13 @@ def world_model_loss(
         grad_scale: weight on the edge-aware gradient term (see
             `gradient_l1_loss`); `0.0` disables it entirely (default, for
             backward compat with earlier checkpoints/configs).
+        edge_weight: weight on the content/edge reweighting of the pixel
+            loss terms (see `content_weight_map`); `0.0` keeps plain
+            uniform-weight L1/MSE (default, for backward compat).
     """
-    recon_loss = _pixel_loss(recon, obs, recon_loss_type)
-    recon_embed_loss = _pixel_loss(recon_embed, obs, recon_loss_type)
-    recon_bottleneck_loss = _pixel_loss(recon_bottleneck, obs, recon_loss_type)
+    recon_loss = weighted_pixel_loss(recon, obs, recon_loss_type, edge_weight)
+    recon_embed_loss = weighted_pixel_loss(recon_embed, obs, recon_loss_type, edge_weight)
+    recon_bottleneck_loss = weighted_pixel_loss(recon_bottleneck, obs, recon_loss_type, edge_weight)
     grad_loss = (
         gradient_l1_loss(recon, obs)
         + gradient_l1_loss(recon_embed, obs)
