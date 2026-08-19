@@ -36,15 +36,22 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def save_recon_grid(obs_u8: torch.Tensor, recon: torch.Tensor, path: Path) -> None:
-    """obs `[B,T,H,W,C]` uint8, recon `[B,T,3,H,W]` float → side-by-side PNG."""
+def save_recon_grid(obs_u8: torch.Tensor, preds: list[torch.Tensor], path: Path) -> None:
+    """obs `[B,T,H,W,C]` uint8, preds each `[B,T,3,H,W]` float → side-by-side PNG.
+
+    Column order: real, then each entry of `preds` in order. Callers should
+    pass `[recon, recon_embed, recon_bottleneck]` so a single PNG always
+    shows all three decode heads -- `[h,z]` alone can look bad while
+    `recon_bottleneck` is already recovering real structure, and that's
+    invisible if only `[h,z]` is saved.
+    """
     from PIL import Image
 
     # Use first timestep of each batch item.
     real = obs_u8[:, 0].cpu()
-    pred = nchw_float_to_nhwc_uint8(recon[:, 0].detach().cpu())
+    pred_imgs = [nchw_float_to_nhwc_uint8(p[:, 0].detach().cpu()) for p in preds]
     strips = [
-        np.concatenate([real[i].numpy(), pred[i].numpy()], axis=1)
+        np.concatenate([real[i].numpy()] + [p[i].numpy() for p in pred_imgs], axis=1)
         for i in range(real.shape[0])
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -319,7 +326,9 @@ def main() -> None:
                 vis = buffer.sample(min(4, batch_size), seq_len)
                 v_out = model(vis["obs"].to(device), vis["actions"].to(device))
                 save_recon_grid(
-                    vis["obs"], v_out.recon, results_dir / f"recon_step_{step:05d}.png"
+                    vis["obs"],
+                    [v_out.recon, v_out.recon_embed, v_out.recon_bottleneck],
+                    results_dir / f"recon_step_{step:05d}.png",
                 )
             model.train()
 
@@ -349,7 +358,11 @@ def main() -> None:
     with torch.no_grad():
         vis = buffer.sample(8, seq_len)
         v_out = model(vis["obs"].to(device), vis["actions"].to(device))
-        save_recon_grid(vis["obs"], v_out.recon, results_dir / "recon_final.png")
+        save_recon_grid(
+            vis["obs"],
+            [v_out.recon, v_out.recon_embed, v_out.recon_bottleneck],
+            results_dir / "recon_final.png",
+        )
         obs_std = float(
             nhwc_uint8_to_nchw_float(vis["obs"].to(device)).std()
         )

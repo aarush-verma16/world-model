@@ -36,3 +36,17 @@ Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguo
 - Work and push directly on `main` — do not create feature branches.
 - Prefer small, frequent commits with why-focused messages.
 - Keep `main` working; do not push known-broken code.
+
+## Training runs
+
+- **Never launch training (`scripts/train_world_model.py` or equivalent) from
+  the agent chat/shell**, including "quick" background runs, even if asked to
+  "fix" or "do whatever it takes." The user runs all real training themselves
+  via the Jupyter notebooks (`notebooks/05_train_world_model.ipynb`, etc.) so
+  they can watch it live and stop it whenever they want.
+- Short smoke tests (a few dozen steps, in a scratch config, to check shapes
+  or throughput after a code/config change) are fine and expected — just
+  don't let them run long or stand in for a real training run.
+- If a fix needs real training to validate, make the code/config change,
+  verify it with a smoke test, then hand off to the user to run the actual
+  training pass themselves and report back results.

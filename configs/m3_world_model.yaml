@@ -74,6 +74,32 @@
 # alone, no skips -- so the only way to lower ITS loss is for the embedding
 # itself to encode the content. See `WorldModel`'s docstring and
 # `training/losses.py` for the full writeup.
+#
+# Ran ~1250 steps with the recon_bottleneck fix above: it worked directionally
+# (kl_dyn_raw finally climbed past free_nats for the first time ever, embed-
+# no-skips got some blurry structure instead of nothing) but was still missing
+# sprites/HUD/trees entirely. Two compounding causes, found by re-reading
+# PerceptionAutoencoder.decode(): (1) `recon_embed`'s near-zero loss is
+# partly a mirage -- `base = self.stem_to_rgb(skips[0])` reconstructs
+# directly from the REAL frame's full-res stem features, near-completely
+# bypassing the embedding bottleneck, so a low recon_embed loss was *never*
+# strong evidence the bottleneck carries much; (2) the bottleneck itself
+# (channels[-1]=512 at a 4x4 grid, `embed_dim=8192`) is just numerically
+# narrow for a scene with many small sprites scattered across dozens of tile
+# positions -- 16 spatial cells is a coarse budget regardless of how good the
+# training signal is.
+#
+# Fix: widened `encoder.channels`/`decoder.channels` to `[96,192,384,768]`
+# (`embed_dim=12288`), matching DreamerV3's actual channel-doubling
+# convention for their "XL" CNN size (`96 -> 192 -> 384 -> 768` across 4
+# stride-2 stages for 64x64 inputs) instead of the flatter `64,128,256,512`
+# used before. Bonus: `decoder.channels[0]=768` now exactly matches
+# `encoder.channels[-1]=768`, so `embed_decoder_bottleneck`'s flat_dim
+# (768*4*4=12288) equals `embed_dim` exactly -- its `fc` becomes `Identity()`
+# too, same spatial-preserving property M1 already relies on. This is a
+# capacity-only change (no code, only config); no other reconstruction issue
+# was found, so isolate this variable before touching anything else. Shape
+# change -- old checkpoints will NOT load, start fresh with `RESUME = None`.
 
 seed: 0
 
@@ -90,8 +116,15 @@ seed: 0
 # grad_scale, or free_nats -- the encoder was throwing the spatial detail
 # away before any of those ever got a chance to use it.
 encoder:
-  embed_dim: 8192
-  channels: [64, 128, 256, 512]
+  # 12288 == channels[-1]*4*4 (768*16), keeps the encoder's flatten AS the
+  # embedding (no mixing nn.Linear -- see PerceptionAutoencoder's docstring).
+  embed_dim: 12288
+  # DreamerV3's actual "XL" CNN channel-doubling schedule for 64x64 inputs
+  # (96 -> 192 -> 384 -> 768 across 4 stride-2 stages), not a flat 64/128/256/512.
+  # More raw channel capacity at every resolution, especially the 4x4
+  # bottleneck (768ch vs 512ch) where all of [h,z]'s and recon_bottleneck's
+  # content has to survive.
+  channels: [96, 192, 384, 768]
   # Full-res stem for the recon_embed U-Net skip path (see PerceptionAutoencoder).
   stem_channels: 64
 
@@ -106,7 +139,11 @@ rssm:
   rec_depth: 1
 
 decoder:
-  channels: [512, 256, 128, 64]
+  # Mirrors encoder.channels (768 -> 384 -> 192 -> 96). channels[0]=768
+  # matches encoder.channels[-1] exactly, so embed_decoder_bottleneck's fc
+  # becomes an Identity (flat_dim == embed_dim == 12288) -- no spatial-mixing
+  # linear on the one decode path that must prove the embedding itself is rich.
+  channels: [768, 384, 192, 96]
 
 heads:
   hidden: 512
