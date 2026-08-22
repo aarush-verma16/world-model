@@ -9,8 +9,10 @@ its scale must stay 0 or the aux recon is counted twice. Do not put M1's
 U-Net skip decoder on this graph — `stem_to_rgb` can copy the frame without
 the embedding carrying anything the RSSM can use.
 
-`edge_weight` / `grad_scale` are optional high-frequency terms, off in the
-M3 config. `recon_l1` is always the unweighted pixel term — watch that.
+`edge_weight` / `grad_scale` are optional 1px-edge terms, off in the M3
+config (they floor on HUD digits a 4x4 decoder cannot match). `recon_blob`
+is L1 on 8x8 average-pooled frames — sprite-scale cells, not pixel edges.
+`recon_l1` is always the unweighted 64x64 pixel term — watch that.
 """
 
 from __future__ import annotations
@@ -40,6 +42,8 @@ class WorldModelLossBreakdown:
     recon_embed_l1: Tensor
     recon_bottleneck_l1: Tensor
     recon_map: Tensor
+    recon_blob: Tensor
+    recon_embed_blob: Tensor
     grad: Tensor
     reward: Tensor
     continue_loss: Tensor
@@ -148,6 +152,33 @@ def content_weight_map(target: Tensor, edge_weight: float) -> Tensor:
     return 1.0 + edge_weight * mag.pow(2)
 
 
+def blob_recon_loss(pred: Tensor, target: Tensor, pool: int = 8) -> Tensor:
+    """L1 on average-pooled images (sprite-scale cells, not 1px edges).
+
+    64x64 L1 is a median: an 8px cow in a 16x16 decoder cell is a minority
+    of that cell, so the optimum is to paint grass and the cow never even
+    appears as a blur. Crafter tiles are 8px. Pooling to 8x8 makes that cow
+    a majority of its cell, so the same L1 has to match the cow's color — a
+    blob in the right place. This is not `edge_weight` (HUD digit strokes)
+    and not an 8px decoder bottleneck (RSSM flatten stays 4x4).
+
+    Args:
+        pred / target: `[..., C, H, W]` in `[-1, 1]`. `H` and `W` must be
+            divisible by `pool`.
+        pool: window size. `8` → 8x8 cells on a 64x64 frame.
+    """
+    if pred.shape != target.shape:
+        raise ValueError(f"pred {tuple(pred.shape)} != target {tuple(target.shape)}")
+    if pred.ndim < 4:
+        raise ValueError(f"expected [..., C, H, W], got {tuple(pred.shape)}")
+    pred_n = pred.reshape(-1, *pred.shape[-3:])
+    target_n = target.reshape(-1, *target.shape[-3:])
+    _, _, height, width = pred_n.shape
+    if height % pool != 0 or width % pool != 0:
+        raise ValueError(f"spatial {(height, width)} not divisible by pool={pool}")
+    return F.l1_loss(F.avg_pool2d(pred_n, pool), F.avg_pool2d(target_n, pool))
+
+
 def weighted_pixel_loss(pred: Tensor, target: Tensor, kind: str, edge_weight: float) -> Tensor:
     """`_pixel_loss` but reweighted by `content_weight_map` when `edge_weight > 0`."""
     if edge_weight <= 0.0:
@@ -207,6 +238,7 @@ def world_model_loss(
     hz_map: Tensor | None = None,
     embed_map: Tensor | None = None,
     recon_map_scale: float = 0.0,
+    recon_blob_scale: float = 0.0,
 ) -> WorldModelLossBreakdown:
     """Assemble world-model terms.
 
@@ -223,6 +255,9 @@ def world_model_loss(
         edge_weight: weight on the content/edge reweighting of the pixel
             loss terms (see `content_weight_map`); `0.0` keeps plain
             uniform-weight L1/MSE (default, for backward compat).
+        recon_blob_scale: weight on 8x8 pooled L1 (`blob_recon_loss`) for
+            `[h,z]` and embed recon. `0.0` keeps it out of `total` (still
+            logged).
     """
     shared_embed = recon_embed is recon_bottleneck
     recon_l1 = _pixel_loss(recon, obs, recon_loss_type)
@@ -252,6 +287,9 @@ def world_model_loss(
         recon_map = recon.new_zeros(())
         recon_map_scale = 0.0
 
+    recon_blob = blob_recon_loss(recon, obs)
+    recon_embed_blob = blob_recon_loss(recon_embed, obs)
+
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
 
@@ -276,6 +314,8 @@ def world_model_loss(
         + kl_scale * kl_loss
         + grad_scale * grad_loss
         + recon_map_scale * recon_map
+        + recon_blob_scale * recon_blob
+        + recon_blob_scale * recon_embed_blob
     )
     return WorldModelLossBreakdown(
         total=total,
@@ -286,6 +326,8 @@ def world_model_loss(
         recon_embed_l1=recon_embed_l1,
         recon_bottleneck_l1=recon_bottleneck_l1,
         recon_map=recon_map,
+        recon_blob=recon_blob,
+        recon_embed_blob=recon_embed_blob,
         grad=grad_loss,
         reward=reward_loss,
         continue_loss=continue_loss,

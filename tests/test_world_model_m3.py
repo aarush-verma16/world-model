@@ -9,6 +9,7 @@ from models.preprocess import nhwc_uint8_to_nchw_float
 from models.encoder import Encoder
 from models.world_model import WorldModel
 from training.losses import (
+    blob_recon_loss,
     categorical_kl,
     content_weight_map,
     gradient_l1_loss,
@@ -75,6 +76,37 @@ def test_categorical_kl_zero_when_identical() -> None:
     logits = torch.randn(2, 3, 4, 5)
     kl = categorical_kl(logits, logits.clone(), unimix=0.0)
     assert torch.allclose(kl, torch.zeros_like(kl), atol=1e-5)
+
+
+def test_blob_recon_loss_zero_when_identical() -> None:
+    img = torch.rand(2, 3, 64, 64)
+    assert torch.allclose(blob_recon_loss(img, img), torch.zeros(()), atol=1e-6)
+    seq = torch.rand(2, 4, 3, 64, 64)
+    assert torch.allclose(blob_recon_loss(seq, seq), torch.zeros(()), atol=1e-6)
+
+
+def test_blob_recon_loss_penalizes_erased_8px_sprite() -> None:
+    """8x8 pooled L1 must care about a tile-sized sprite that 16x16 median grass erases."""
+    grass, cow = 0.2, 0.9
+    target = torch.full((1, 3, 64, 64), grass)
+    target[:, :, 16:24, 16:24] = cow
+    median_16 = torch.full((1, 3, 64, 64), grass)
+    blob_8 = median_16.clone()
+    blob_8[:, :, 16:24, 16:24] = cow
+    assert float(blob_recon_loss(median_16, target)) > 0.01
+    assert float(blob_recon_loss(blob_8, target)) < 1e-6
+    assert float(blob_recon_loss(blob_8, target)) < float(
+        blob_recon_loss(median_16, target)
+    )
+
+
+def test_blob_recon_loss_backward() -> None:
+    pred = torch.randn(2, 3, 64, 64, requires_grad=True)
+    target = torch.randn(2, 3, 64, 64)
+    loss = blob_recon_loss(pred, target)
+    loss.backward()
+    assert pred.grad is not None
+    assert torch.isfinite(pred.grad).all()
 
 
 def test_gradient_l1_loss_zero_when_identical_and_positive_when_shifted() -> None:
@@ -169,6 +201,8 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     assert torch.isfinite(loss.total)
     assert torch.isfinite(loss.grad)
     assert torch.isfinite(loss.recon_l1)
+    assert torch.isfinite(loss.recon_blob)
+    assert torch.isfinite(loss.recon_embed_blob)
     # Content-weighting can only raise (or match) the unweighted pixel term.
     assert float(loss.recon.detach()) >= float(loss.recon_l1.detach()) - 1e-5
     assert float(loss.recon_bottleneck.detach()) >= float(loss.recon_bottleneck_l1.detach()) - 1e-5
@@ -208,6 +242,7 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert int(enc["embed_dim"]) == channels[-1] * 4 * 4
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
     assert float(cfg["train"]["recon_map_scale"]) == 1.0
+    assert float(cfg["train"]["recon_blob_scale"]) == 5.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
     assert int(cfg["decoder"].get("blocks", 0)) == 0
@@ -380,4 +415,5 @@ def test_world_model_step_updates_weights() -> None:
     assert torch.isfinite(loss.total)
     assert "recon" in metrics
     assert "recon_l1" in metrics
+    assert "recon_blob" in metrics
     assert not torch.equal(before, wm.encoder.conv[0].weight.detach())

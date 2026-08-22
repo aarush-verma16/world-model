@@ -28,6 +28,8 @@ def loss_to_metrics(loss: WorldModelLossBreakdown) -> dict[str, float]:
         "recon_embed_l1": float(loss.recon_embed_l1.detach()),
         "recon_bottleneck_l1": float(loss.recon_bottleneck_l1.detach()),
         "recon_map": float(loss.recon_map.detach()),
+        "recon_blob": float(loss.recon_blob.detach()),
+        "recon_embed_blob": float(loss.recon_embed_blob.detach()),
         "grad": float(loss.grad.detach()),
         "reward": float(loss.reward.detach()),
         "continue": float(loss.continue_loss.detach()),
@@ -97,6 +99,7 @@ def world_model_step(
             hz_map=out.hz_map,
             embed_map=out.embed_map,
             recon_map_scale=float(train_cfg.get("recon_map_scale", 0.0)),
+            recon_blob_scale=float(train_cfg.get("recon_blob_scale", 0.0)),
         )
         total = loss.total
 

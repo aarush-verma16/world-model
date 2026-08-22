@@ -5,6 +5,9 @@
 #   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
 #   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
 #   (HzToMap) then uses the same upsample. recon_map L1 aligns the maps.
+#   recon_blob is L1 on 8x8 avg-pooled frames so 8px cows/trees are a
+#   majority of their cell (64x64 L1's median paints grass instead).
+#   Not 8px decoder cells, not edge_weight.
 #
 # The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
 # into grass before they could become features. Residual blocks at each
@@ -103,6 +106,11 @@ train:
   # and a mixing Linear into pixels. Shared upsample + this term makes
   # HzToMap copy the layout embed already has.
   recon_map_scale: 1.0
+  # 8x8 pooled L1 on [h,z] and embed recon. 64x64 L1 is a median: an 8px
+  # cow in a 16x16 patch is a minority, so the optimum is grass and you
+  # never even get a blur. Crafter tiles are 8px; this term makes them a
+  # majority of their cell. Not edge_weight (1px HUD), not 8px decoder.
+  recon_blob_scale: 5.0
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0

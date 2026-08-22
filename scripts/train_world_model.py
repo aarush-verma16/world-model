@@ -287,6 +287,7 @@ def main() -> None:
                 f"step {step:5d}  total={metrics['total']:.4f}  "
                 f"recon_l1={metrics['recon_l1']:.4f}  "
                 f"emb_l1={metrics['recon_embed_l1']:.4f}  "
+                f"blob={metrics['recon_blob']:.4f}  "
                 f"bneck_l1={metrics['recon_bottleneck_l1']:.4f}  "
                 f"grad={metrics['grad']:.4f}  "
                 f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
