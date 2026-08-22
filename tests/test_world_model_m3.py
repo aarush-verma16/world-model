@@ -207,9 +207,11 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert "stem_channels" not in enc
     assert int(enc["embed_dim"]) == channels[-1] * 4 * 4
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
+    assert float(cfg["train"]["recon_map_scale"]) == 1.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
     assert int(cfg["decoder"].get("blocks", 0)) == 0
+    assert int(cfg["decoder"]["channels"][0]) == channels[-1]
 
     # Leftover spatial=8 kwargs must not switch the decoder to 8×8.
     wm = WorldModel.from_config_dims(
@@ -249,6 +251,68 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
 
     assert identity_wm.rssm.embed_spatial == 64
     assert isinstance(identity_wm.rssm.posterior_net, SpatialPosterior)
+    assert identity_wm.embed_decoder is identity_wm.decoder
+    assert identity_wm.hz_to_map is not None
+    obs = torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.randint(0, 5, (2, 4), dtype=torch.int64)
+    out = identity_wm(obs, actions)
+    assert out.hz_map is not None and out.embed_map is not None
+    assert out.hz_map.shape == out.embed_map.shape
+    out.recon.mean().backward()
+    assert identity_wm.hz_to_map.z_proj.weight.grad is not None
+    assert any(
+        p.grad is not None and float(p.grad.abs().sum()) > 0
+        for p in identity_wm.decoder.up.parameters()
+    )
+
+
+def test_recon_map_trains_hz_to_map() -> None:
+    """L1(hz_map, embed_map.detach()) must move HzToMap."""
+    wm = WorldModel.from_config_dims(
+        embed_dim=64 * 4 * 4,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=5,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+    )
+    obs = torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.randint(0, 5, (2, 4), dtype=torch.int64)
+    rewards = torch.zeros(2, 4)
+    cont = torch.ones(2, 4)
+    out = wm(obs, actions)
+    obs_f = nhwc_uint8_to_nchw_float(obs.reshape(8, 64, 64, 3)).view(2, 4, 3, 64, 64)
+    loss = world_model_loss(
+        obs=obs_f,
+        recon=out.recon,
+        recon_embed=out.recon_embed,
+        recon_bottleneck=out.recon_bottleneck,
+        reward=rewards,
+        reward_pred=out.reward_pred,
+        cont=cont,
+        cont_logit=out.cont_logit,
+        post_logits=out.rssm.posterior_logits,
+        prior_logits=out.rssm.prior_logits,
+        unimix=wm.rssm.unimix,
+        recon_scale=0.0,
+        recon_embed_scale=0.0,
+        recon_bottleneck_scale=0.0,
+        reward_scale=0.0,
+        continue_scale=0.0,
+        kl_scale=0.0,
+        hz_map=out.hz_map,
+        embed_map=out.embed_map,
+        recon_map_scale=1.0,
+    )
+    assert float(loss.recon_map.detach()) > 0.0
+    loss.total.backward()
+    assert wm.hz_to_map is not None
+    assert wm.hz_to_map.z_proj.weight.grad is not None
+    assert float(wm.hz_to_map.z_proj.weight.grad.abs().sum()) > 0.0
 
 
 def test_resnet_encoder_identity_flatten_and_backward() -> None:

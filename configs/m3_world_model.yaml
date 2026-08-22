@@ -2,8 +2,9 @@
 #
 # Wiring (this is the architecture, not a loss knob):
 #   skip-free ResNet Encoder (DreamerV3 ImageEncoderResnet: stride-2 then
-#   residual 3x3 blocks at 32/16/8/4) → RSSM → skip-free [h,z] decoder
-#   + skip-free embed→pixel aux (supervises the vector RSSM actually sees)
+#   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
+#   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
+#   (HzToMap) then uses the same upsample. recon_map L1 aligns the maps.
 #
 # The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
 # into grass before they could become features. Residual blocks at each
@@ -97,6 +98,11 @@ train:
   # Same tensor as recon_embed (kept so old logs still have the key). Must
   # stay 0 or the embed recon is counted twice.
   recon_bottleneck_scale: 0.0
+  # Align [h,z]'s 4x4 map to the encoder map (detached). This is why embed
+  # can show land/water while [h,z] is mean grass: they used two decoders
+  # and a mixing Linear into pixels. Shared upsample + this term makes
+  # HzToMap copy the layout embed already has.
+  recon_map_scale: 1.0
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0

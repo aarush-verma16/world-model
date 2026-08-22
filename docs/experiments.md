@@ -29,6 +29,9 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - Embed recon showed land/water while `[h,z]` stayed mean grass / one HUD
   blob: posterior was `Linear(12288+512 → 512)`, mixing the 4x4 map. Switched
   to `SpatialPosterior` (conv on the 4x4 embed, then categorical logits).
+- `[h,z]` still showed no environment (not even blur) while embed did: two
+  separate pixel decoders + a mixing Linear into `[h,z]` pixels. Shared 4x4
+  upsample + `HzToMap` + `recon_map` L1 (copy encoder map, detached).
 
 ## Setup / M0 (2026-07-31)
 

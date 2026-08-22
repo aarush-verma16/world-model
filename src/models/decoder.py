@@ -1,8 +1,8 @@
 """CNN decoder: reconstructs Crafter frames from an embedding / RSSM feature.
 
 Used by the M1 skip-free encode→decode path and by the M3 world model
-(decoding from `concat(h, flatten(z))`). Nearest upsample + conv avoids
-ConvTranspose checkerboard artifacts on pixel art.
+(shared 4x4 upsample from the encoder map / `HzToMap`). Nearest upsample
++ conv avoids ConvTranspose checkerboard artifacts on pixel art.
 
 Residual 3x3 blocks live on the *encoder* (DreamerV3 ImageEncoderResnet).
 Putting the same blocks on both `[h,z]` and embed decoders doubled the
@@ -45,7 +45,7 @@ class Decoder(nn.Module):
             raise ValueError(f"start_res must be 4 or 8, got {start_res}")
         if blocks != 0:
             raise ValueError(
-                "decoder residual blocks are disabled (VRAM: two XL decoders). "
+                "decoder residual blocks are disabled (VRAM). "
                 f"got blocks={blocks}"
             )
         # 4→8→16→32→64 needs 4 upsamples; 8→16→32→64 needs 3.
@@ -78,6 +78,20 @@ class Decoder(nn.Module):
         )
         self.up = nn.Sequential(*stages)
         self.embed_dim = embed_dim
+        self.flat_dim = flat_dim
+
+    def from_map(self, feat_map: Tensor) -> Tensor:
+        """Decode a `start_res` feature map: `[B, C, S, S]` → `[B, 3, 64, 64]`."""
+        expected = (self.channels0, self.start_res, self.start_res)
+        if feat_map.ndim != 4 or feat_map.shape[1:] != expected:
+            raise ValueError(
+                f"expected feat map [B, {expected[0]}, {expected[1]}, {expected[2]}], "
+                f"got {tuple(feat_map.shape)}"
+            )
+        out = self.up(feat_map)
+        if out.shape[1:] != (3, 64, 64):
+            raise RuntimeError(f"decoder produced unexpected shape {tuple(out.shape)}")
+        return out
 
     def forward(self, embed: Tensor) -> Tensor:
         """Decode embeddings to images.
@@ -94,7 +108,4 @@ class Decoder(nn.Module):
             )
         x = self.fc(embed)
         x = x.view(-1, self.channels0, self.start_res, self.start_res)
-        out = self.up(x)
-        if out.shape[1:] != (3, 64, 64):
-            raise RuntimeError(f"decoder produced unexpected shape {tuple(out.shape)}")
-        return out
+        return self.from_map(x)

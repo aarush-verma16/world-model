@@ -2,15 +2,11 @@
 
 Trains on real replay sequences (M3). Imagination / actor-critic is M4.
 
-The encoder is a skip-free ResNet CNN (`Encoder`), not M1's
-`PerceptionAutoencoder`. That U-Net's `stem_to_rgb(skips[0])` copies the
-real frame. DreamerV3's CNN is stride-2 + residual blocks at each scale
-(`cnn_blocks=2`); a plain 4-layer stride-2 stack aliases sprites/HUD away
-before the 4x4 flatten.
-
-Two skip-free decode heads:
-  - `decoder`: `[h, z_posterior]` → pixels (the imagination path)
-  - `embed_decoder`: encoder embedding → pixels (supervises what RSSM sees)
+When the encoder flatten is a 4x4 map (Identity `embed_dim == C*4*4`), there
+is **one** skip-free decoder upsample. Embed recon reshapes that map and
+paints. `[h,z]` recon predicts the same 4x4 layout (`HzToMap`) then uses
+the same upsample. Two independent XL decoders left `[h,z]` stuck on mean
+grass while embed learned the scene — the upsample never transferred.
 """
 
 from __future__ import annotations
@@ -27,6 +23,28 @@ from models.preprocess import nhwc_uint8_to_nchw_float
 from models.rssm import RSSM, RSSMOutput, one_hot_action
 
 
+class HzToMap(nn.Module):
+    """`h` + flattened `z_posterior` → 4x4 feature map (encoder layout)."""
+
+    def __init__(self, deter_dim: int, z_flat: int, channels: int, spatial: int = 4) -> None:
+        super().__init__()
+        self.channels = channels
+        self.spatial = spatial
+        self.h_proj = nn.Linear(deter_dim, channels)
+        self.z_proj = nn.Linear(z_flat, channels * spatial * spatial)
+        self.fuse = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+            nn.SiLU(),
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+        )
+
+    def forward(self, h: Tensor, z_flat: Tensor) -> Tensor:
+        """`h` `[B, deter]`, `z_flat` `[B, stoch*classes]` → `[B, C, 4, 4]`."""
+        z_map = self.z_proj(z_flat).view(-1, self.channels, self.spatial, self.spatial)
+        h_map = self.h_proj(h).unsqueeze(-1).unsqueeze(-1)
+        return self.fuse(z_map + h_map)
+
+
 @dataclass
 class WorldModelOutput:
     """Forward outputs for one `[B, T]` batch (all time-aligned)."""
@@ -39,16 +57,16 @@ class WorldModelOutput:
     recon_bottleneck: Tensor
     reward_pred: Tensor
     cont_logit: Tensor
+    hz_map: Tensor | None = None
+    embed_map: Tensor | None = None
 
 
 class WorldModel(nn.Module):
     """End-to-end world model used for M3 supervised training on replay.
 
-    Primary decoder conditions on `feat = concat(h, flatten(z_posterior))`.
-    `embed_decoder` reconstructs from the encoder embedding alone so the
-    vector that feeds `z_posterior` is directly supervised (no skip copy).
-    `recon_embed` and `recon_bottleneck` are the same skip-free embed decode
-    (two names so existing logs/dashboard keep working).
+    With Identity encoder flatten matching `decoder.channels[0]`, `decoder`
+    and `embed_decoder` are the same module. `HzToMap` is the only extra
+    `[h,z]` path (imagination still has no pixels to skip from).
     """
 
     def __init__(
@@ -59,22 +77,18 @@ class WorldModel(nn.Module):
         embed_decoder: Decoder,
         reward_head: RewardHead,
         continue_head: ContinueHead,
+        hz_to_map: HzToMap | None = None,
     ) -> None:
         super().__init__()
         self.encoder = encoder
         self.rssm = rssm
         self.decoder = decoder
         self.embed_decoder = embed_decoder
-        # Alias used by older checkpoints/docs; same module.
         self.embed_decoder_bottleneck = embed_decoder
+        self.hz_to_map = hz_to_map
         self.reward_head = reward_head
         self.continue_head = continue_head
         feat_dim = rssm.deter_dim + rssm.z_flat_dim
-        if decoder.embed_dim != feat_dim:
-            raise ValueError(
-                f"decoder.embed_dim={decoder.embed_dim} != feat_dim={feat_dim} "
-                f"(deter {rssm.deter_dim} + z_flat {rssm.z_flat_dim})"
-            )
         if encoder.embed_dim != rssm.embed_dim:
             raise ValueError(
                 f"encoder.embed_dim={encoder.embed_dim} != rssm.embed_dim={rssm.embed_dim}"
@@ -84,6 +98,16 @@ class WorldModel(nn.Module):
                 f"embed_decoder.embed_dim={embed_decoder.embed_dim} != "
                 f"rssm.embed_dim={rssm.embed_dim}"
             )
+        if hz_to_map is None and decoder.embed_dim != feat_dim:
+            raise ValueError(
+                f"decoder.embed_dim={decoder.embed_dim} != feat_dim={feat_dim} "
+                f"(deter {rssm.deter_dim} + z_flat {rssm.z_flat_dim})"
+            )
+        if hz_to_map is not None:
+            if decoder is not embed_decoder:
+                raise ValueError("shared 4x4 decoder requires decoder is embed_decoder")
+            if hz_to_map.channels != decoder.channels0:
+                raise ValueError("HzToMap channels must match decoder.channels[0]")
         if reward_head.in_dim != feat_dim or continue_head.in_dim != feat_dim:
             raise ValueError("reward/continue heads must match RSSM feature dim")
 
@@ -114,13 +138,7 @@ class WorldModel(nn.Module):
         encoder_blocks: int = 2,
         decoder_blocks: int = 0,
     ) -> WorldModel:
-        """Construct a consistently-sized world model from scalar dims.
-
-        `stem_channels` / `spatial` are ignored leftover kwargs from the
-        U-Net / 8×8-bottleneck experiments. Encoder is skip-free ResNet
-        (DreamerV3 ImageEncoderResnet: stride-2 then residual blocks at
-        each scale) flattening to 4×4. Both decoders start at 4×4.
-        """
+        """Construct a consistently-sized world model from scalar dims."""
         del stem_channels, spatial
         encoder = Encoder(
             embed_dim=embed_dim,
@@ -146,21 +164,39 @@ class WorldModel(nn.Module):
             embed_spatial=embed_spatial,
         )
         feat_dim = deter_dim + stoch * classes
-        decoder = Decoder(
-            embed_dim=feat_dim,
-            channels=decoder_channels,
-            start_res=4,
-            blocks=decoder_blocks,
+        shared = (
+            embed_spatial is not None and decoder_channels[0] == embed_spatial
         )
-        embed_decoder = Decoder(
-            embed_dim=embed_dim,
-            channels=decoder_channels,
-            start_res=4,
-            blocks=decoder_blocks,
-        )
+        if shared:
+            decoder = Decoder(
+                embed_dim=embed_dim,
+                channels=decoder_channels,
+                start_res=4,
+                blocks=decoder_blocks,
+            )
+            embed_decoder = decoder
+            hz_to_map: HzToMap | None = HzToMap(
+                deter_dim, stoch * classes, embed_spatial
+            )
+        else:
+            decoder = Decoder(
+                embed_dim=feat_dim,
+                channels=decoder_channels,
+                start_res=4,
+                blocks=decoder_blocks,
+            )
+            embed_decoder = Decoder(
+                embed_dim=embed_dim,
+                channels=decoder_channels,
+                start_res=4,
+                blocks=decoder_blocks,
+            )
+            hz_to_map = None
         reward_head = RewardHead(feat_dim, hidden=head_hidden, layers=head_layers)
         continue_head = ContinueHead(feat_dim, hidden=head_hidden, layers=head_layers)
-        return cls(encoder, rssm, decoder, embed_decoder, reward_head, continue_head)
+        return cls(
+            encoder, rssm, decoder, embed_decoder, reward_head, continue_head, hz_to_map
+        )
 
     def encode(self, obs_u8: Tensor) -> Tensor:
         """uint8 obs `[B, T, H, W, C]` or `[B, H, W, C]` → embeds with time dim."""
@@ -188,10 +224,6 @@ class WorldModel(nn.Module):
             obs_u8: `[B, T, 64, 64, 3]` uint8
             actions: `[B, T]` int64 or `[B, T, action_dim]` one-hot
             actions_onehot: if True, `actions` is already one-hot
-
-        Returns:
-            `WorldModelOutput` with recon from `[h, z_posterior]` and
-            skip-free embed recon in both `recon_embed` and `recon_bottleneck`.
         """
         if obs_u8.ndim != 5:
             raise ValueError(f"expected obs [B,T,H,W,C], got {tuple(obs_u8.shape)}")
@@ -207,8 +239,22 @@ class WorldModel(nn.Module):
         feat = rssm_features(rssm_out.h, rssm_out.z_posterior)
         _, _, feat_dim = feat.shape
         flat_feat = feat.reshape(batch * time, feat_dim)
-        recon = self.decoder(flat_feat).view(batch, time, 3, 64, 64)
-        recon_from_embed = self.embed_decoder(flat_embed).view(batch, time, 3, 64, 64)
+        hz_map = None
+        embed_map = None
+        if self.hz_to_map is not None:
+            h_flat = rssm_out.h.reshape(batch * time, -1)
+            z_flat = rssm_out.z_posterior.reshape(batch * time, -1)
+            hz_map = self.hz_to_map(h_flat, z_flat)
+            embed_map = flat_embed.view(
+                batch * time, self.hz_to_map.channels, 4, 4
+            )
+            recon = self.decoder.from_map(hz_map).view(batch, time, 3, 64, 64)
+            recon_from_embed = self.decoder.from_map(embed_map).view(
+                batch, time, 3, 64, 64
+            )
+        else:
+            recon = self.decoder(flat_feat).view(batch, time, 3, 64, 64)
+            recon_from_embed = self.embed_decoder(flat_embed).view(batch, time, 3, 64, 64)
         reward_pred = self.reward_head(flat_feat).view(batch, time, 1)
         cont_logit = self.continue_head(flat_feat).view(batch, time, 1)
         return WorldModelOutput(
@@ -220,4 +266,6 @@ class WorldModel(nn.Module):
             recon_bottleneck=recon_from_embed,
             reward_pred=reward_pred,
             cont_logit=cont_logit,
+            hz_map=hz_map,
+            embed_map=embed_map,
         )

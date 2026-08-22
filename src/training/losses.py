@@ -39,6 +39,7 @@ class WorldModelLossBreakdown:
     recon_l1: Tensor
     recon_embed_l1: Tensor
     recon_bottleneck_l1: Tensor
+    recon_map: Tensor
     grad: Tensor
     reward: Tensor
     continue_loss: Tensor
@@ -203,6 +204,9 @@ def world_model_loss(
     grad_scale: float = 0.0,
     recon_loss_type: str = "l1",
     edge_weight: float = 0.0,
+    hz_map: Tensor | None = None,
+    embed_map: Tensor | None = None,
+    recon_map_scale: float = 0.0,
 ) -> WorldModelLossBreakdown:
     """Assemble world-model terms.
 
@@ -242,6 +246,12 @@ def world_model_loss(
     else:
         grad_loss = recon.new_zeros(())
 
+    if hz_map is not None and embed_map is not None and recon_map_scale != 0.0:
+        recon_map = F.l1_loss(hz_map, embed_map.detach())
+    else:
+        recon_map = recon.new_zeros(())
+        recon_map_scale = 0.0
+
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
 
@@ -265,6 +275,7 @@ def world_model_loss(
         + continue_scale * continue_loss
         + kl_scale * kl_loss
         + grad_scale * grad_loss
+        + recon_map_scale * recon_map
     )
     return WorldModelLossBreakdown(
         total=total,
@@ -274,6 +285,7 @@ def world_model_loss(
         recon_l1=recon_l1,
         recon_embed_l1=recon_embed_l1,
         recon_bottleneck_l1=recon_bottleneck_l1,
+        recon_map=recon_map,
         grad=grad_loss,
         reward=reward_loss,
         continue_loss=continue_loss,
