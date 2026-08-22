@@ -265,7 +265,7 @@ def main() -> None:
     history: list[dict[str, float]] = []
     last_log_time = time.time()
     last_log_step = start_step
-    for step in range(start_step + 1, start_step + steps + 1):
+    for step in range(start_step + 1, steps + 1):
         batch = buffer.sample(batch_size, seq_len)
         _loss, metrics = world_model_step(
             model,
@@ -323,7 +323,7 @@ def main() -> None:
     final = ckpt_dir / "ckpt_final.pt"
     torch.save(
         {
-            "step": start_step + steps,
+            "step": steps,
             "model": model.state_dict(),
             "optim": optim.state_dict(),
         },
