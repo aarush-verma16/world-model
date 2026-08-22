@@ -48,6 +48,8 @@ rssm:
   act: silu
   initial: learned
   rec_depth: 1
+  # Prior is Linear(h → z). SpatialPrior (4×4 from one vector) kept KL raw
+  # at 1.2–1.6; the Linear prior from the 8k run sat ~0.8 at the same step.
 
 decoder:
   # Residual blocks live on the encoder. Two ResNet decoders OOMed the 16

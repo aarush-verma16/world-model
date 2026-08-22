@@ -349,7 +349,7 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
 
 def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:
     """M3's 32 categoricals sit 2-per-cell; mixing Linear cannot scramble them."""
-    from models.rssm import SpatialPosterior, SpatialPrior, stoch_per_cell
+    from models.rssm import SpatialPosterior, stoch_per_cell
 
     wm = WorldModel.from_config_dims(
         embed_dim=64 * 4 * 4,
@@ -366,7 +366,7 @@ def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:
     assert stoch_per_cell(16) == 1
     assert isinstance(wm.rssm.posterior_net, SpatialPosterior)
     assert isinstance(wm.rssm.posterior_net.to_logits, torch.nn.Conv2d)
-    assert isinstance(wm.rssm.prior_net, SpatialPrior)
+    assert isinstance(wm.rssm.prior_net, torch.nn.Sequential)
     assert wm.hz_to_map is not None
     assert wm.hz_to_map.per_cell == 1
     assert isinstance(wm.hz_to_map.z_proj, torch.nn.Conv2d)

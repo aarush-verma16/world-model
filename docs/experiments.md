@@ -49,6 +49,10 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - Frozen decoder weights on the `[h,z]` paint starved the renderer
   (solid green, no avatar blob). Live weights again; per-cell `z` still
   holds layout.
+- KL raw stuck at 1.2–1.6 (above free_nats) after ~step 250: `SpatialPrior`
+  predicted a 4×4 logit grid from one `h` vector and lagged the per-cell
+  posterior. Replaced with the Linear `h → z` prior from the 8k-step run
+  (KL ~0.8 at step 2000 there). Posterior stays per-cell.
 
 ## Setup / M0 (2026-07-31)
 

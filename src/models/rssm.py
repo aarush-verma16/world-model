@@ -257,39 +257,6 @@ class SpatialPosterior(nn.Module):
         return self.to_logits(x.flatten(1))
 
 
-class SpatialPrior(nn.Module):
-    """Prior logits on the same 4x4 cell layout as `SpatialPosterior`."""
-
-    def __init__(
-        self, deter_dim: int, hidden: int, stoch: int, classes: int, spatial: int = 4
-    ) -> None:
-        super().__init__()
-        per_cell = stoch_per_cell(stoch, spatial)
-        if per_cell is None:
-            raise ValueError(f"stoch={stoch} is not a multiple of {spatial * spatial}")
-        self.per_cell = per_cell
-        self.classes = classes
-        self.spatial = spatial
-        self.hidden = hidden
-        self.fc = nn.Sequential(
-            nn.Linear(deter_dim, hidden),
-            nn.LayerNorm(hidden),
-            nn.SiLU(),
-        )
-        self.to_map = nn.Linear(hidden, hidden * spatial * spatial)
-        self.conv = nn.Sequential(
-            nn.Conv2d(hidden, hidden, kernel_size=3, padding=1),
-            nn.SiLU(),
-            nn.Conv2d(hidden, per_cell * classes, kernel_size=1),
-        )
-
-    def forward(self, h: Tensor) -> Tensor:
-        """`h` `[B, deter]` → logits `[B, z_flat]`."""
-        batch = h.shape[0]
-        x = self.to_map(self.fc(h)).view(batch, self.hidden, self.spatial, self.spatial)
-        return logits_grid_to_flat(self.conv(x), self.per_cell, self.classes)
-
-
 class RSSM(nn.Module):
     """Layer-normalized GRU + unimix discrete categorical prior/posterior heads.
 
@@ -347,26 +314,21 @@ class RSSM(nn.Module):
                 )
         self.prior_net: nn.Module
         self.posterior_net: nn.Module
+        # Prior is always Linear(h → z). A 4×4 SpatialPrior has to paint
+        # per-cell logits from a single vector and lagged the posterior
+        # (KL raw stuck at 1.2–1.6 vs ~0.8 on the Linear-prior 8k run).
+        # Posterior stays spatial/per-cell so observe-time z keeps layout.
+        self.prior_net = nn.Sequential(
+            nn.Linear(deter_dim, hidden),
+            nn.LayerNorm(hidden),
+            nn.SiLU(),
+            nn.Linear(hidden, self.z_flat_dim),
+        )
         if embed_spatial is not None:
             self.posterior_net = SpatialPosterior(
                 embed_spatial, deter_dim, hidden, stoch, classes
             )
-            if stoch_per_cell(stoch) is not None:
-                self.prior_net = SpatialPrior(deter_dim, hidden, stoch, classes)
-            else:
-                self.prior_net = nn.Sequential(
-                    nn.Linear(deter_dim, hidden),
-                    nn.LayerNorm(hidden),
-                    nn.SiLU(),
-                    nn.Linear(hidden, self.z_flat_dim),
-                )
         else:
-            self.prior_net = nn.Sequential(
-                nn.Linear(deter_dim, hidden),
-                nn.LayerNorm(hidden),
-                nn.SiLU(),
-                nn.Linear(hidden, self.z_flat_dim),
-            )
             self.posterior_net = nn.Sequential(
                 nn.Linear(deter_dim + embed_dim, hidden),
                 nn.LayerNorm(hidden),

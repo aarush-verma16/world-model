@@ -230,7 +230,7 @@ def test_spatial_posterior_reads_4x4_map() -> None:
 
 
 def test_spatial_posterior_per_cell_logits_when_stoch_divides_16() -> None:
-    from models.rssm import SpatialPosterior, SpatialPrior
+    from models.rssm import SpatialPosterior
 
     ch = 16
     rssm = RSSM(
@@ -245,7 +245,9 @@ def test_spatial_posterior_per_cell_logits_when_stoch_divides_16() -> None:
     )
     assert isinstance(rssm.posterior_net, SpatialPosterior)
     assert isinstance(rssm.posterior_net.to_logits, torch.nn.Conv2d)
-    assert isinstance(rssm.prior_net, SpatialPrior)
+    assert isinstance(rssm.prior_net, torch.nn.Sequential)
+    assert isinstance(rssm.prior_net[-1], torch.nn.Linear)
+    assert rssm.prior_net[-1].out_features == 16 * 4
     embeds = torch.randn(2, 6, ch * 4 * 4, requires_grad=True)
     actions = torch.zeros(2, 6, 5)
     actions[..., 0] = 1.0
