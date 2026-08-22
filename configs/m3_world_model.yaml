@@ -114,10 +114,18 @@ train:
   recon_blob_scale: 5.0
   # 3x3 tiles around the Crafter player (always the same camera tile).
   # Full-frame L1 keeps a mean-pose blob; this crop makes facing/tool move.
-  recon_avatar_scale: 5.0
+  # CAUTION: this crop is 441px vs the 4096px full frame. Scale 5.0 here
+  # (same as recon_scale, which is a MEAN over 4096px) gave avatar pixels
+  # ~9x the per-pixel gradient weight of a generic grass pixel -- at step
+  # ~1000 the model spent most of its capacity on the avatar blob + HUD
+  # icons and left the rest of the frame flat (no dithering/blur at all,
+  # unlike every earlier run). 1.0 is close to area-fair (5.0 * 441/4096).
+  recon_avatar_scale: 1.0
   # Inventory strip via a 2x9 slot-grid head off the bottom 4x4 row.
   # Amount glyphs are ~4px in a 7px slot — not 1px digits, not skip-to-RGB.
-  recon_hud_scale: 5.0
+  # Same over-weighting bug as recon_avatar_scale (882px crop, plus this
+  # loss is pixel+slot L1 summed, doubling it again). 1.0 is ~area-fair.
+  recon_hud_scale: 1.0
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0

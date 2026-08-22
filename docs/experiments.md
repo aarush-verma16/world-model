@@ -44,6 +44,12 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - Inventory numbers stuck: amount glyphs are ~4px in a 7px slot, in a
   2×9 bar at rows 49–63. Dedicated slot-grid HUD head off the bottom 4×4
   row + `recon_hud`. Not skip-to-RGB, not 8px world decoder.
+- Step ~1000 of that run looked flat/"corrupted" (only the avatar blob
+  and HUD icons had any detail, rest of the frame plain grass): set
+  `recon_avatar_scale` / `recon_hud_scale` to 5.0, same as full-frame
+  `recon_scale`, but they're means over 441px / 882px crops vs 4096px —
+  ~9x the per-pixel gradient weight of a generic pixel. Dropped both to
+  1.0 (area-fair is ~0.5 / ~1.1).
 
 ## Setup / M0 (2026-07-31)
 
