@@ -57,7 +57,8 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - Solid-color terrain + one left HUD icon at step ~2k: `recon_blob_scale=5`
   is 7px tile-mean L1 (paints each tile one color) and `[h,z]` was training
   the shared upsample (4×4 map → 16×16 solid cells). Blob off; decoder
-  weights detached on the `[h,z]` paint again.
+  weights detached on the `[h,z]` paint again. Resuming a blob-trained
+  step-1000 decoder did not grow texture — start from scratch.
 
 ## Setup / M0 (2026-07-31)
 
