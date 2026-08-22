@@ -19,9 +19,11 @@
 #   - `edge_weight` / `grad_scale` stacked on unweighted L1. Off.
 #   - `recon_scale=40` + `kl_scale=0.1` (z ~ noise, mean-color collapse).
 #
-# `embed_dim: 12288` == 768*4*4 so Encoder.fc and embed_decoder.fc are
-# Identity (flatten is the embedding; no mixing Linear).
-# `recon_bottleneck_scale` must stay 0: that tensor is the same as recon_embed.
+# Identity flatten is C*4*4, but the posterior used to be
+# Linear(C*16 + deter, hidden) — mixing every 4x4 cell before z. That is
+# why embed recon can show land/water while [h,z] stays mean grass + one
+# HUD blob. When embed_dim == channels[-1]*16, RSSM uses SpatialPosterior
+# (conv on the 4x4 map, then logits).
 
 seed: 0
 

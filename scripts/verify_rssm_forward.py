@@ -135,7 +135,7 @@ def main() -> None:
     loss.backward()
 
     prior_grad = rssm.prior_net[-1].weight.grad
-    post_grad = rssm.posterior_net[-1].weight.grad
+    post_grad = rssm.posterior_logit_weight().grad
     if prior_grad is None or float(prior_grad.abs().sum()) == 0.0:
         raise SystemExit("FAIL: no gradient into prior logits (STE broken?)")
     if post_grad is None or float(post_grad.abs().sum()) == 0.0:

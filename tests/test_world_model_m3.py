@@ -231,6 +231,24 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert wm.embed_decoder.start_res == 4
     assert wm.decoder.start_res == 4
     assert wm.encoder.blocks == 2
+    assert wm.rssm.embed_spatial is None  # tiny embed_dim != C*4*4
+
+    identity_wm = WorldModel.from_config_dims(
+        embed_dim=64 * 4 * 4,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=5,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+    )
+    from models.rssm import SpatialPosterior
+
+    assert identity_wm.rssm.embed_spatial == 64
+    assert isinstance(identity_wm.rssm.posterior_net, SpatialPosterior)
 
 
 def test_resnet_encoder_identity_flatten_and_backward() -> None:

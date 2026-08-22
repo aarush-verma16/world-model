@@ -173,6 +173,38 @@ class RSSMOutput:
     posterior_logits: Tensor
 
 
+class SpatialPosterior(nn.Module):
+    """Posterior logits from `h` + a 4x4 encoder map (no flatten-mixing Linear).
+
+    The Identity encoder flatten is `[B, C*4*4]` with layout `C x 4 x 4`.
+    `Linear(C*16 + deter, hidden)` mixes every cell together before `z` is
+    formed — so embed recon can show land/water while `[h,z]` stays mean
+    grass. Convs run on the 4x4 map first; only then flatten to categorical
+    logits (Dreamer `z` is still unstructured).
+    """
+
+    def __init__(self, embed_ch: int, deter_dim: int, hidden: int, z_flat: int) -> None:
+        super().__init__()
+        self.embed_ch = embed_ch
+        h_ch = min(128, deter_dim)
+        self.h_to_map = nn.Linear(deter_dim, h_ch)
+        self.conv = nn.Sequential(
+            nn.Conv2d(embed_ch + h_ch, hidden, kernel_size=3, padding=1),
+            nn.SiLU(),
+            nn.Conv2d(hidden, hidden, kernel_size=3, padding=1),
+            nn.SiLU(),
+        )
+        self.to_logits = nn.Linear(hidden * 4 * 4, z_flat)
+
+    def forward(self, h: Tensor, embed: Tensor) -> Tensor:
+        """`h` `[B, deter]`, `embed` `[B, C*16]` → logits `[B, z_flat]`."""
+        batch = h.shape[0]
+        embed_map = embed.view(batch, self.embed_ch, 4, 4)
+        h_map = self.h_to_map(h).unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 4, 4)
+        x = self.conv(torch.cat([embed_map, h_map], dim=1))
+        return self.to_logits(x.flatten(1))
+
+
 class RSSM(nn.Module):
     """Layer-normalized GRU + unimix discrete categorical prior/posterior heads.
 
@@ -191,6 +223,7 @@ class RSSM(nn.Module):
         act: str = "silu",
         initial: str = "learned",
         rec_depth: int = 1,
+        embed_spatial: int | None = None,
     ) -> None:
         super().__init__()
         if stoch < 1 or classes < 2:
@@ -218,18 +251,32 @@ class RSSM(nn.Module):
         )
         self.cell = GRUCellLayerNorm(hidden, deter_dim, act=act)
 
+        self.embed_spatial = embed_spatial
+        if embed_spatial is not None:
+            if embed_spatial < 1:
+                raise ValueError(f"embed_spatial must be >= 1, got {embed_spatial}")
+            if embed_dim != embed_spatial * 4 * 4:
+                raise ValueError(
+                    f"embed_dim={embed_dim} != embed_spatial*4*4 "
+                    f"({embed_spatial * 16}) — Identity flatten required"
+                )
         self.prior_net = nn.Sequential(
             nn.Linear(deter_dim, hidden),
             nn.LayerNorm(hidden),
             nn.SiLU(),
             nn.Linear(hidden, self.z_flat_dim),
         )
-        self.posterior_net = nn.Sequential(
-            nn.Linear(deter_dim + embed_dim, hidden),
-            nn.LayerNorm(hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, self.z_flat_dim),
-        )
+        if embed_spatial is not None:
+            self.posterior_net: nn.Module = SpatialPosterior(
+                embed_spatial, deter_dim, hidden, self.z_flat_dim
+            )
+        else:
+            self.posterior_net = nn.Sequential(
+                nn.Linear(deter_dim + embed_dim, hidden),
+                nn.LayerNorm(hidden),
+                nn.SiLU(),
+                nn.Linear(hidden, self.z_flat_dim),
+            )
 
         if self.initial_mode == "learned":
             # Trainable starting deterministic state, DreamerV3-style: init at
@@ -313,13 +360,26 @@ class RSSM(nn.Module):
         prior_logits = self._logits_to_stoch(self.prior_net(h))
         z_prior = sample_onehot_ste(unimix_probs(prior_logits, self.unimix))
 
-        posterior_logits = self._logits_to_stoch(
-            self.posterior_net(torch.cat([h, embed], dim=-1))
-        )
+        posterior_logits = self._logits_to_stoch(self._posterior_logits(h, embed))
         z_posterior = sample_onehot_ste(unimix_probs(posterior_logits, self.unimix))
 
         new_state = RSSMState(h=h, z_posterior=z_posterior)
         return new_state, z_prior, prior_logits, posterior_logits
+
+    def _posterior_logits(self, h: Tensor, embed: Tensor) -> Tensor:
+        """Raw posterior logits `[B, z_flat]` from `h` and the encoder embed."""
+        if self.embed_spatial is not None:
+            return self.posterior_net(h, embed)
+        return self.posterior_net(torch.cat([h, embed], dim=-1))
+
+    def posterior_logit_weight(self) -> Tensor:
+        """Last linear of the posterior head (MLP or spatial)."""
+        if isinstance(self.posterior_net, SpatialPosterior):
+            return self.posterior_net.to_logits.weight
+        last = self.posterior_net[-1]
+        if not isinstance(last, nn.Linear):
+            raise RuntimeError("expected Sequential posterior to end in Linear")
+        return last.weight
 
     def img_step(
         self,

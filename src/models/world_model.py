@@ -127,6 +127,11 @@ class WorldModel(nn.Module):
             channels=encoder_channels,
             blocks=encoder_blocks,
         )
+        embed_spatial = (
+            encoder_channels[-1]
+            if embed_dim == encoder_channels[-1] * 4 * 4
+            else None
+        )
         rssm = RSSM(
             embed_dim=embed_dim,
             action_dim=action_dim,
@@ -138,6 +143,7 @@ class WorldModel(nn.Module):
             act=act,
             initial=initial,
             rec_depth=rec_depth,
+            embed_spatial=embed_spatial,
         )
         feat_dim = deter_dim + stoch * classes
         decoder = Decoder(

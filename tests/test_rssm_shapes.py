@@ -108,7 +108,7 @@ def test_observe_gradients_reach_logits() -> None:
     loss.backward()
 
     prior_w = rssm.prior_net[-1].weight
-    post_w = rssm.posterior_net[-1].weight
+    post_w = rssm.posterior_logit_weight()
     assert prior_w.grad is not None and prior_w.grad.abs().sum() > 0
     assert post_w.grad is not None and post_w.grad.abs().sum() > 0
     assert embeds.grad is not None and embeds.grad.abs().sum() > 0
@@ -199,6 +199,33 @@ def test_rec_depth_must_be_positive() -> None:
         pass
     else:
         raise AssertionError("expected ValueError for rec_depth < 1")
+
+
+def test_spatial_posterior_reads_4x4_map() -> None:
+    from models.rssm import SpatialPosterior
+
+    ch = 16
+    embed_dim = ch * 4 * 4
+    rssm = RSSM(
+        embed_dim=embed_dim,
+        action_dim=5,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        embed_spatial=ch,
+        initial="zeros",
+    )
+    assert isinstance(rssm.posterior_net, SpatialPosterior)
+    embeds = torch.randn(2, 6, embed_dim, requires_grad=True)
+    actions = torch.zeros(2, 6, 5)
+    actions[..., 0] = 1.0
+    out = rssm.observe(embeds, actions)
+    assert out.z_posterior.shape == (2, 6, 4, 4)
+    (out.posterior_logits**2).mean().backward()
+    assert embeds.grad is not None and float(embeds.grad.abs().sum()) > 0
+    w = rssm.posterior_logit_weight()
+    assert w.grad is not None and float(w.grad.abs().sum()) > 0
 
 
 def test_imagine_shapes() -> None:

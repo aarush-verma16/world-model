@@ -26,6 +26,9 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   each scale. The skinny stack aliased 8-12px sprites into grass. Switched
   encoder to that ResNet (still 4x4 flatten, no skip-to-RGB). Decoder
   residuals were tried and reverted: two XL ResNet decoders used 19 GiB.
+- Embed recon showed land/water while `[h,z]` stayed mean grass / one HUD
+  blob: posterior was `Linear(12288+512 → 512)`, mixing the 4x4 map. Switched
+  to `SpatialPosterior` (conv on the 4x4 embed, then categorical logits).
 
 ## Setup / M0 (2026-07-31)
 
