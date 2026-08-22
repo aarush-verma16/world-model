@@ -56,9 +56,11 @@ def save_recon_grid(obs_u8: torch.Tensor, preds: list[torch.Tensor], path: Path)
     """
     from PIL import Image
 
-    # Use first timestep of each batch item.
-    real = obs_u8[:, 0].cpu()
-    pred_imgs = [nchw_float_to_nhwc_uint8(p[:, 0].detach().cpu()) for p in preds]
+    # Mid-sequence: t=0 has a near-init `h`, so [h,z] looks like a generic
+    # spawn even when later steps have the right layout.
+    t_vis = obs_u8.shape[1] // 2
+    real = obs_u8[:, t_vis].cpu()
+    pred_imgs = [nchw_float_to_nhwc_uint8(p[:, t_vis].detach().cpu()) for p in preds]
     strips = [
         np.concatenate([real[i].numpy()] + [p[i].numpy() for p in pred_imgs], axis=1)
         for i in range(real.shape[0])

@@ -226,6 +226,36 @@ def test_spatial_posterior_reads_4x4_map() -> None:
     assert embeds.grad is not None and float(embeds.grad.abs().sum()) > 0
     w = rssm.posterior_logit_weight()
     assert w.grad is not None and float(w.grad.abs().sum()) > 0
+    assert isinstance(rssm.posterior_net.to_logits, torch.nn.Linear)
+
+
+def test_spatial_posterior_per_cell_logits_when_stoch_divides_16() -> None:
+    from models.rssm import SpatialPosterior, SpatialPrior
+
+    ch = 16
+    rssm = RSSM(
+        embed_dim=ch * 4 * 4,
+        action_dim=5,
+        deter_dim=32,
+        stoch=16,
+        classes=4,
+        hidden=32,
+        embed_spatial=ch,
+        initial="zeros",
+    )
+    assert isinstance(rssm.posterior_net, SpatialPosterior)
+    assert isinstance(rssm.posterior_net.to_logits, torch.nn.Conv2d)
+    assert isinstance(rssm.prior_net, SpatialPrior)
+    embeds = torch.randn(2, 6, ch * 4 * 4, requires_grad=True)
+    actions = torch.zeros(2, 6, 5)
+    actions[..., 0] = 1.0
+    out = rssm.observe(embeds, actions)
+    assert out.z_posterior.shape == (2, 6, 16, 4)
+    (out.posterior_logits**2).mean().backward()
+    assert embeds.grad is not None and float(embeds.grad.abs().sum()) > 0
+    w = rssm.posterior_logit_weight()
+    assert w.ndim == 4
+    assert w.grad is not None and float(w.grad.abs().sum()) > 0
 
 
 def test_imagine_shapes() -> None:

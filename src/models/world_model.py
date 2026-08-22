@@ -5,8 +5,10 @@ Trains on real replay sequences (M3). Imagination / actor-critic is M4.
 When the encoder flatten is a 4x4 map (Identity `embed_dim == C*4*4`), there
 is **one** skip-free decoder upsample. Embed recon reshapes that map and
 paints. `[h,z]` recon predicts the same 4x4 layout (`HzToMap`) then uses
-the same upsample. Two independent XL decoders left `[h,z]` stuck on mean
-grass while embed learned the scene — the upsample never transferred.
+the same upsample with decoder weights detached so pixel loss cannot
+scramble the renderer. `z` is 2 categoricals per 4x4 cell (32 total).
+Two independent XL decoders left `[h,z]` stuck on mean grass while embed
+learned the scene — the upsample never transferred.
 """
 
 from __future__ import annotations
@@ -20,18 +22,38 @@ from models.decoder import Decoder
 from models.encoder import Encoder
 from models.heads import ContinueHead, RewardHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_float
-from models.rssm import RSSM, RSSMOutput, one_hot_action
+from models.rssm import RSSM, RSSMOutput, one_hot_action, stoch_per_cell, z_flat_to_cell_map
 
 
 class HzToMap(nn.Module):
-    """`h` + flattened `z_posterior` → 4x4 feature map (encoder layout)."""
+    """`h` + `z_posterior` → 4x4 feature map (encoder layout).
 
-    def __init__(self, deter_dim: int, z_flat: int, channels: int, spatial: int = 4) -> None:
+    When `stoch` is a multiple of 16, each 4x4 cell owns its own categoricals
+    (M3: 2×32-class per cell). A mixing `Linear(z → C*4*4)` can put water on
+    the wrong side of the frame; per-cell 1x1 conv cannot.
+    """
+
+    def __init__(
+        self,
+        deter_dim: int,
+        stoch: int,
+        classes: int,
+        channels: int,
+        spatial: int = 4,
+    ) -> None:
         super().__init__()
         self.channels = channels
         self.spatial = spatial
+        self.stoch = stoch
+        self.classes = classes
+        self.per_cell = stoch_per_cell(stoch, spatial)
         self.h_proj = nn.Linear(deter_dim, channels)
-        self.z_proj = nn.Linear(z_flat, channels * spatial * spatial)
+        if self.per_cell is not None:
+            self.z_proj: nn.Module = nn.Conv2d(
+                self.per_cell * classes, channels, kernel_size=1
+            )
+        else:
+            self.z_proj = nn.Linear(stoch * classes, channels * spatial * spatial)
         self.fuse = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, padding=1),
             nn.SiLU(),
@@ -40,7 +62,14 @@ class HzToMap(nn.Module):
 
     def forward(self, h: Tensor, z_flat: Tensor) -> Tensor:
         """`h` `[B, deter]`, `z_flat` `[B, stoch*classes]` → `[B, C, 4, 4]`."""
-        z_map = self.z_proj(z_flat).view(-1, self.channels, self.spatial, self.spatial)
+        if self.per_cell is not None:
+            z_map = self.z_proj(
+                z_flat_to_cell_map(z_flat, self.stoch, self.classes, self.spatial)
+            )
+        else:
+            z_map = self.z_proj(z_flat).view(
+                -1, self.channels, self.spatial, self.spatial
+            )
         h_map = self.h_proj(h).unsqueeze(-1).unsqueeze(-1)
         return self.fuse(z_map + h_map)
 
@@ -176,7 +205,7 @@ class WorldModel(nn.Module):
             )
             embed_decoder = decoder
             hz_to_map: HzToMap | None = HzToMap(
-                deter_dim, stoch * classes, embed_spatial
+                deter_dim, stoch, classes, embed_spatial
             )
         else:
             decoder = Decoder(
@@ -248,7 +277,9 @@ class WorldModel(nn.Module):
             embed_map = flat_embed.view(
                 batch * time, self.hz_to_map.channels, 4, 4
             )
-            recon = self.decoder.from_map(hz_map).view(batch, time, 3, 64, 64)
+            recon = self.decoder.from_map(hz_map, detach_weights=True).view(
+                batch, time, 3, 64, 64
+            )
             recon_from_embed = self.decoder.from_map(embed_map).view(
                 batch, time, 3, 64, 64
             )

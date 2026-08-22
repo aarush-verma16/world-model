@@ -32,6 +32,10 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - `[h,z]` still showed no environment (not even blur) while embed did: two
   separate pixel decoders + a mixing Linear into `[h,z]` pixels. Shared 4x4
   upsample + `HzToMap` + `recon_map` L1 (copy encoder map, detached).
+- `[h,z]` environment in the wrong place at step ~8k: mixing Linear(z →
+  4x4) plus `[h,z]` pixel loss through the *shared* decoder scrambled
+  layout. Per-cell `z` (2 categoricals / cell) + decoder weights detached
+  on the `[h,z]` paint. Dashboard vis uses mid-sequence, not t=0.
 - Environment + player showed, other sprites never even as blurs (both
   panels): 64x64 L1 is a median, so an 8px cow in a 16x16 cell is erased.
   Added `recon_blob` (L1 on 8x8 avg-pooled frames). Not `edge_weight`, not

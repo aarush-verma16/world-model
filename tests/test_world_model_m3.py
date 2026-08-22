@@ -295,10 +295,51 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert out.hz_map.shape == out.embed_map.shape
     out.recon.mean().backward()
     assert identity_wm.hz_to_map.z_proj.weight.grad is not None
+    # Shared decoder is frozen on the [h,z] paint — pixel grads must not
+    # scramble upsample weights. Fit the renderer from embed instead.
+    assert all(
+        p.grad is None or float(p.grad.abs().sum()) == 0.0
+        for p in identity_wm.decoder.up.parameters()
+    )
+    identity_wm.zero_grad()
+    out_embed = identity_wm(obs, actions)
+    out_embed.recon_embed.mean().backward()
     assert any(
         p.grad is not None and float(p.grad.abs().sum()) > 0
         for p in identity_wm.decoder.up.parameters()
     )
+
+
+def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:
+    """M3's 32 categoricals sit 2-per-cell; mixing Linear cannot scramble them."""
+    from models.rssm import SpatialPosterior, SpatialPrior, stoch_per_cell
+
+    wm = WorldModel.from_config_dims(
+        embed_dim=64 * 4 * 4,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=5,
+        deter_dim=32,
+        stoch=16,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+    )
+    assert stoch_per_cell(16) == 1
+    assert isinstance(wm.rssm.posterior_net, SpatialPosterior)
+    assert isinstance(wm.rssm.posterior_net.to_logits, torch.nn.Conv2d)
+    assert isinstance(wm.rssm.prior_net, SpatialPrior)
+    assert wm.hz_to_map is not None
+    assert wm.hz_to_map.per_cell == 1
+    assert isinstance(wm.hz_to_map.z_proj, torch.nn.Conv2d)
+    obs = torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.randint(0, 5, (2, 4), dtype=torch.int64)
+    out = wm(obs, actions)
+    assert out.rssm.z_posterior.shape == (2, 4, 16, 4)
+    out.recon.mean().backward()
+    assert wm.hz_to_map.z_proj.weight.grad is not None
+    assert float(wm.hz_to_map.z_proj.weight.grad.abs().sum()) > 0.0
 
 
 def test_recon_map_trains_hz_to_map() -> None:

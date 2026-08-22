@@ -173,19 +173,62 @@ class RSSMOutput:
     posterior_logits: Tensor
 
 
-class SpatialPosterior(nn.Module):
-    """Posterior logits from `h` + a 4x4 encoder map (no flatten-mixing Linear).
+def stoch_per_cell(stoch: int, spatial: int = 4) -> int | None:
+    """Categoricals per 4x4 cell, or None if `stoch` is not a multiple of 16."""
+    n_cells = spatial * spatial
+    if stoch % n_cells != 0:
+        return None
+    return stoch // n_cells
 
-    The Identity encoder flatten is `[B, C*4*4]` with layout `C x 4 x 4`.
-    `Linear(C*16 + deter, hidden)` mixes every cell together before `z` is
-    formed — so embed recon can show land/water while `[h,z]` stays mean
-    grass. Convs run on the 4x4 map first; only then flatten to categorical
-    logits (Dreamer `z` is still unstructured).
+
+def logits_grid_to_flat(logits: Tensor, per_cell: int, classes: int) -> Tensor:
+    """`[B, per_cell*classes, S, S]` → `[B, S*S*per_cell*classes]` cell-major."""
+    batch, _, spatial, spatial_w = logits.shape
+    if spatial != spatial_w:
+        raise ValueError(f"expected square logit grid, got {tuple(logits.shape)}")
+    x = logits.view(batch, per_cell, classes, spatial, spatial)
+    return x.permute(0, 3, 4, 1, 2).contiguous().view(
+        batch, spatial * spatial * per_cell * classes
+    )
+
+
+def z_flat_to_cell_map(
+    z_flat: Tensor, stoch: int, classes: int, spatial: int = 4
+) -> Tensor:
+    """One-hot `[B, stoch*classes]` → `[B, per_cell*classes, S, S]` (cell-major)."""
+    per_cell = stoch_per_cell(stoch, spatial)
+    if per_cell is None:
+        raise ValueError(f"stoch={stoch} is not a multiple of {spatial * spatial}")
+    batch = z_flat.shape[0]
+    z = z_flat.view(batch, spatial, spatial, per_cell, classes)
+    return z.permute(0, 3, 4, 1, 2).contiguous().view(
+        batch, per_cell * classes, spatial, spatial
+    )
+
+
+class SpatialPosterior(nn.Module):
+    """Posterior logits from `h` + a 4x4 encoder map.
+
+    When `stoch` is a multiple of 16, logits are a 1x1 conv per cell (M3:
+    32 categoricals = 2 per cell) so `z` keeps the encoder's layout.
+    `Linear(hidden*16 → z_flat)` is only the tiny-test fallback.
     """
 
-    def __init__(self, embed_ch: int, deter_dim: int, hidden: int, z_flat: int) -> None:
+    def __init__(
+        self,
+        embed_ch: int,
+        deter_dim: int,
+        hidden: int,
+        stoch: int,
+        classes: int,
+        spatial: int = 4,
+    ) -> None:
         super().__init__()
         self.embed_ch = embed_ch
+        self.stoch = stoch
+        self.classes = classes
+        self.spatial = spatial
+        self.per_cell = stoch_per_cell(stoch, spatial)
         h_ch = min(128, deter_dim)
         self.h_to_map = nn.Linear(deter_dim, h_ch)
         self.conv = nn.Sequential(
@@ -194,15 +237,57 @@ class SpatialPosterior(nn.Module):
             nn.Conv2d(hidden, hidden, kernel_size=3, padding=1),
             nn.SiLU(),
         )
-        self.to_logits = nn.Linear(hidden * 4 * 4, z_flat)
+        if self.per_cell is not None:
+            self.to_logits: nn.Module = nn.Conv2d(
+                hidden, self.per_cell * classes, kernel_size=1
+            )
+        else:
+            self.to_logits = nn.Linear(hidden * spatial * spatial, stoch * classes)
 
     def forward(self, h: Tensor, embed: Tensor) -> Tensor:
         """`h` `[B, deter]`, `embed` `[B, C*16]` → logits `[B, z_flat]`."""
         batch = h.shape[0]
-        embed_map = embed.view(batch, self.embed_ch, 4, 4)
-        h_map = self.h_to_map(h).unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 4, 4)
+        embed_map = embed.view(batch, self.embed_ch, self.spatial, self.spatial)
+        h_map = self.h_to_map(h).unsqueeze(-1).unsqueeze(-1).expand(
+            -1, -1, self.spatial, self.spatial
+        )
         x = self.conv(torch.cat([embed_map, h_map], dim=1))
+        if self.per_cell is not None:
+            return logits_grid_to_flat(self.to_logits(x), self.per_cell, self.classes)
         return self.to_logits(x.flatten(1))
+
+
+class SpatialPrior(nn.Module):
+    """Prior logits on the same 4x4 cell layout as `SpatialPosterior`."""
+
+    def __init__(
+        self, deter_dim: int, hidden: int, stoch: int, classes: int, spatial: int = 4
+    ) -> None:
+        super().__init__()
+        per_cell = stoch_per_cell(stoch, spatial)
+        if per_cell is None:
+            raise ValueError(f"stoch={stoch} is not a multiple of {spatial * spatial}")
+        self.per_cell = per_cell
+        self.classes = classes
+        self.spatial = spatial
+        self.hidden = hidden
+        self.fc = nn.Sequential(
+            nn.Linear(deter_dim, hidden),
+            nn.LayerNorm(hidden),
+            nn.SiLU(),
+        )
+        self.to_map = nn.Linear(hidden, hidden * spatial * spatial)
+        self.conv = nn.Sequential(
+            nn.Conv2d(hidden, hidden, kernel_size=3, padding=1),
+            nn.SiLU(),
+            nn.Conv2d(hidden, per_cell * classes, kernel_size=1),
+        )
+
+    def forward(self, h: Tensor) -> Tensor:
+        """`h` `[B, deter]` → logits `[B, z_flat]`."""
+        batch = h.shape[0]
+        x = self.to_map(self.fc(h)).view(batch, self.hidden, self.spatial, self.spatial)
+        return logits_grid_to_flat(self.conv(x), self.per_cell, self.classes)
 
 
 class RSSM(nn.Module):
@@ -260,17 +345,28 @@ class RSSM(nn.Module):
                     f"embed_dim={embed_dim} != embed_spatial*4*4 "
                     f"({embed_spatial * 16}) — Identity flatten required"
                 )
-        self.prior_net = nn.Sequential(
-            nn.Linear(deter_dim, hidden),
-            nn.LayerNorm(hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, self.z_flat_dim),
-        )
+        self.prior_net: nn.Module
+        self.posterior_net: nn.Module
         if embed_spatial is not None:
-            self.posterior_net: nn.Module = SpatialPosterior(
-                embed_spatial, deter_dim, hidden, self.z_flat_dim
+            self.posterior_net = SpatialPosterior(
+                embed_spatial, deter_dim, hidden, stoch, classes
             )
+            if stoch_per_cell(stoch) is not None:
+                self.prior_net = SpatialPrior(deter_dim, hidden, stoch, classes)
+            else:
+                self.prior_net = nn.Sequential(
+                    nn.Linear(deter_dim, hidden),
+                    nn.LayerNorm(hidden),
+                    nn.SiLU(),
+                    nn.Linear(hidden, self.z_flat_dim),
+                )
         else:
+            self.prior_net = nn.Sequential(
+                nn.Linear(deter_dim, hidden),
+                nn.LayerNorm(hidden),
+                nn.SiLU(),
+                nn.Linear(hidden, self.z_flat_dim),
+            )
             self.posterior_net = nn.Sequential(
                 nn.Linear(deter_dim + embed_dim, hidden),
                 nn.LayerNorm(hidden),
@@ -373,7 +469,7 @@ class RSSM(nn.Module):
         return self.posterior_net(torch.cat([h, embed], dim=-1))
 
     def posterior_logit_weight(self) -> Tensor:
-        """Last linear of the posterior head (MLP or spatial)."""
+        """Last linear/conv of the posterior head (MLP or spatial)."""
         if isinstance(self.posterior_net, SpatialPosterior):
             return self.posterior_net.to_logits.weight
         last = self.posterior_net[-1]

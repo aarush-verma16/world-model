@@ -4,7 +4,8 @@
 #   skip-free ResNet Encoder (DreamerV3 ImageEncoderResnet: stride-2 then
 #   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
 #   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
-#   (HzToMap) then uses the same upsample. recon_map L1 aligns the maps.
+#   per-cell (32 categoricals = 2 per cell) then paints with the same
+#   upsample, decoder weights detached. recon_map L1 aligns the maps.
 #   recon_blob is L1 on 8x8 avg-pooled frames so 8px cows/trees are a
 #   majority of their cell (64x64 L1's median paints grass instead).
 #   Not 8px decoder cells, not edge_weight.
