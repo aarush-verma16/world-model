@@ -19,6 +19,21 @@ def test_encoder_decoder_roundtrip_shapes() -> None:
     assert recon.shape == (4, 3, 64, 64)
 
 
+def test_hud_from_map_shape_and_composite() -> None:
+    from models.crafter_layout import HUD_H, HUD_W, HUD_TOP, composite_hud
+
+    dec = Decoder(embed_dim=64 * 4 * 4, channels=(64, 32, 16, 8))
+    feat = torch.randn(2, 64, 4, 4)
+    hud = dec.hud_from_map(feat)
+    assert hud.shape == (2, 3, HUD_H, HUD_W)
+    world = dec.from_map(feat)
+    out = composite_hud(world, hud)
+    assert out.shape == (2, 3, 64, 64)
+    assert torch.allclose(out[:, :, HUD_TOP : HUD_TOP + HUD_H, :HUD_W], hud)
+    out.sum().backward()
+    assert dec.hud_reduce.weight.grad is not None
+
+
 def test_encoder_decoder_backward() -> None:
     enc = Encoder(embed_dim=256)
     dec = Decoder(embed_dim=256)

@@ -109,6 +109,38 @@ def test_blob_recon_loss_backward() -> None:
     assert torch.isfinite(pred.grad).all()
 
 
+def test_tile_blob_loss_upweights_object_on_grass() -> None:
+    from training.losses import tile_blob_loss
+
+    grass = torch.full((1, 3, 64, 64), 0.2)
+    target = grass.clone()
+    # One Crafter tile at (row 2, col 3) of the 7×9 local view.
+    target[:, :, 14:21, 21:28] = 0.9
+    erased = grass.clone()
+    blob = tile_blob_loss(erased, target)
+    ok = tile_blob_loss(target, target)
+    assert float(ok) < 1e-6
+    assert float(blob) > float(ok) + 0.01
+
+
+def test_avatar_and_hud_losses_are_localized() -> None:
+    from models.crafter_layout import AVATAR_H, AVATAR_W, HUD_H, HUD_W
+    from training.losses import avatar_recon_loss, hud_recon_loss
+
+    target = torch.zeros(1, 3, 64, 64)
+    pred = torch.zeros(1, 3, 64, 64)
+    pred[:, :, 14:35, 21:42] = 1.0
+    av = avatar_recon_loss(pred, target)
+    assert av.shape == ()
+    assert float(av) > 0.0
+    pred2 = torch.zeros(1, 3, 64, 64)
+    pred2[:, :, 49:63, :63] = 1.0
+    hud = hud_recon_loss(pred2, target)
+    assert float(hud) > 0.0
+    assert AVATAR_H == 21 and AVATAR_W == 21
+    assert HUD_H == 14 and HUD_W == 63
+
+
 def test_gradient_l1_loss_zero_when_identical_and_positive_when_shifted() -> None:
     img = torch.rand(2, 3, 3, 8, 8)
     assert torch.allclose(gradient_l1_loss(img, img), torch.zeros(()), atol=1e-6)
@@ -203,6 +235,8 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     assert torch.isfinite(loss.recon_l1)
     assert torch.isfinite(loss.recon_blob)
     assert torch.isfinite(loss.recon_embed_blob)
+    assert torch.isfinite(loss.recon_avatar)
+    assert torch.isfinite(loss.recon_hud)
     # Content-weighting can only raise (or match) the unweighted pixel term.
     assert float(loss.recon.detach()) >= float(loss.recon_l1.detach()) - 1e-5
     assert float(loss.recon_bottleneck.detach()) >= float(loss.recon_bottleneck_l1.detach()) - 1e-5
@@ -243,6 +277,8 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
     assert float(cfg["train"]["recon_map_scale"]) == 1.0
     assert float(cfg["train"]["recon_blob_scale"]) == 5.0
+    assert float(cfg["train"]["recon_avatar_scale"]) == 5.0
+    assert float(cfg["train"]["recon_hud_scale"]) == 5.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
     assert int(cfg["decoder"].get("blocks", 0)) == 0
@@ -299,7 +335,9 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     # scramble upsample weights. Fit the renderer from embed instead.
     assert all(
         p.grad is None or float(p.grad.abs().sum()) == 0.0
-        for p in identity_wm.decoder.up.parameters()
+        for p in list(identity_wm.decoder.up.parameters())
+        + list(identity_wm.decoder.hud_up.parameters())
+        + [identity_wm.decoder.hud_reduce.weight]
     )
     identity_wm.zero_grad()
     out_embed = identity_wm(obs, actions)
@@ -308,6 +346,8 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
         p.grad is not None and float(p.grad.abs().sum()) > 0
         for p in identity_wm.decoder.up.parameters()
     )
+    assert identity_wm.decoder.hud_reduce.weight.grad is not None
+    assert float(identity_wm.decoder.hud_reduce.weight.grad.abs().sum()) > 0
 
 
 def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:
@@ -457,4 +497,6 @@ def test_world_model_step_updates_weights() -> None:
     assert "recon" in metrics
     assert "recon_l1" in metrics
     assert "recon_blob" in metrics
+    assert "recon_avatar" in metrics
+    assert "recon_hud" in metrics
     assert not torch.equal(before, wm.encoder.conv[0].weight.detach())

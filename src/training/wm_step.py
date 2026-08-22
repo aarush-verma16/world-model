@@ -30,6 +30,10 @@ def loss_to_metrics(loss: WorldModelLossBreakdown) -> dict[str, float]:
         "recon_map": float(loss.recon_map.detach()),
         "recon_blob": float(loss.recon_blob.detach()),
         "recon_embed_blob": float(loss.recon_embed_blob.detach()),
+        "recon_avatar": float(loss.recon_avatar.detach()),
+        "recon_embed_avatar": float(loss.recon_embed_avatar.detach()),
+        "recon_hud": float(loss.recon_hud.detach()),
+        "recon_embed_hud": float(loss.recon_embed_hud.detach()),
         "grad": float(loss.grad.detach()),
         "reward": float(loss.reward.detach()),
         "continue": float(loss.continue_loss.detach()),
@@ -100,6 +104,8 @@ def world_model_step(
             embed_map=out.embed_map,
             recon_map_scale=float(train_cfg.get("recon_map_scale", 0.0)),
             recon_blob_scale=float(train_cfg.get("recon_blob_scale", 0.0)),
+            recon_avatar_scale=float(train_cfg.get("recon_avatar_scale", 0.0)),
+            recon_hud_scale=float(train_cfg.get("recon_hud_scale", 0.0)),
         )
         total = loss.total
 

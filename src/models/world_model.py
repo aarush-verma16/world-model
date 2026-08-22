@@ -277,15 +277,28 @@ class WorldModel(nn.Module):
             embed_map = flat_embed.view(
                 batch * time, self.hz_to_map.channels, 4, 4
             )
-            recon = self.decoder.from_map(hz_map, detach_weights=True).view(
+            recon = self.decoder.from_map_with_hud(hz_map, detach_weights=True).view(
                 batch, time, 3, 64, 64
             )
-            recon_from_embed = self.decoder.from_map(embed_map).view(
+            recon_from_embed = self.decoder.from_map_with_hud(embed_map).view(
                 batch, time, 3, 64, 64
             )
         else:
-            recon = self.decoder(flat_feat).view(batch, time, 3, 64, 64)
-            recon_from_embed = self.embed_decoder(flat_embed).view(batch, time, 3, 64, 64)
+            hz_feat = self.decoder.fc(flat_feat)
+            hz_feat = hz_feat.view(
+                -1, self.decoder.channels0, self.decoder.start_res, self.decoder.start_res
+            )
+            recon = self.decoder.from_map_with_hud(hz_feat).view(batch, time, 3, 64, 64)
+            emb_feat = self.embed_decoder.fc(flat_embed)
+            emb_feat = emb_feat.view(
+                -1,
+                self.embed_decoder.channels0,
+                self.embed_decoder.start_res,
+                self.embed_decoder.start_res,
+            )
+            recon_from_embed = self.embed_decoder.from_map_with_hud(emb_feat).view(
+                batch, time, 3, 64, 64
+            )
         reward_pred = self.reward_head(flat_feat).view(batch, time, 1)
         cont_logit = self.continue_head(flat_feat).view(batch, time, 1)
         return WorldModelOutput(

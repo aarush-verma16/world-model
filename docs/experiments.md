@@ -36,10 +36,14 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   4x4) plus `[h,z]` pixel loss through the *shared* decoder scrambled
   layout. Per-cell `z` (2 categoricals / cell) + decoder weights detached
   on the `[h,z]` paint. Dashboard vis uses mid-sequence, not t=0.
-- Environment + player showed, other sprites never even as blurs (both
-  panels): 64x64 L1 is a median, so an 8px cow in a 16x16 cell is erased.
-  Added `recon_blob` (L1 on 8x8 avg-pooled frames). Not `edge_weight`, not
-  8px decoder cells.
+- Environment + player showed, other sprites never even as blurs: 64x64
+  L1 median-erases 7px cows. `recon_blob` is now Crafter-tile (7px) L1 on
+  the local view with local-deviation weights (objects on grass).
+- Avatar pose/tool stuck: player is always the same camera tile. Added
+  `recon_avatar` on the 3×3 tiles around that slot.
+- Inventory numbers stuck: amount glyphs are ~4px in a 7px slot, in a
+  2×9 bar at rows 49–63. Dedicated slot-grid HUD head off the bottom 4×4
+  row + `recon_hud`. Not skip-to-RGB, not 8px world decoder.
 
 ## Setup / M0 (2026-07-31)
 

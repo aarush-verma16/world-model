@@ -10,9 +10,9 @@ U-Net skip decoder on this graph — `stem_to_rgb` can copy the frame without
 the embedding carrying anything the RSSM can use.
 
 `edge_weight` / `grad_scale` are optional 1px-edge terms, off in the M3
-config (they floor on HUD digits a 4x4 decoder cannot match). `recon_blob`
-is L1 on 8x8 average-pooled frames — sprite-scale cells, not pixel edges.
-`recon_l1` is always the unweighted 64x64 pixel term — watch that.
+config. `recon_blob` is 7px-tile L1 on the local view (cows/zombies).
+`recon_avatar` is the 3×3 player crop. `recon_hud` is the inventory strip
+(slot-grid HUD head). `recon_l1` is always unweighted 64x64 L1.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
+from models.crafter_layout import TILE, avatar_slice, hud_slice, world_slice
 from torch import Tensor
 
 
@@ -44,6 +45,10 @@ class WorldModelLossBreakdown:
     recon_map: Tensor
     recon_blob: Tensor
     recon_embed_blob: Tensor
+    recon_avatar: Tensor
+    recon_embed_avatar: Tensor
+    recon_hud: Tensor
+    recon_embed_hud: Tensor
     grad: Tensor
     reward: Tensor
     continue_loss: Tensor
@@ -179,6 +184,48 @@ def blob_recon_loss(pred: Tensor, target: Tensor, pool: int = 8) -> Tensor:
     return F.l1_loss(F.avg_pool2d(pred_n, pool), F.avg_pool2d(target_n, pool))
 
 
+def tile_blob_loss(pred: Tensor, target: Tensor, local_scale: float = 4.0) -> Tensor:
+    """L1 on Crafter's 7px tiles, weighted by local 3×3 deviation.
+
+    Trees are large/common so plain 8×8 blob L1 finds them. Cows, zombies,
+    skeletons, and saplings are one 7px tile and rare; this term equalizes
+    tiles and boosts cells that differ from their neighbors (an object on
+    grass) without 1px `edge_weight`.
+    """
+    pred_w = world_slice(pred.reshape(-1, *pred.shape[-3:]))
+    target_w = world_slice(target.reshape(-1, *target.shape[-3:]))
+    pred_c = F.avg_pool2d(pred_w, TILE)
+    target_c = F.avg_pool2d(target_w, TILE)
+    diff = (pred_c - target_c).abs()
+    bg = F.avg_pool2d(target_c, kernel_size=3, stride=1, padding=1)
+    dev = (target_c - bg).abs().mean(dim=1, keepdim=True)
+    weight = 1.0 + local_scale * dev.detach()
+    return (weight * diff).mean()
+
+
+def avatar_recon_loss(pred: Tensor, target: Tensor) -> Tensor:
+    """L1 on the 3×3 tiles around the (fixed) Crafter player camera."""
+    return F.l1_loss(
+        avatar_slice(pred.reshape(-1, *pred.shape[-3:])),
+        avatar_slice(target.reshape(-1, *target.shape[-3:])),
+    )
+
+
+def hud_recon_loss(pred: Tensor, target: Tensor) -> Tensor:
+    """L1 on the 14×63 inventory strip plus 2×9 slot-mean L1.
+
+    Amount glyphs are ~4px in a 7px slot. Slot-mean L1 makes occupancy
+    (empty vs health=9 vs health=3) required; pixel L1 on the strip can
+    then change the digit texture. Not skip-to-RGB; the HUD head paints
+    this region from the bottom 4×4 row.
+    """
+    pred_h = hud_slice(pred.reshape(-1, *pred.shape[-3:]))
+    target_h = hud_slice(target.reshape(-1, *target.shape[-3:]))
+    pixel = F.l1_loss(pred_h, target_h)
+    slot = F.l1_loss(F.avg_pool2d(pred_h, TILE), F.avg_pool2d(target_h, TILE))
+    return pixel + slot
+
+
 def weighted_pixel_loss(pred: Tensor, target: Tensor, kind: str, edge_weight: float) -> Tensor:
     """`_pixel_loss` but reweighted by `content_weight_map` when `edge_weight > 0`."""
     if edge_weight <= 0.0:
@@ -239,6 +286,8 @@ def world_model_loss(
     embed_map: Tensor | None = None,
     recon_map_scale: float = 0.0,
     recon_blob_scale: float = 0.0,
+    recon_avatar_scale: float = 0.0,
+    recon_hud_scale: float = 0.0,
 ) -> WorldModelLossBreakdown:
     """Assemble world-model terms.
 
@@ -255,9 +304,11 @@ def world_model_loss(
         edge_weight: weight on the content/edge reweighting of the pixel
             loss terms (see `content_weight_map`); `0.0` keeps plain
             uniform-weight L1/MSE (default, for backward compat).
-        recon_blob_scale: weight on 8x8 pooled L1 (`blob_recon_loss`) for
+        recon_blob_scale: weight on 7px-tile blob L1 (`tile_blob_loss`) for
             `[h,z]` and embed recon. `0.0` keeps it out of `total` (still
             logged).
+        recon_avatar_scale: weight on the 3×3 player crop.
+        recon_hud_scale: weight on the inventory strip (composited HUD head).
     """
     shared_embed = recon_embed is recon_bottleneck
     recon_l1 = _pixel_loss(recon, obs, recon_loss_type)
@@ -287,8 +338,12 @@ def world_model_loss(
         recon_map = recon.new_zeros(())
         recon_map_scale = 0.0
 
-    recon_blob = blob_recon_loss(recon, obs)
-    recon_embed_blob = blob_recon_loss(recon_embed, obs)
+    recon_blob = tile_blob_loss(recon, obs)
+    recon_embed_blob = tile_blob_loss(recon_embed, obs)
+    recon_avatar = avatar_recon_loss(recon, obs)
+    recon_embed_avatar = avatar_recon_loss(recon_embed, obs)
+    recon_hud = hud_recon_loss(recon, obs)
+    recon_embed_hud = hud_recon_loss(recon_embed, obs)
 
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
@@ -316,6 +371,10 @@ def world_model_loss(
         + recon_map_scale * recon_map
         + recon_blob_scale * recon_blob
         + recon_blob_scale * recon_embed_blob
+        + recon_avatar_scale * recon_avatar
+        + recon_avatar_scale * recon_embed_avatar
+        + recon_hud_scale * recon_hud
+        + recon_hud_scale * recon_embed_hud
     )
     return WorldModelLossBreakdown(
         total=total,
@@ -328,6 +387,10 @@ def world_model_loss(
         recon_map=recon_map,
         recon_blob=recon_blob,
         recon_embed_blob=recon_embed_blob,
+        recon_avatar=recon_avatar,
+        recon_embed_avatar=recon_embed_avatar,
+        recon_hud=recon_hud,
+        recon_embed_hud=recon_embed_hud,
         grad=grad_loss,
         reward=reward_loss,
         continue_loss=continue_loss,
