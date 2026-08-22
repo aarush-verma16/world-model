@@ -104,11 +104,12 @@ def print_exit_criteria(
             )
         )
 
-    # kl_dyn_raw is the TOTAL KL of the latent (summed over stoch groups). It's
-    # expected to sit at/below free_nats for most (or all) of training -- that's
-    # what the free-nats floor is for, not a target to exceed. Real failure
-    # modes are collapse toward ~0 (dead latent) or blowing up (posterior
-    # ignoring the prior, bad for imagination rollouts).
+    # kl_dyn_raw is the TOTAL KL of the latent (summed over stoch groups).
+    # free_nats is a floor on the *loss* (max(KL, 1)), not a ceiling on the
+    # value. Sitting a bit above 1 (this box's 8k-step run lived at 1.07-1.16
+    # for thousands of steps) means the regularizer is on, which is healthy.
+    # Real failure modes are collapse toward ~0 (dead latent) or blowing up
+    # toward tens of nats (posterior ignoring the prior).
     kl_dyn_last = last["kl_dyn_raw"]
     checks.append(
         (

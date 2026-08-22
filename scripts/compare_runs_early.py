@@ -21,7 +21,7 @@ DEFAULT_TAGS = (
     "loss/recon_embed_l1",
     "loss/kl_dyn_raw",
 )
-STEPS = (50, 100, 200, 400, 600, 800, 1000)
+STEPS = (50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000)
 
 
 def load(path: Path) -> dict[str, dict[int, float]]:
