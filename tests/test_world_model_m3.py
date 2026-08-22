@@ -172,15 +172,64 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     assert float(loss.recon.detach()) >= float(loss.recon_l1.detach()) - 1e-5
     assert float(loss.recon_bottleneck.detach()) >= float(loss.recon_bottleneck_l1.detach()) - 1e-5
     loss.total.backward()
-    assert wm.perception.stem[0].weight.grad is not None
+    assert wm.encoder.conv[0].weight.grad is not None
     assert wm.rssm.prior_net[0].weight.grad is not None
     assert wm.reward_head.net[0].weight.grad is not None
-    assert wm.perception.from_embed.weight.grad is not None or isinstance(
-        wm.perception.from_embed, torch.nn.Identity
+    assert wm.embed_decoder.fc.weight.grad is not None or isinstance(
+        wm.embed_decoder.fc, torch.nn.Identity
     )
-    assert wm.embed_decoder_bottleneck.fc.weight.grad is not None or isinstance(
-        wm.embed_decoder_bottleneck.fc, torch.nn.Identity
+
+
+def test_embed_recon_trains_encoder() -> None:
+    wm = _tiny_wm()
+    b, t = 2, 4
+    obs = torch.randint(0, 256, (b, t, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.randint(0, 5, (b, t), dtype=torch.int64)
+    out = wm(obs, actions)
+    out.recon_embed.abs().mean().backward()
+    assert wm.encoder.conv[0].weight.grad is not None
+    assert float(wm.encoder.conv[0].weight.grad.abs().sum()) > 0.0
+    assert out.recon_embed is out.recon_bottleneck
+    assert not hasattr(wm, "perception")
+
+
+def test_m3_yaml_is_skip_free_identity_flatten() -> None:
+    """M3 config must not reintroduce U-Net skips, 8×8 cells, or a mixing Linear."""
+    from pathlib import Path
+
+    import yaml
+
+    from models.encoder import Encoder
+
+    cfg = yaml.safe_load(Path("configs/m3_world_model.yaml").read_text(encoding="utf-8"))
+    enc = cfg["encoder"]
+    channels = tuple(int(c) for c in enc["channels"])
+    assert "spatial" not in enc
+    assert "stem_channels" not in enc
+    assert int(enc["embed_dim"]) == channels[-1] * 4 * 4
+    assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
+    assert float(cfg["train"]["edge_weight"]) == 0.0
+    assert float(cfg["train"]["grad_scale"]) == 0.0
+
+    # Leftover spatial=8 kwargs must not switch the decoder to 8×8.
+    wm = WorldModel.from_config_dims(
+        embed_dim=64,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=5,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+        spatial=8,
+        stem_channels=64,
     )
+    assert isinstance(wm.encoder, Encoder)
+    assert not hasattr(wm, "perception")
+    assert wm.embed_decoder.start_res == 4
+    assert wm.decoder.start_res == 4
 
 
 def test_replay_buffer_samples_contiguous_windows() -> None:
@@ -209,7 +258,7 @@ def test_world_model_step_updates_weights() -> None:
 
     device = torch.device("cpu")
     wm = _tiny_wm().to(device)
-    before = wm.perception.stem[0].weight.detach().clone()
+    before = wm.encoder.conv[0].weight.detach().clone()
     optim = torch.optim.Adam(wm.parameters(), lr=1e-3)
     train_cfg = {
         "dyn_scale": 0.5,
@@ -217,7 +266,7 @@ def test_world_model_step_updates_weights() -> None:
         "free_nats": 1.0,
         "recon_scale": 1.0,
         "recon_embed_scale": 1.0,
-        "recon_bottleneck_scale": 1.0,
+        "recon_bottleneck_scale": 0.0,
         "reward_scale": 1.0,
         "continue_scale": 1.0,
         "kl_scale": 1.0,
@@ -238,4 +287,4 @@ def test_world_model_step_updates_weights() -> None:
     assert torch.isfinite(loss.total)
     assert "recon" in metrics
     assert "recon_l1" in metrics
-    assert not torch.equal(before, wm.perception.stem[0].weight.detach())
+    assert not torch.equal(before, wm.encoder.conv[0].weight.detach())

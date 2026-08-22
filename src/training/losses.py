@@ -1,32 +1,16 @@
 """World-model loss terms, including Dreamer-style KL balancing.
 
-Loss = recon_[h,z] + recon_embed + recon_bottleneck + grad (edge-aware) +
-reward + continue + KL, logged separately so a healthy sum cannot hide a
-collapsed/exploding KL (M3 exit criterion).
+Loss = recon_[h,z] + recon_embed + reward + continue + KL. Logged per term
+so a healthy sum cannot hide a collapsed/exploding KL (M3 exit criterion).
 
-`recon_bottleneck` exists because of a subtle failure mode discovered via the
-decoder probe: `recon_embed` decodes `embed` *with* U-Net skips from the same
-real frame (see `WorldModel`/`PerceptionAutoencoder`), and it converges to
-near-pixel-perfect almost immediately -- but a side-by-side probe showed that
-was achieved almost entirely *through the skips*. A skip-free decode of the
-exact same frozen `embed` vector was just as blind to rocks/water/sand as
-`[h,z]` (~0.17 L1 either way, vs `recon_embed`'s ~0.004 with skips). Since the
-RSSM only ever sees `embed` (never the skips), `recon_embed` being sharp told
-us nothing about whether the RSSM was getting richer information -- the skips
-let the encoder "cheat" its way to a low aux loss without the bottleneck
-vector itself ever being forced to carry that content. `recon_bottleneck`
-decodes `embed` with NO skips, so the only way to lower this loss is for
-`embed` itself to encode the content -- which is the one thing that actually
-helps the RSSM.
+`recon_embed` is skip-free embed→pixels (what the RSSM actually receives).
+`recon_bottleneck` is a log-compat alias of that same tensor on `WorldModel`;
+its scale must stay 0 or the aux recon is counted twice. Do not put M1's
+U-Net skip decoder on this graph — `stem_to_rgb` can copy the frame without
+the embedding carrying anything the RSSM can use.
 
-`edge_weight` / `grad_scale` are optional high-frequency terms. They are
-off in the M3 config after a step-1000 probe of the XL run: unweighted
-`[h,z]` L1 was a healthy 0.11, but `edge_weight=8` logged 0.76 (7x) because
-~70% of the weighted loss sat on the top 1.5% of pixels (HUD icon / sprite
-outlines, per-pixel weights up to 129). A skip-free 4x4 decoder cannot match
-those 1-2px features (each latent cell is 16x16), so that mass is a near-
-constant floor. `recon_l1` is always the unweighted pixel term — watch that
-when judging whether reconstruction is learning.
+`edge_weight` / `grad_scale` are optional high-frequency terms, off in the
+M3 config. `recon_l1` is always the unweighted pixel term — watch that.
 """
 
 from __future__ import annotations
@@ -212,7 +196,7 @@ def world_model_loss(
     free_nats: float = 1.0,
     recon_scale: float = 1.0,
     recon_embed_scale: float = 1.0,
-    recon_bottleneck_scale: float = 1.0,
+    recon_bottleneck_scale: float = 0.0,
     reward_scale: float = 1.0,
     continue_scale: float = 1.0,
     kl_scale: float = 1.0,
@@ -236,18 +220,25 @@ def world_model_loss(
             loss terms (see `content_weight_map`); `0.0` keeps plain
             uniform-weight L1/MSE (default, for backward compat).
     """
+    shared_embed = recon_embed is recon_bottleneck
     recon_l1 = _pixel_loss(recon, obs, recon_loss_type)
     recon_embed_l1 = _pixel_loss(recon_embed, obs, recon_loss_type)
-    recon_bottleneck_l1 = _pixel_loss(recon_bottleneck, obs, recon_loss_type)
     recon_loss = weighted_pixel_loss(recon, obs, recon_loss_type, edge_weight)
     recon_embed_loss = weighted_pixel_loss(recon_embed, obs, recon_loss_type, edge_weight)
-    recon_bottleneck_loss = weighted_pixel_loss(recon_bottleneck, obs, recon_loss_type, edge_weight)
-    if grad_scale > 0.0:
-        grad_loss = (
-            gradient_l1_loss(recon, obs)
-            + gradient_l1_loss(recon_embed, obs)
-            + gradient_l1_loss(recon_bottleneck, obs)
+    if shared_embed:
+        recon_bottleneck_l1 = recon_embed_l1
+        recon_bottleneck_loss = recon_embed_loss
+        # Same tensor as recon_embed — never add it twice into `total`.
+        recon_bottleneck_scale = 0.0
+    else:
+        recon_bottleneck_l1 = _pixel_loss(recon_bottleneck, obs, recon_loss_type)
+        recon_bottleneck_loss = weighted_pixel_loss(
+            recon_bottleneck, obs, recon_loss_type, edge_weight
         )
+    if grad_scale > 0.0:
+        grad_loss = gradient_l1_loss(recon, obs) + gradient_l1_loss(recon_embed, obs)
+        if not shared_embed:
+            grad_loss = grad_loss + gradient_l1_loss(recon_bottleneck, obs)
     else:
         grad_loss = recon.new_zeros(())
 

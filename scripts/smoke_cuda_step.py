@@ -74,6 +74,7 @@ def main() -> None:
         head_hidden=int(heads.get("hidden", 512)),
         head_layers=int(heads.get("layers", 2)),
         stem_channels=int(enc.get("stem_channels", 64)),
+        spatial=int(enc.get("spatial", 4)),
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters()) / 1e6
     print(f"params: {n_params:.2f}M")

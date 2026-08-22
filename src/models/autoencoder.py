@@ -3,6 +3,10 @@
 Includes a 64x64 stem skip so the decoder can recover sharp Crafter sprites/UI.
 A stem→RGB base path plus zero-init residual head gives a stable near-copy route
 without shortcutting raw observation pixels into the output.
+
+This module is M1-only. The world model must not train through these skips —
+`stem_to_rgb` can copy a real frame without the embedding carrying anything
+the RSSM can use. See `models.world_model`.
 """
 
 from __future__ import annotations
@@ -40,7 +44,6 @@ class PerceptionAutoencoder(nn.Module):
         self.stem_channels = stem_channels
         self.embed_dim = embed_dim
 
-        # Full-res stem so the decoder can copy fine sprites/UI via skips.
         self.stem = _conv_block(3, stem_channels)
 
         # Down: 64→32→16→8→4
@@ -60,7 +63,6 @@ class PerceptionAutoencoder(nn.Module):
         self.to_embed = nn.Identity() if embed_dim == flat else nn.Linear(flat, embed_dim)
         self.from_embed = nn.Identity() if embed_dim == flat else nn.Linear(embed_dim, flat)
 
-        # Up blocks fuse with skips at 8, 16, 32, then 64 (stem).
         up_out = [channels[2], channels[1], channels[0], stem_channels]
         up_in = [channels[3], channels[2], channels[1], channels[0]]
         skip_ch = [channels[2], channels[1], channels[0], stem_channels]
@@ -80,7 +82,6 @@ class PerceptionAutoencoder(nn.Module):
                 )
             )
 
-        # Near-copy path: project stem features to RGB, plus a zero-init residual.
         self.stem_to_rgb = nn.Conv2d(stem_channels, 3, kernel_size=1)
         self.delta_head = nn.Sequential(
             nn.Conv2d(stem_channels, stem_channels, kernel_size=3, padding=1),

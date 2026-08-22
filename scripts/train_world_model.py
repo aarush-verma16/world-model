@@ -51,11 +51,8 @@ def set_seed(seed: int) -> None:
 def save_recon_grid(obs_u8: torch.Tensor, preds: list[torch.Tensor], path: Path) -> None:
     """obs `[B,T,H,W,C]` uint8, preds each `[B,T,3,H,W]` float → side-by-side PNG.
 
-    Column order: real, then each entry of `preds` in order. Callers should
-    pass `[recon, recon_embed, recon_bottleneck]` so a single PNG always
-    shows all three decode heads -- `[h,z]` alone can look bad while
-    `recon_bottleneck` is already recovering real structure, and that's
-    invisible if only `[h,z]` is saved.
+    Column order: real, then each entry of `preds` in order. Callers pass
+    `[recon, recon_embed]` (`[h,z]` and skip-free embed — what RSSM sees).
     """
     from PIL import Image
 
@@ -91,7 +88,7 @@ def print_exit_criteria(
         return 1.0 - (last[key] / max(first[key], 1e-8))
 
     checks: list[tuple[str, bool, str]] = []
-    for key, min_drop in [("recon_l1", 0.5), ("recon_embed_l1", 0.5), ("recon_bottleneck_l1", 0.5)]:
+    for key, min_drop in [("recon_l1", 0.5), ("recon_embed_l1", 0.5)]:
         # Fall back to the training-term key on old metrics dumps that predate *_l1.
         a = first.get(key, first.get(key.replace("_l1", ""), 0.0))
         b = last.get(key, last.get(key.replace("_l1", ""), 0.0))
@@ -129,7 +126,6 @@ def print_exit_criteria(
     for name, std in [
         ("recon", recon_std),
         ("recon_embed", embed_std),
-        ("recon_bottleneck", bottleneck_std),
     ]:
         ratio = std / max(obs_std, 1e-8)
         checks.append(
@@ -230,6 +226,7 @@ def main() -> None:
         head_hidden=int(heads.get("hidden", 512)),
         head_layers=int(heads.get("layers", 2)),
         stem_channels=int(enc.get("stem_channels", 64)),
+        spatial=int(enc.get("spatial", 4)),
     ).to(device)
 
     optim = torch.optim.Adam(model.parameters(), lr=float(train["lr"]))
@@ -304,7 +301,7 @@ def main() -> None:
                 v_out = model(vis_g["obs"], vis_g["actions"])
                 save_recon_grid(
                     vis["obs"],
-                    [v_out.recon, v_out.recon_embed, v_out.recon_bottleneck],
+                    [v_out.recon, v_out.recon_embed],
                     results_dir / f"recon_step_{step:05d}.png",
                 )
             model.train()
@@ -338,7 +335,7 @@ def main() -> None:
         v_out = model(vis_g["obs"], vis_g["actions"])
         save_recon_grid(
             vis["obs"],
-            [v_out.recon, v_out.recon_embed, v_out.recon_bottleneck],
+            [v_out.recon, v_out.recon_embed],
             results_dir / "recon_final.png",
         )
         obs_std = float(

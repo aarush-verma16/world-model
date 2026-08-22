@@ -15,13 +15,11 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   (desktop compositor already holds ~1.5 GiB) and is left as a later bump.
 - Install path: `scripts/setup_windows.ps1` (CUDA 12.8 wheels). Default PyPI
   torch is CPU-only on Windows.
-- First Windows pass used `edge_weight=8` + XL CNN. At step 1000 the dashboard
-  `recon≈0.76` looked stuck; a CPU probe of `ckpt_step_01000.pt` showed
-  **unweighted** `[h,z]` L1 = 0.107 (healthy; mean-color is 0.28) — the 0.76
-  was a 7× inflation. `edge_weight=8` put ~70% of the loss on the top 1.5% of
-  pixels (HUD/sprite outlines, weights up to 129) that a 4×4 skip-free decoder
-  cannot match. Reverted `edge_weight` and `grad_scale` to 0; log `recon_l1`.
-  Same shapes, so `RESUME` from `ckpt_step_01000.pt` is valid.
+- Halfway through the unweighted-L1 XL run (step ~6k): skip panel was near-
+  perfect while `[h,z]` / skip-free embed stayed smeared. That was wiring,
+  not cell size: M1's U-Net `stem_to_rgb` was on the world-model graph and
+  could copy the frame without putting content in the RSSM embedding.
+  World model now uses skip-free `Encoder`. 8x8 spatial experiment reverted.
 
 ## Setup / M0 (2026-07-31)
 

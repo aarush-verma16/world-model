@@ -1,132 +1,29 @@
-# Milestone 3 — world-model training (balanced Dreamer-style recipe).
+# Milestone 3 — world-model training.
 #
-# Failed experiment (stop if still running): recon_scale=40 + kl_scale=0.1 made
-# z ~ noise; decoder collapsed to solid mean background color by ~step 500.
-# This config restores KL pressure, adds an encoder→pixel aux recon so the
-# encoder stays sharp, and keeps a stronger but not oversized latent.
+# Wiring (this is the architecture, not a loss knob):
+#   skip-free Encoder (4 stride-2 convs) → RSSM → skip-free [h,z] decoder
+#   + skip-free embed→pixel aux (supervises the vector RSSM actually sees)
 #
-# stoch/classes bumped 16x16 -> 32x32: that's DreamerV3's standard latent size
-# across all their published model scales (arXiv:2301.04104). A 16x16 latent
-# (256 total classes) has ~4x less raw representational capacity than what the
-# recipe this repo follows actually uses. Note that the primary `[h,z]`
-# decoder can never use U-Net skip connections like M1's autoencoder does
-# (imagined rollouts have no raw pixels to skip from), so genuine latent/model
-# capacity is one legitimate lever for its sharpness -- but it's not the only
-# one, see grad_scale below.
+# Failed experiments that did not fix missing sprites/HUD (do not revive):
+#   - M1 U-Net (`PerceptionAutoencoder`) as the world-model encoder. Its
+#     `stem_to_rgb(skips[0])` copies the real frame, so the dashboard "embed
+#     + skips" panel looked solved while RSSM never saw that content.
+#   - Mixing Linear: `embed_dim` != channels[-1]*4*4 (was 2048 vs 8192).
+#   - 8×8 spatial bottleneck ("8 px cells"). Reverted; stay at 4×4.
+#   - `edge_weight` / `grad_scale` stacked on unweighted L1. Off.
+#   - `recon_scale=40` + `kl_scale=0.1` (z ~ noise, mean-color collapse).
 #
-# grad_scale added: a run at the 32x32 latent was still visibly improving
-# (recon trend was -10% i.e. still dropping, not plateaued) at step ~9k, yet
-# the background and HUD bar stayed blurry/illegible. Root cause isn't
-# capacity, it's the objective: plain per-pixel L1 rewards matching a region's
-# *average* color, so a 1-2px sprite outline or HUD icon/number stroke (a
-# small fraction of a region's pixels, confirmed by inspecting a real frame --
-# the HUD bar's icon/number detail lives in ~4 of its ~15 rows, the rest is
-# flat black) barely moves that average. `grad_scale` adds an L1 loss on
-# image finite-difference gradients (see `gradient_l1_loss`), which explicitly
-# rewards matching *where* the image changes -- i.e. edges/outlines/text --
-# not just its color. This is the standard fix for "loss keeps dropping but
-# output stays smeared" in pixel-reconstruction models.
-#
-# grad_scale=15 (first attempt) was miscalibrated and had to be corrected
-# down to 1.5: it was tuned by matching grad_raw vs recon_raw on an UNTRAINED
-# model, where the two are similar magnitude (~0.4 vs ~0.7). But recon/embed
-# converge fast while grad_raw barely drops -- Crafter's dithered
-# grass/dirt textures have per-pixel noise, and matching that noise's exact
-# gradient is much harder than matching overall color even for an otherwise
-# good reconstruction. So a ratio tuned at step 0 inverted almost
-# immediately: by step 400 grad was ~70% of the total loss (scaled
-# contribution 5.1 vs recon+embed's combined 1.5), dominating and dragging
-# training toward near-unlearnable texture-noise-matching instead of actual
-# image quality. Keep grad's scaled contribution as a MINORITY of
-# recon+embed's combined scaled contribution -- it's a sharpening nudge, not
-# the primary objective.
-#
-# BIG architecture change: recon_embed now decodes through M1's
-# PerceptionAutoencoder (full U-Net skips: stem@64 + 3 intermediate
-# resolutions), not a plain skip-free Decoder. Evidence this was the real
-# remaining bottleneck: even after the embed_dim fix above, at step 9600
-# BOTH [h,z] recon AND recon_embed still had zero trees/mobs/HUD digits and
-# a mostly-blank inventory bar. recon_embed has NO RSSM/KL involved at all --
-# it's a pure encoder(real frame)->embed->decoder(embed) round trip, exactly
-# the M1 problem M1 already solved to near-pixel-identical quality. The only
-# structural difference from M1's proven setup was the missing skip
-# connections (M1's own no-skip ablation, results/m1/recon_no_obs_skip.png,
-# already showed skip-free reconstruction losing sharp small-object detail).
-# Skips are legitimate here specifically because recon_embed always decodes
-# an embedding computed from a REAL frame, so that same frame's own
-# intermediate encoder activations are available -- unlike the primary
-# [h,z] decoder, which must stay skip-free since imagination has no real
-# frame to skip from. This does NOT fix [h,z] recon directly, but a much
-# better-supervised encoder (real gradient signal for actually preserving
-# small objects, not just average color) should feed the RSSM a richer
-# embedding to compress into z.
-#
-# CORRECTION to the above, found via decoder-probe testing the resulting 3k-
-# step checkpoint: recon_embed's near-instant convergence to ~0.004 L1 did NOT
-# mean the embedding got richer. A skip-free decode of the exact same frozen
-# embedding (no skips at all -- what the RSSM actually sees) scored ~0.17 L1,
-# statistically the same as [h,z]'s ~0.16 -- both just as blind to
-# rocks/water/sand. The U-Net skips were doing nearly all of recon_embed's
-# work; the bottleneck vector itself was never forced to carry that content.
-# Since the RSSM only ever receives the embedding (never the skips), that low
-# recon_embed loss was not evidence of a richer signal reaching [h,z] at all.
-# Fix: `recon_bottleneck_scale` below adds a THIRD decode head -- embedding
-# alone, no skips -- so the only way to lower ITS loss is for the embedding
-# itself to encode the content. See `WorldModel`'s docstring and
-# `training/losses.py` for the full writeup.
-#
-# Ran ~1250 steps with the recon_bottleneck fix above: it worked directionally
-# (kl_dyn_raw finally climbed past free_nats for the first time ever, embed-
-# no-skips got some blurry structure instead of nothing) but was still missing
-# sprites/HUD/trees entirely. Two compounding causes, found by re-reading
-# PerceptionAutoencoder.decode(): (1) `recon_embed`'s near-zero loss is
-# partly a mirage -- `base = self.stem_to_rgb(skips[0])` reconstructs
-# directly from the REAL frame's full-res stem features, near-completely
-# bypassing the embedding bottleneck, so a low recon_embed loss was *never*
-# strong evidence the bottleneck carries much; (2) the bottleneck itself
-# (channels[-1]=512 at a 4x4 grid, `embed_dim=8192`) is just numerically
-# narrow for a scene with many small sprites scattered across dozens of tile
-# positions -- 16 spatial cells is a coarse budget regardless of how good the
-# training signal is.
-#
-# Fix: widened `encoder.channels`/`decoder.channels` to `[96,192,384,768]`
-# (`embed_dim=12288`), matching DreamerV3's actual channel-doubling
-# convention for their "XL" CNN size (`96 -> 192 -> 384 -> 768` across 4
-# stride-2 stages for 64x64 inputs) instead of the flatter `64,128,256,512`
-# used before. Bonus: `decoder.channels[0]=768` now exactly matches
-# `encoder.channels[-1]=768`, so `embed_decoder_bottleneck`'s flat_dim
-# (768*4*4=12288) equals `embed_dim` exactly -- its `fc` becomes `Identity()`
-# too, same spatial-preserving property M1 already relies on. This is a
-# capacity-only change (no code, only config); no other reconstruction issue
-# was found, so isolate this variable before touching anything else. Shape
-# change -- old checkpoints will NOT load, start fresh with `RESUME = None`.
+# `embed_dim: 12288` == 768*4*4 so Encoder.fc and embed_decoder.fc are
+# Identity (flatten is the embedding; no mixing Linear).
+# `recon_bottleneck_scale` must stay 0: that tensor is the same as recon_embed.
 
 seed: 0
 
-# embed_dim=8192 == channels[-1]*4*4 (512*4*4) so the encoder's flatten IS
-# the embedding, no mixing nn.Linear in between (see Encoder's own docstring).
-# It was previously 2048, which silently inserted a Linear(8192, 2048) that
-# mixes every spatial location together before the RSSM ever sees it -- a
-# real structural bottleneck, not a loss-tuning problem. M1's config already
-# used embed_dim=8192 with these same channels for exactly this reason (it's
-# why M1 hit near-pixel-identical recon); M3 lost that when embed_dim was
-# bumped for "more capacity" without preserving the flat_dim match. This is
-# almost certainly why scattered mobs/trees/rocks/HUD digits never made it
-# into [h,z] or even the embed-only recon, regardless of RSSM latent size,
-# grad_scale, or free_nats -- the encoder was throwing the spatial detail
-# away before any of those ever got a chance to use it.
 encoder:
-  # 12288 == channels[-1]*4*4 (768*16), keeps the encoder's flatten AS the
-  # embedding (no mixing nn.Linear -- see PerceptionAutoencoder's docstring).
+  # 12288 == channels[-1]*4*4 (768*16). Flatten IS the embedding (no mixing
+  # Linear). World model uses the skip-free `Encoder`, not M1's U-Net.
   embed_dim: 12288
-  # DreamerV3's actual "XL" CNN channel-doubling schedule for 64x64 inputs
-  # (96 -> 192 -> 384 -> 768 across 4 stride-2 stages), not a flat 64/128/256/512.
-  # More raw channel capacity at every resolution, especially the 4x4
-  # bottleneck (768ch vs 512ch) where all of [h,z]'s and recon_bottleneck's
-  # content has to survive.
   channels: [96, 192, 384, 768]
-  # Full-res stem for the recon_embed U-Net skip path (see PerceptionAutoencoder).
-  stem_channels: 64
 
 rssm:
   deter_dim: 512
@@ -139,10 +36,8 @@ rssm:
   rec_depth: 1
 
 decoder:
-  # Mirrors encoder.channels (768 -> 384 -> 192 -> 96). channels[0]=768
-  # matches encoder.channels[-1] exactly, so embed_decoder_bottleneck's fc
-  # becomes an Identity (flat_dim == embed_dim == 12288) -- no spatial-mixing
-  # linear on the one decode path that must prove the embedding itself is rich.
+  # channels[0]=768 matches encoder.channels[-1], so embed_decoder's fc is
+  # Identity (768*4*4=12288).
   channels: [768, 384, 192, 96]
 
 heads:
@@ -183,44 +78,20 @@ train:
   image_every: 50
   dyn_scale: 0.5
   rep_scale: 0.1
-  # Reverted 3.0 -> 1.0 (DreamerV3 default). The free_nats=3.0 experiment
-  # (resuming the 12k ckpt) made kl's scaled contribution balloon (most
-  # per-timestep KL values sit below 3.0 and get clamp_min'd UP to exactly
-  # 3.0 for the loss average -- clamp_min's gradient is zero there, so this
-  # inflated the displayed loss without adding any real upward pressure) AND
-  # recon regressed (-11.7% trend, i.e. got worse) rather than improved.
-  # Root cause turned out to be upstream of the KL floor entirely: the
-  # encoder's embed_dim mismatch (see above) was throwing away spatial detail
-  # before the RSSM ever saw it, so no KL-floor tuning could have fixed this.
-  # Reverting here isolates that fix -- re-test free_nats separately later
-  # if content is still missing once the encoder bottleneck is gone.
   free_nats: 1.0
   recon_loss: l1
   # Primary: decode from [h, z_posterior]
   recon_scale: 5.0
-  # Aux #1: decode from embed + U-Net skips (tests encoder CNN capability).
+  # Skip-free embed → pixels (what the RSSM actually receives).
   recon_embed_scale: 5.0
-  # Aux #2: decode from embed ALONE, no skips -- the one that actually
-  # supervises what the RSSM receives. Same scale as recon_embed_scale to
-  # start; watch this term specifically, not recon_embed, when judging
-  # whether the embedding is getting richer.
-  recon_bottleneck_scale: 5.0
+  # Same tensor as recon_embed (kept so old logs still have the key). Must
+  # stay 0 or the embed recon is counted twice.
+  recon_bottleneck_scale: 0.0
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0
-  # Both high-frequency terms are OFF. Probed ckpt_step_01000.pt (this XL
-  # run) on real replay: unweighted [h,z] L1 was 0.107 -- the historical
-  # "early ~0.10" band, already 2.6x better than a mean-color predictor
-  # (0.284) -- but the logged recon was 0.76 because edge_weight=8 inflated
-  # it 7.1x. content_weight_map hit per-pixel weights of 129; the top 1.5%
-  # of pixels (weight>=33, HUD icon / sprite outlines) carried ~70% of the
-  # weighted loss. A skip-free 4x4 decoder cannot match 1-2px features
-  # (each latent cell is 16x16), so that 70% is a near-constant floor --
-  # which is why the scaled recon curve looked "stuck at 4" while plain L1
-  # was still dropping (+9.4% / 500 steps) and HUD unweighted error was
-  # tied with the world (0.10 vs 0.11). Dreamer [h,z] recon is blob-level,
-  # not pixel-art HUD digits. Watch `recon_l1` (always unweighted).
-  # Same-shape change: RESUME from ckpt_step_01000.pt is valid.
+  # Off. A skip-free decoder will not match 1-2px HUD digits; boosting those
+  # pixels just floors the logged loss. Watch unweighted `recon_l1`.
   grad_scale: 0.0
   edge_weight: 0.0
   log_dir: runs/m3_world_model

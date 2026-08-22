@@ -93,7 +93,7 @@ def sample_onehot_ste(probs: Tensor) -> Tensor:
         One-hot samples `[..., classes]` (STE: forward = hard sample,
         backward = gradient flows as if the output were `probs` directly).
     """
-    flat = probs.reshape(-1, probs.shape[-1])
+    flat = probs.reshape(-1, probs.shape[-1]).float()
     indices = torch.multinomial(flat, num_samples=1).squeeze(-1)
     hard = F.one_hot(indices, num_classes=probs.shape[-1]).float()
     hard = hard.view_as(probs)

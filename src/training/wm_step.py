@@ -86,7 +86,7 @@ def world_model_step(
             free_nats=float(train_cfg["free_nats"]),
             recon_scale=float(train_cfg["recon_scale"]),
             recon_embed_scale=float(train_cfg.get("recon_embed_scale", 1.0)),
-            recon_bottleneck_scale=float(train_cfg.get("recon_bottleneck_scale", 1.0)),
+            recon_bottleneck_scale=float(train_cfg.get("recon_bottleneck_scale", 0.0)),
             reward_scale=float(train_cfg["reward_scale"]),
             continue_scale=float(train_cfg["continue_scale"]),
             kl_scale=float(train_cfg["kl_scale"]),
