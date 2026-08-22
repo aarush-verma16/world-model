@@ -11,8 +11,9 @@ the embedding carrying anything the RSSM can use.
 
 `edge_weight` / `grad_scale` are optional 1px-edge terms, off in the M3
 config. `recon_blob` is 7px-tile L1 on the local view (cows/zombies).
-`recon_avatar` is the 3×3 player crop. `recon_hud` is the inventory strip
-(slot-grid HUD head). `recon_l1` is always unweighted 64x64 L1.
+`recon_avatar` / `recon_hud` are optional crop terms, off in the M3 config
+(a pasted HUD head was hiding the inventory). `recon_l1` is always
+unweighted 64x64 L1.
 """
 
 from __future__ import annotations

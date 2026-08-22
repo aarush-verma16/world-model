@@ -5,10 +5,10 @@
 #   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
 #   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
 #   per-cell (32 categoricals = 2 per cell) then paints with the same
-#   upsample, decoder weights detached. recon_map L1 aligns the maps.
-#   recon_blob is 7px-tile L1 on the local view (cows/zombies, not trees-only).
-#   recon_avatar is the 3x3 player crop. recon_hud is a 2x9 slot-grid head
-#   on the inventory strip (4px amount glyphs). Not 8px decoder, not edge_weight.
+#   upsample (live weights). recon_map L1 aligns the maps. recon_blob is
+#   7px-tile L1 on the local view. Inventory is painted by the same 64x64
+#   decoder — a pasted HUD head was overwriting that strip with a random
+#   black bar. Not 8px decoder, not edge_weight, not skip-to-RGB.
 #
 # The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
 # into grass before they could become features. Residual blocks at each
@@ -112,20 +112,11 @@ train:
   # never even get a blur. Crafter tiles are 8px; this term makes them a
   # majority of their cell. Not edge_weight (1px HUD), not 8px decoder.
   recon_blob_scale: 5.0
-  # 3x3 tiles around the Crafter player (always the same camera tile).
-  # Full-frame L1 keeps a mean-pose blob; this crop makes facing/tool move.
-  # CAUTION: this crop is 441px vs the 4096px full frame. Scale 5.0 here
-  # (same as recon_scale, which is a MEAN over 4096px) gave avatar pixels
-  # ~9x the per-pixel gradient weight of a generic grass pixel -- at step
-  # ~1000 the model spent most of its capacity on the avatar blob + HUD
-  # icons and left the rest of the frame flat (no dithering/blur at all,
-  # unlike every earlier run). 1.0 is close to area-fair (5.0 * 441/4096).
-  recon_avatar_scale: 1.0
-  # Inventory strip via a 2x9 slot-grid head off the bottom 4x4 row.
-  # Amount glyphs are ~4px in a 7px slot — not 1px digits, not skip-to-RGB.
-  # Same over-weighting bug as recon_avatar_scale (882px crop, plus this
-  # loss is pixel+slot L1 summed, doubling it again). 1.0 is ~area-fair.
-  recon_hud_scale: 1.0
+  # Extra crop losses (avatar 21×21, HUD 14×63) at the same scale as the
+  # 64×64 mean L1 over-weighted those pixels and a pasted HUD head then
+  # overwrote the inventory the world decoder was learning. Off.
+  recon_avatar_scale: 0.0
+  recon_hud_scale: 0.0
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0

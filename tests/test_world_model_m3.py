@@ -277,11 +277,9 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
     assert float(cfg["train"]["recon_map_scale"]) == 1.0
     assert float(cfg["train"]["recon_blob_scale"]) == 5.0
-    # Small crops (441px avatar, 882px HUD) must not sit at the same scale
-    # as the 4096px full-frame recon -- that over-weights their per-pixel
-    # gradient ~5-9x and starves the rest of the frame of texture.
-    assert float(cfg["train"]["recon_avatar_scale"]) <= 2.0
-    assert float(cfg["train"]["recon_hud_scale"]) <= 2.0
+    # Crop losses + pasted HUD head flattened early recon. Stay off.
+    assert float(cfg["train"]["recon_avatar_scale"]) == 0.0
+    assert float(cfg["train"]["recon_hud_scale"]) == 0.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
     assert int(cfg["decoder"].get("blocks", 0)) == 0
@@ -334,13 +332,11 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert out.hz_map.shape == out.embed_map.shape
     out.recon.mean().backward()
     assert identity_wm.hz_to_map.z_proj.weight.grad is not None
-    # Shared decoder is frozen on the [h,z] paint — pixel grads must not
-    # scramble upsample weights. Fit the renderer from embed instead.
-    assert all(
-        p.grad is None or float(p.grad.abs().sum()) == 0.0
-        for p in list(identity_wm.decoder.up.parameters())
-        + list(identity_wm.decoder.hud_up.parameters())
-        + [identity_wm.decoder.hud_reduce.weight]
+    # Both paths train the shared upsample. Frozen decoder weights on the
+    # [h,z] paint starved the renderer (solid green / black HUD).
+    assert any(
+        p.grad is not None and float(p.grad.abs().sum()) > 0
+        for p in identity_wm.decoder.up.parameters()
     )
     identity_wm.zero_grad()
     out_embed = identity_wm(obs, actions)
@@ -349,8 +345,6 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
         p.grad is not None and float(p.grad.abs().sum()) > 0
         for p in identity_wm.decoder.up.parameters()
     )
-    assert identity_wm.decoder.hud_reduce.weight.grad is not None
-    assert float(identity_wm.decoder.hud_reduce.weight.grad.abs().sum()) > 0
 
 
 def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:

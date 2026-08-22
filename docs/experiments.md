@@ -42,14 +42,13 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - Avatar pose/tool stuck: player is always the same camera tile. Added
   `recon_avatar` on the 3×3 tiles around that slot.
 - Inventory numbers stuck: amount glyphs are ~4px in a 7px slot, in a
-  2×9 bar at rows 49–63. Dedicated slot-grid HUD head off the bottom 4×4
-  row + `recon_hud`. Not skip-to-RGB, not 8px world decoder.
-- Step ~1000 of that run looked flat/"corrupted" (only the avatar blob
-  and HUD icons had any detail, rest of the frame plain grass): set
-  `recon_avatar_scale` / `recon_hud_scale` to 5.0, same as full-frame
-  `recon_scale`, but they're means over 441px / 882px crops vs 4096px —
-  ~9x the per-pixel gradient weight of a generic pixel. Dropped both to
-  1.0 (area-fair is ~0.5 / ~1.1).
+  2×9 bar at rows 49–63. A dedicated HUD head that *pasted* over those
+  rows hid whatever the 64×64 decoder learned and left a black bar.
+  Removed. Inventory is painted by the same upsample as the world.
+  `recon_hud` / `recon_avatar` extra scales are 0.
+- Frozen decoder weights on the `[h,z]` paint starved the renderer
+  (solid green, no avatar blob). Live weights again; per-cell `z` still
+  holds layout.
 
 ## Setup / M0 (2026-07-31)
 
