@@ -91,12 +91,15 @@ def print_exit_criteria(
         return 1.0 - (last[key] / max(first[key], 1e-8))
 
     checks: list[tuple[str, bool, str]] = []
-    for key, min_drop in [("recon", 0.5), ("recon_embed", 0.5), ("recon_bottleneck", 0.5)]:
-        drop = pct_drop(key)
+    for key, min_drop in [("recon_l1", 0.5), ("recon_embed_l1", 0.5), ("recon_bottleneck_l1", 0.5)]:
+        # Fall back to the training-term key on old metrics dumps that predate *_l1.
+        a = first.get(key, first.get(key.replace("_l1", ""), 0.0))
+        b = last.get(key, last.get(key.replace("_l1", ""), 0.0))
+        drop = 1.0 - (b / max(a, 1e-8))
         checks.append(
             (
                 f"{key} loss dropped >= {min_drop:.0%} "
-                f"(first={first[key]:.4f} -> last={last[key]:.4f}, actual={drop:.0%})",
+                f"(first={a:.4f} -> last={b:.4f}, actual={drop:.0%})",
                 drop >= min_drop,
                 "recon isn't improving -- check lr, recon_scale, or a decoder/data bug",
             )
@@ -283,8 +286,9 @@ def main() -> None:
             vram_s = f"  vram {vram[0]:.1f}/{vram[1]:.1f} GiB" if vram else ""
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
-                f"recon={metrics['recon']:.4f}  emb={metrics['recon_embed']:.4f}  "
-                f"bneck={metrics['recon_bottleneck']:.4f}  "
+                f"recon_l1={metrics['recon_l1']:.4f}  "
+                f"emb_l1={metrics['recon_embed_l1']:.4f}  "
+                f"bneck_l1={metrics['recon_bottleneck_l1']:.4f}  "
                 f"grad={metrics['grad']:.4f}  "
                 f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
                 f"kl={metrics['kl']:.4f} "

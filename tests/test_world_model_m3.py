@@ -167,6 +167,10 @@ def test_world_model_forward_shapes_and_loss_backward() -> None:
     )
     assert torch.isfinite(loss.total)
     assert torch.isfinite(loss.grad)
+    assert torch.isfinite(loss.recon_l1)
+    # Content-weighting can only raise (or match) the unweighted pixel term.
+    assert float(loss.recon.detach()) >= float(loss.recon_l1.detach()) - 1e-5
+    assert float(loss.recon_bottleneck.detach()) >= float(loss.recon_bottleneck_l1.detach()) - 1e-5
     loss.total.backward()
     assert wm.perception.stem[0].weight.grad is not None
     assert wm.rssm.prior_net[0].weight.grad is not None
@@ -233,4 +237,5 @@ def test_world_model_step_updates_weights() -> None:
     )
     assert torch.isfinite(loss.total)
     assert "recon" in metrics
+    assert "recon_l1" in metrics
     assert not torch.equal(before, wm.perception.stem[0].weight.detach())

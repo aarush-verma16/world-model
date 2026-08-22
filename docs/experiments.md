@@ -15,10 +15,15 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   (desktop compositor already holds ~1.5 GiB) and is left as a later bump.
 - Install path: `scripts/setup_windows.ps1` (CUDA 12.8 wheels). Default PyPI
   torch is CPU-only on Windows.
-- M3 recipe is otherwise unchanged (`edge_weight=8`, XL CNN, three decode
-  heads). Start the Windows run with `RESUME = None` in
-  `notebooks/05_train_world_model.ipynb` — Mac checkpoints are the same shapes
-  but were trained fp32 / batch 4, and this box should take a clean faster pass.
+- First Windows pass used `edge_weight=8` + XL CNN. At step 1000 the dashboard
+  `recon≈0.76` looked stuck; a CPU probe of `ckpt_step_01000.pt` showed
+  **unweighted** `[h,z]` L1 = 0.107 (healthy; mean-color is 0.28) — the 0.76
+  was a 7× inflation. `edge_weight=8` put ~70% of the loss on the top 1.5% of
+  pixels (HUD/sprite outlines, weights up to 129) that a 4×4 skip-free decoder
+  cannot match. Reverted `edge_weight` and `grad_scale` to 0; log `recon_l1`.
+  Same shapes, so `RESUME` from `ckpt_step_01000.pt` is valid.
+
+## Setup / M0 (2026-07-31)
 
 ## Setup / M0 (2026-07-31)
 

@@ -19,15 +19,14 @@ decodes `embed` with NO skips, so the only way to lower this loss is for
 `embed` itself to encode the content -- which is the one thing that actually
 helps the RSSM.
 
-`edge_weight` (see `content_weight_map`) exists because of a second failure
-mode found *after* fixing the above: pixel loss can drop a lot while HUD
-icons/sprites/trees stay completely blank, because plain L1/MSE averages
-over all pixels and Crafter scenes are ~90% flat grass/dirt -- a handful of
-sprite or HUD pixels barely move that average. Confirmed via the training
-images themselves: `[h,z]` correctly learned large regions (e.g. water) but
-left the HUD bar and mobs/trees blank even as `recon` loss fell steadily.
-`edge_weight` reweights the pixel loss by the real frame's own local
-structure so sparse-but-important content actually matters to the loss.
+`edge_weight` / `grad_scale` are optional high-frequency terms. They are
+off in the M3 config after a step-1000 probe of the XL run: unweighted
+`[h,z]` L1 was a healthy 0.11, but `edge_weight=8` logged 0.76 (7x) because
+~70% of the weighted loss sat on the top 1.5% of pixels (HUD icon / sprite
+outlines, per-pixel weights up to 129). A skip-free 4x4 decoder cannot match
+those 1-2px features (each latent cell is 16x16), so that mass is a near-
+constant floor. `recon_l1` is always the unweighted pixel term — watch that
+when judging whether reconstruction is learning.
 """
 
 from __future__ import annotations
@@ -41,12 +40,21 @@ from torch import Tensor
 
 @dataclass
 class WorldModelLossBreakdown:
-    """Per-term losses (already reduced to scalars) plus the weighted total."""
+    """Per-term losses (already reduced to scalars) plus the weighted total.
+
+    `recon` / `recon_embed` / `recon_bottleneck` are the values actually
+    multiplied into `total` (content-weighted when `edge_weight > 0`).
+    `*_l1` are always plain unweighted pixel loss — the number to compare
+    across runs and against the historical ~0.10 early / ~0.05 late band.
+    """
 
     total: Tensor
     recon: Tensor
     recon_embed: Tensor
     recon_bottleneck: Tensor
+    recon_l1: Tensor
+    recon_embed_l1: Tensor
+    recon_bottleneck_l1: Tensor
     grad: Tensor
     reward: Tensor
     continue_loss: Tensor
@@ -228,14 +236,20 @@ def world_model_loss(
             loss terms (see `content_weight_map`); `0.0` keeps plain
             uniform-weight L1/MSE (default, for backward compat).
     """
+    recon_l1 = _pixel_loss(recon, obs, recon_loss_type)
+    recon_embed_l1 = _pixel_loss(recon_embed, obs, recon_loss_type)
+    recon_bottleneck_l1 = _pixel_loss(recon_bottleneck, obs, recon_loss_type)
     recon_loss = weighted_pixel_loss(recon, obs, recon_loss_type, edge_weight)
     recon_embed_loss = weighted_pixel_loss(recon_embed, obs, recon_loss_type, edge_weight)
     recon_bottleneck_loss = weighted_pixel_loss(recon_bottleneck, obs, recon_loss_type, edge_weight)
-    grad_loss = (
-        gradient_l1_loss(recon, obs)
-        + gradient_l1_loss(recon_embed, obs)
-        + gradient_l1_loss(recon_bottleneck, obs)
-    )
+    if grad_scale > 0.0:
+        grad_loss = (
+            gradient_l1_loss(recon, obs)
+            + gradient_l1_loss(recon_embed, obs)
+            + gradient_l1_loss(recon_bottleneck, obs)
+        )
+    else:
+        grad_loss = recon.new_zeros(())
 
     reward_pred = reward_pred.squeeze(-1)
     reward_loss = F.mse_loss(reward_pred, reward)
@@ -266,6 +280,9 @@ def world_model_loss(
         recon=recon_loss,
         recon_embed=recon_embed_loss,
         recon_bottleneck=recon_bottleneck_loss,
+        recon_l1=recon_l1,
+        recon_embed_l1=recon_embed_l1,
+        recon_bottleneck_l1=recon_bottleneck_l1,
         grad=grad_loss,
         reward=reward_loss,
         continue_loss=continue_loss,

@@ -208,26 +208,21 @@ train:
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0
-  # Edge-aware term on [h,z] + embed decodes combined (see comment above).
-  # Calibrated against a live run's step-400 numbers (grad_raw=0.34,
-  # recon_raw=0.20, recon_embed_raw=0.10) to land grad's scaled contribution
-  # at roughly a third of recon+embed's combined scaled contribution --
-  # enough to meaningfully push on edges without overriding pixel accuracy.
-  grad_scale: 1.5
-  # Content-weighted pixel loss (see `content_weight_map` in losses.py).
-  # Even with capacity + grad_scale fixed, a live run at step ~8750
-  # (recon=0.049, recon_bottleneck=0.044, both way down from ~0.10 early on)
-  # STILL showed a completely blank HUD bar and zero trees/mobs in [h,z] --
-  # while correctly filling in large regions like a water patch. Root cause:
-  # plain per-pixel L1 averages over the WHOLE frame, and Crafter scenes are
-  # ~90% flat grass/dirt, so nailing the background alone already gets loss
-  # very low -- HUD icons/sprites are too small a pixel fraction to move it.
-  # This reweights the pixel loss by the real frame's own local-gradient
-  # magnitude (squared, so grass/dirt dithering noise stays ~1x while sharp
-  # HUD/sprite/tile edges reach 10-100x). Calibrated against actual step-8700
-  # real frames: edge_weight=8 puts ~30% of total loss weight on just the
-  # top 1% most-structured pixels (icons/sprites/edges), vs <1% unweighted.
-  edge_weight: 8.0
+  # Both high-frequency terms are OFF. Probed ckpt_step_01000.pt (this XL
+  # run) on real replay: unweighted [h,z] L1 was 0.107 -- the historical
+  # "early ~0.10" band, already 2.6x better than a mean-color predictor
+  # (0.284) -- but the logged recon was 0.76 because edge_weight=8 inflated
+  # it 7.1x. content_weight_map hit per-pixel weights of 129; the top 1.5%
+  # of pixels (weight>=33, HUD icon / sprite outlines) carried ~70% of the
+  # weighted loss. A skip-free 4x4 decoder cannot match 1-2px features
+  # (each latent cell is 16x16), so that 70% is a near-constant floor --
+  # which is why the scaled recon curve looked "stuck at 4" while plain L1
+  # was still dropping (+9.4% / 500 steps) and HUD unweighted error was
+  # tied with the world (0.10 vs 0.11). Dreamer [h,z] recon is blob-level,
+  # not pixel-art HUD digits. Watch `recon_l1` (always unweighted).
+  # Same-shape change: RESUME from ckpt_step_01000.pt is valid.
+  grad_scale: 0.0
+  edge_weight: 0.0
   log_dir: runs/m3_world_model
   checkpoint_dir: checkpoints/m3_world_model
   results_dir: results/m3
