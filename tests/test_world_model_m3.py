@@ -280,6 +280,7 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     # Crop losses + pasted HUD head flattened early recon. Stay off.
     assert float(cfg["train"]["recon_avatar_scale"]) == 0.0
     assert float(cfg["train"]["recon_hud_scale"]) == 0.0
+    assert float(cfg["train"]["free_nats"]) == 2.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
     assert int(cfg["decoder"].get("blocks", 0)) == 0

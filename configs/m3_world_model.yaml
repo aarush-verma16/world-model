@@ -95,7 +95,12 @@ train:
   image_every: 50
   dyn_scale: 0.5
   rep_scale: 0.1
-  free_nats: 1.0
+  # Floor on max(KL, this) for the *sum* over 32 categoricals. Per-cell z
+  # (2 cats × 16 cells) carries ~1.2 nats of layout, so a floor of 1.0 left
+  # KL raw parked at 1.2–1.6 with the regularizer on (kl term 0.87 vs embed
+  # recon 0.38 at step 1k). 2.0 makes that layout free; the 8k Linear-z run
+  # sat ~0.8 and did not need it.
+  free_nats: 2.0
   recon_loss: l1
   # Primary: decode from [h, z_posterior]
   recon_scale: 5.0

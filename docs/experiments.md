@@ -51,8 +51,9 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   holds layout.
 - KL raw stuck at 1.2–1.6 (above free_nats) after ~step 250: `SpatialPrior`
   predicted a 4×4 logit grid from one `h` vector and lagged the per-cell
-  posterior. Replaced with the Linear `h → z` prior from the 8k-step run
-  (KL ~0.8 at step 2000 there). Posterior stays per-cell.
+  posterior. Replaced with the Linear `h → z` prior from the 8k-step run.
+  Posterior stays per-cell. KL still sat at ~1.2 (layout in 32 cats) so
+  `free_nats` 1 → 2.
 
 ## Setup / M0 (2026-07-31)
 
