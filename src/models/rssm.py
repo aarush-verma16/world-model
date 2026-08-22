@@ -209,9 +209,9 @@ def z_flat_to_cell_map(
 class SpatialPosterior(nn.Module):
     """Posterior logits from `h` + a 4x4 encoder map.
 
-    When `stoch` is a multiple of 16, logits are a 1x1 conv per cell (M3:
-    32 categoricals = 2 per cell) so `z` keeps the encoder's layout.
-    `Linear(hidden*16 → z_flat)` is only the tiny-test fallback.
+    Convs run on the 4x4 map first, then `Linear(hidden*16 → z_flat)`.
+    Per-cell 1x1 logits (2 categoricals × 16 cells) kept KL raw at 1.2–1.6
+    with `free_nats=1`. Unstructured `z` is what sat under the floor before.
     """
 
     def __init__(
@@ -228,7 +228,6 @@ class SpatialPosterior(nn.Module):
         self.stoch = stoch
         self.classes = classes
         self.spatial = spatial
-        self.per_cell = stoch_per_cell(stoch, spatial)
         h_ch = min(128, deter_dim)
         self.h_to_map = nn.Linear(deter_dim, h_ch)
         self.conv = nn.Sequential(
@@ -237,12 +236,7 @@ class SpatialPosterior(nn.Module):
             nn.Conv2d(hidden, hidden, kernel_size=3, padding=1),
             nn.SiLU(),
         )
-        if self.per_cell is not None:
-            self.to_logits: nn.Module = nn.Conv2d(
-                hidden, self.per_cell * classes, kernel_size=1
-            )
-        else:
-            self.to_logits = nn.Linear(hidden * spatial * spatial, stoch * classes)
+        self.to_logits = nn.Linear(hidden * spatial * spatial, stoch * classes)
 
     def forward(self, h: Tensor, embed: Tensor) -> Tensor:
         """`h` `[B, deter]`, `embed` `[B, C*16]` → logits `[B, z_flat]`."""
@@ -252,8 +246,6 @@ class SpatialPosterior(nn.Module):
             -1, -1, self.spatial, self.spatial
         )
         x = self.conv(torch.cat([embed_map, h_map], dim=1))
-        if self.per_cell is not None:
-            return logits_grid_to_flat(self.to_logits(x), self.per_cell, self.classes)
         return self.to_logits(x.flatten(1))
 
 

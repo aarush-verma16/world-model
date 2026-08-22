@@ -49,11 +49,8 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
 - Frozen decoder weights on the `[h,z]` paint starved the renderer
   (solid green, no avatar blob). Live weights again; per-cell `z` still
   holds layout.
-- KL raw stuck at 1.2–1.6 (above free_nats) after ~step 250: `SpatialPrior`
-  predicted a 4×4 logit grid from one `h` vector and lagged the per-cell
-  posterior. Replaced with the Linear `h → z` prior from the 8k-step run.
-  Posterior stays per-cell. KL still sat at ~1.2 (layout in 32 cats) so
-  `free_nats` 1 → 2.
+- KL: `free_nats` is 1. Per-cell `z` (2 cats × 16 cells) parked KL raw at
+  1.2–1.6; posterior logits are `Linear` after the 4×4 conv again.
 - Solid-color terrain + one left HUD icon at step ~2k: `recon_blob_scale=5`
   is 7px tile-mean L1 (paints each tile one color) and `[h,z]` was training
   the shared upsample (4×4 map → 16×16 solid cells). Blob off; decoder

@@ -280,7 +280,7 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     # Crop losses + pasted HUD head flattened early recon. Stay off.
     assert float(cfg["train"]["recon_avatar_scale"]) == 0.0
     assert float(cfg["train"]["recon_hud_scale"]) == 0.0
-    assert float(cfg["train"]["free_nats"]) == 2.0
+    assert float(cfg["train"]["free_nats"]) == 1.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
     assert int(cfg["decoder"].get("blocks", 0)) == 0
@@ -348,9 +348,9 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     )
 
 
-def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:
-    """M3's 32 categoricals sit 2-per-cell; mixing Linear cannot scramble them."""
-    from models.rssm import SpatialPosterior, stoch_per_cell
+def test_hz_to_map_linear_z_when_stoch_divides_16() -> None:
+    """Per-cell z is off (it parked KL above free_nats=1). Linear z → 4×4."""
+    from models.rssm import SpatialPosterior
 
     wm = WorldModel.from_config_dims(
         embed_dim=64 * 4 * 4,
@@ -364,13 +364,11 @@ def test_spatial_z_is_per_cell_when_stoch_divides_16() -> None:
         head_hidden=32,
         head_layers=1,
     )
-    assert stoch_per_cell(16) == 1
     assert isinstance(wm.rssm.posterior_net, SpatialPosterior)
-    assert isinstance(wm.rssm.posterior_net.to_logits, torch.nn.Conv2d)
+    assert isinstance(wm.rssm.posterior_net.to_logits, torch.nn.Linear)
     assert isinstance(wm.rssm.prior_net, torch.nn.Sequential)
     assert wm.hz_to_map is not None
-    assert wm.hz_to_map.per_cell == 1
-    assert isinstance(wm.hz_to_map.z_proj, torch.nn.Conv2d)
+    assert isinstance(wm.hz_to_map.z_proj, torch.nn.Linear)
     obs = torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8)
     actions = torch.randint(0, 5, (2, 4), dtype=torch.int64)
     out = wm(obs, actions)

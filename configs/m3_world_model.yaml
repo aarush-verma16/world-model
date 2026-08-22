@@ -4,12 +4,11 @@
 #   skip-free ResNet Encoder (DreamerV3 ImageEncoderResnet: stride-2 then
 #   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
 #   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
-#   per-cell (32 categoricals = 2 per cell) then paints with the same
-#   upsample (decoder weights frozen on the [h,z] paint so it cannot
-#   teach 16×16 solid cells). recon_map L1 aligns the maps. Pixel L1
-#   trains texture + the full inventory bar. recon_blob is off — 7px
-#   tile-mean L1 is a solid-color-per-tile objective and wiped grass/HUD
-#   texture. Not 8px decoder, not edge_weight, not skip-to-RGB.
+#   (Linear z → 4×4) then paints with the same upsample (decoder weights
+#   frozen on the [h,z] paint so it cannot teach 16×16 solid cells).
+#   recon_map L1 aligns the maps. Pixel L1 trains texture + inventory.
+#   recon_blob is off. free_nats=1. Per-cell z is off (it parked KL at 1.2–1.6).
+#   Not 8px decoder, not edge_weight, not skip-to-RGB.
 #
 # The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
 # into grass before they could become features. Residual blocks at each
@@ -49,8 +48,6 @@ rssm:
   act: silu
   initial: learned
   rec_depth: 1
-  # Prior is Linear(h → z). SpatialPrior (4×4 from one vector) kept KL raw
-  # at 1.2–1.6; the Linear prior from the 8k run sat ~0.8 at the same step.
 
 decoder:
   # Residual blocks live on the encoder. Two ResNet decoders OOMed the 16
@@ -96,12 +93,7 @@ train:
   image_every: 50
   dyn_scale: 0.5
   rep_scale: 0.1
-  # Floor on max(KL, this) for the *sum* over 32 categoricals. Per-cell z
-  # (2 cats × 16 cells) carries ~1.2 nats of layout, so a floor of 1.0 left
-  # KL raw parked at 1.2–1.6 with the regularizer on (kl term 0.87 vs embed
-  # recon 0.38 at step 1k). 2.0 makes that layout free; the 8k Linear-z run
-  # sat ~0.8 and did not need it.
-  free_nats: 2.0
+  free_nats: 1.0
   recon_loss: l1
   # Primary: decode from [h, z_posterior]
   recon_scale: 5.0
