@@ -5,10 +5,11 @@
 #   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
 #   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
 #   per-cell (32 categoricals = 2 per cell) then paints with the same
-#   upsample (live weights). recon_map L1 aligns the maps. recon_blob is
-#   7px-tile L1 on the local view. Inventory is painted by the same 64x64
-#   decoder — a pasted HUD head was overwriting that strip with a random
-#   black bar. Not 8px decoder, not edge_weight, not skip-to-RGB.
+#   upsample (decoder weights frozen on the [h,z] paint so it cannot
+#   teach 16×16 solid cells). recon_map L1 aligns the maps. Pixel L1
+#   trains texture + the full inventory bar. recon_blob is off — 7px
+#   tile-mean L1 is a solid-color-per-tile objective and wiped grass/HUD
+#   texture. Not 8px decoder, not edge_weight, not skip-to-RGB.
 #
 # The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
 # into grass before they could become features. Residual blocks at each
@@ -114,11 +115,12 @@ train:
   # and a mixing Linear into pixels. Shared upsample + this term makes
   # HzToMap copy the layout embed already has.
   recon_map_scale: 1.0
-  # 8x8 pooled L1 on [h,z] and embed recon. 64x64 L1 is a median: an 8px
-  # cow in a 16x16 patch is a minority, so the optimum is grass and you
-  # never even get a blur. Crafter tiles are 8px; this term makes them a
-  # majority of their cell. Not edge_weight (1px HUD), not 8px decoder.
-  recon_blob_scale: 5.0
+  # Off. 7px-tile mean L1 is "paint each Crafter tile one color". At scale
+  # 5.0 (same as full-frame recon) that wiped grass dithering, water
+  # ripples, and HUD icon texture — solid blue/green fields and one left
+  # heart. Sprites still have to live in the encoder; pixel L1 is enough
+  # to start them as blurs once the renderer is allowed texture.
+  recon_blob_scale: 0.0
   # Extra crop losses (avatar 21×21, HUD 14×63) at the same scale as the
   # 64×64 mean L1 over-weighted those pixels and a pasted HUD head then
   # overwrote the inventory the world decoder was learning. Off.

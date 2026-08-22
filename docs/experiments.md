@@ -54,6 +54,10 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   posterior. Replaced with the Linear `h → z` prior from the 8k-step run.
   Posterior stays per-cell. KL still sat at ~1.2 (layout in 32 cats) so
   `free_nats` 1 → 2.
+- Solid-color terrain + one left HUD icon at step ~2k: `recon_blob_scale=5`
+  is 7px tile-mean L1 (paints each tile one color) and `[h,z]` was training
+  the shared upsample (4×4 map → 16×16 solid cells). Blob off; decoder
+  weights detached on the `[h,z]` paint again.
 
 ## Setup / M0 (2026-07-31)
 

@@ -276,7 +276,7 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert int(enc["embed_dim"]) == channels[-1] * 4 * 4
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
     assert float(cfg["train"]["recon_map_scale"]) == 1.0
-    assert float(cfg["train"]["recon_blob_scale"]) == 5.0
+    assert float(cfg["train"]["recon_blob_scale"]) == 0.0
     # Crop losses + pasted HUD head flattened early recon. Stay off.
     assert float(cfg["train"]["recon_avatar_scale"]) == 0.0
     assert float(cfg["train"]["recon_hud_scale"]) == 0.0
@@ -333,10 +333,10 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert out.hz_map.shape == out.embed_map.shape
     out.recon.mean().backward()
     assert identity_wm.hz_to_map.z_proj.weight.grad is not None
-    # Both paths train the shared upsample. Frozen decoder weights on the
-    # [h,z] paint starved the renderer (solid green / black HUD).
-    assert any(
-        p.grad is not None and float(p.grad.abs().sum()) > 0
+    # [h,z] is a 4×4 map. Live upsample weights learn 16×16 solid cells
+    # (no grass/HUD texture). Freeze them; fit the renderer from embed.
+    assert all(
+        p.grad is None or float(p.grad.abs().sum()) == 0.0
         for p in identity_wm.decoder.up.parameters()
     )
     identity_wm.zero_grad()

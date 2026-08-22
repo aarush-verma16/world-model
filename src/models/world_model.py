@@ -5,11 +5,12 @@ Trains on real replay sequences (M3). Imagination / actor-critic is M4.
 When the encoder flatten is a 4x4 map (Identity `embed_dim == C*4*4`), there
 is **one** skip-free decoder upsample. Embed recon reshapes that map and
 paints. `[h,z]` recon predicts the same 4x4 layout (`HzToMap`) then uses
-the same upsample (live weights — both paths train the renderer). `z` is
-2 categoricals per 4x4 cell (32 total). A separate HUD head that pasted
-over rows 49–63 hid the inventory the world decoder was learning; that
-head is gone. Two independent XL decoders left `[h,z]` stuck on mean grass
-while embed learned the scene — the upsample never transferred.
+the same upsample with decoder weights detached so a 4×4 map cannot
+teach 16×16 solid cells. `z` is 2 categoricals per 4x4 cell (32 total).
+A separate HUD head that pasted over rows 49–63 hid the inventory the
+world decoder was learning; that head is gone. Two independent XL
+decoders left `[h,z]` stuck on mean grass while embed learned the scene
+— the upsample never transferred. `recon_blob` (tile-mean L1) is off.
 """
 
 from __future__ import annotations
@@ -278,7 +279,9 @@ class WorldModel(nn.Module):
             embed_map = flat_embed.view(
                 batch * time, self.hz_to_map.channels, 4, 4
             )
-            recon = self.decoder.from_map(hz_map).view(batch, time, 3, 64, 64)
+            recon = self.decoder.from_map(hz_map, detach_weights=True).view(
+                batch, time, 3, 64, 64
+            )
             recon_from_embed = self.decoder.from_map(embed_map).view(
                 batch, time, 3, 64, 64
             )
