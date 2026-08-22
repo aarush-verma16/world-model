@@ -2,7 +2,6 @@
 
 Usage:
     conda activate worldmodel
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
     python scripts/collect_replay.py --config configs/m3_world_model.yaml
 """
 

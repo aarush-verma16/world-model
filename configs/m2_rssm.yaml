@@ -1,5 +1,5 @@
 # Milestone 2 — RSSM forward-pass verification (no end-to-end WM training yet).
-# Latent grid 16x16 (not DreamerV3's 32x32) for M4 Pro memory headroom.
+# Latent grid 16x16 is a cheap shape check. M3 training uses DreamerV3's 32x32.
 
 seed: 0
 

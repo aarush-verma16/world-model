@@ -2,13 +2,12 @@
 
 Usage:
     conda activate worldmodel
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
     python scripts/collect_random_frames.py
     python scripts/train_autoencoder.py
 
 Watch:
     tensorboard --logdir runs
-    open results/m1/recon_final.png
+    results/m1/recon_final.png
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from models.autoencoder import PerceptionAutoencoder
 from models.preprocess import nchw_float_to_nhwc_uint8, nhwc_uint8_to_nchw_float
-from training.device import get_device
+from training.device import configure_runtime, describe_device, get_device, warn_if_not_cuda
 
 
 def set_seed(seed: int) -> None:
@@ -108,7 +107,9 @@ def main() -> None:
 
     set_seed(int(cfg["seed"]))
     device = get_device()
-    print(f"device: {device}")
+    configure_runtime(device)
+    print(f"device: {describe_device(device)}")
+    warn_if_not_cuda(device)
 
     frames_path = Path(cfg["collect"]["out_path"])
     if not frames_path.exists():
@@ -124,6 +125,7 @@ def main() -> None:
         batch_size=int(train_cfg["batch_size"]),
         shuffle=True,
         drop_last=True,
+        pin_memory=(device.type == "cuda"),
     )
 
     channels = tuple(int(c) for c in cfg.get("encoder_channels", [64, 128, 256, 512]))

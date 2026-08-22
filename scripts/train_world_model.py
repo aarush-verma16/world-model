@@ -2,12 +2,14 @@
 
 Logs each loss term separately (recon / reward / continue / KL) to TensorBoard.
 
-Usage:
+Usage (Windows / CUDA):
     conda activate worldmodel
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
     python scripts/collect_replay.py
     python scripts/train_world_model.py
     tensorboard --logdir runs
+
+Prefer `notebooks/05_train_world_model.ipynb` for a live run you can watch
+and stop. This CLI is the canonical script for CI / unattended jobs.
 """
 
 from __future__ import annotations
@@ -25,9 +27,19 @@ from torch.utils.tensorboard import SummaryWriter
 
 from models.preprocess import nchw_float_to_nhwc_uint8, nhwc_uint8_to_nchw_float
 from models.world_model import WorldModel
-from training.device import get_device
-from training.losses import world_model_loss
+from training.device import (
+    autocast_context,
+    configure_runtime,
+    describe_device,
+    get_device,
+    make_grad_scaler,
+    parse_amp,
+    to_device,
+    vram_peak_gb,
+    warn_if_not_cuda,
+)
 from training.replay_buffer import ReplayBuffer
+from training.wm_step import world_model_step
 
 
 def set_seed(seed: int) -> None:
@@ -177,12 +189,12 @@ def main() -> None:
 
     set_seed(int(cfg["seed"]))
     device = get_device()
-    print(f"device: {device}")
-    if device.type != "mps":
-        print(
-            "WARNING: not running on MPS -- training will be ~10-20x slower on CPU. "
-            "Check torch.backends.mps.is_available()."
-        )
+    configure_runtime(device)
+    if device.type == "cuda":
+        torch.cuda.manual_seed_all(int(cfg["seed"]))
+        torch.cuda.reset_peak_memory_stats()
+    print(f"device: {describe_device(device)}")
+    warn_if_not_cuda(device)
 
     replay_path = Path(cfg["collect"]["out_path"])
     if not replay_path.exists():
@@ -240,6 +252,9 @@ def main() -> None:
     log_every = int(train["log_every"])
     image_every = int(train["image_every"])
     ckpt_every = int(train["checkpoint_every"])
+    amp_dtype = parse_amp(train.get("amp", "bf16"), device)
+    scaler = make_grad_scaler(device, amp_dtype)
+    print(f"amp: {train.get('amp', 'bf16')}  batch={batch_size}  seq_len={seq_len}")
 
     model.train()
     history: list[dict[str, float]] = []
@@ -247,61 +262,15 @@ def main() -> None:
     last_log_step = start_step
     for step in range(start_step + 1, start_step + steps + 1):
         batch = buffer.sample(batch_size, seq_len)
-        obs = batch["obs"].to(device)
-        actions = batch["actions"].to(device)
-        rewards = batch["rewards"].to(device)
-        cont = batch["cont"].to(device)
-
-        out = model(obs, actions)
-        b, t = obs.shape[:2]
-        obs_f = nhwc_uint8_to_nchw_float(obs.reshape(b * t, *obs.shape[2:])).view(
-            b, t, 3, 64, 64
+        _loss, metrics = world_model_step(
+            model,
+            optim,
+            batch,
+            device=device,
+            train_cfg=train,
+            amp_dtype=amp_dtype,
+            scaler=scaler,
         )
-        loss = world_model_loss(
-            obs=obs_f,
-            recon=out.recon,
-            recon_embed=out.recon_embed,
-            recon_bottleneck=out.recon_bottleneck,
-            reward=rewards,
-            reward_pred=out.reward_pred,
-            cont=cont,
-            cont_logit=out.cont_logit,
-            post_logits=out.rssm.posterior_logits,
-            prior_logits=out.rssm.prior_logits,
-            unimix=model.rssm.unimix,
-            dyn_scale=float(train["dyn_scale"]),
-            rep_scale=float(train["rep_scale"]),
-            free_nats=float(train["free_nats"]),
-            recon_scale=float(train["recon_scale"]),
-            recon_embed_scale=float(train.get("recon_embed_scale", 1.0)),
-            recon_bottleneck_scale=float(train.get("recon_bottleneck_scale", 1.0)),
-            reward_scale=float(train["reward_scale"]),
-            continue_scale=float(train["continue_scale"]),
-            kl_scale=float(train["kl_scale"]),
-            grad_scale=float(train.get("grad_scale", 0.0)),
-            recon_loss_type=str(train.get("recon_loss", "l1")),
-            edge_weight=float(train.get("edge_weight", 0.0)),
-        )
-
-        optim.zero_grad(set_to_none=True)
-        loss.total.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 100.0)
-        optim.step()
-
-        metrics = {
-            "total": float(loss.total.detach()),
-            "recon": float(loss.recon.detach()),
-            "recon_embed": float(loss.recon_embed.detach()),
-            "recon_bottleneck": float(loss.recon_bottleneck.detach()),
-            "grad": float(loss.grad.detach()),
-            "reward": float(loss.reward.detach()),
-            "continue": float(loss.continue_loss.detach()),
-            "kl": float(loss.kl.detach()),
-            "kl_dyn": float(loss.kl_dyn.detach()),
-            "kl_rep": float(loss.kl_rep.detach()),
-            "kl_dyn_raw": float(loss.kl_dyn_raw.detach()),
-            "kl_rep_raw": float(loss.kl_rep_raw.detach()),
-        }
 
         if step % log_every == 0 or step == 1:
             for k, v in metrics.items():
@@ -310,6 +279,8 @@ def main() -> None:
             now = time.time()
             steps_per_sec = (step - last_log_step) / max(now - last_log_time, 1e-6)
             last_log_time, last_log_step = now, step
+            vram = vram_peak_gb()
+            vram_s = f"  vram {vram[0]:.1f}/{vram[1]:.1f} GiB" if vram else ""
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
                 f"recon={metrics['recon']:.4f}  emb={metrics['recon_embed']:.4f}  "
@@ -318,14 +289,15 @@ def main() -> None:
                 f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
                 f"kl={metrics['kl']:.4f} "
                 f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})  "
-                f"{steps_per_sec:.2f} steps/s"
+                f"{steps_per_sec:.2f} steps/s{vram_s}"
             )
 
         if step % image_every == 0 or step == 1:
             model.eval()
-            with torch.no_grad():
+            with torch.no_grad(), autocast_context(device, amp_dtype):
                 vis = buffer.sample(min(4, batch_size), seq_len)
-                v_out = model(vis["obs"].to(device), vis["actions"].to(device))
+                vis_g = to_device(vis, device)
+                v_out = model(vis_g["obs"], vis_g["actions"])
                 save_recon_grid(
                     vis["obs"],
                     [v_out.recon, v_out.recon_embed, v_out.recon_bottleneck],
@@ -356,20 +328,21 @@ def main() -> None:
     writer.close()
 
     model.eval()
-    with torch.no_grad():
+    with torch.no_grad(), autocast_context(device, amp_dtype):
         vis = buffer.sample(8, seq_len)
-        v_out = model(vis["obs"].to(device), vis["actions"].to(device))
+        vis_g = to_device(vis, device)
+        v_out = model(vis_g["obs"], vis_g["actions"])
         save_recon_grid(
             vis["obs"],
             [v_out.recon, v_out.recon_embed, v_out.recon_bottleneck],
             results_dir / "recon_final.png",
         )
         obs_std = float(
-            nhwc_uint8_to_nchw_float(vis["obs"].to(device)).std()
+            nhwc_uint8_to_nchw_float(vis_g["obs"]).std()
         )
-        recon_std = float(v_out.recon.std())
-        embed_std = float(v_out.recon_embed.std())
-        bottleneck_std = float(v_out.recon_bottleneck.std())
+        recon_std = float(v_out.recon.float().std())
+        embed_std = float(v_out.recon_embed.float().std())
+        bottleneck_std = float(v_out.recon_bottleneck.float().std())
 
         # Held-out-ish reward correlation check (M3's actual documented exit
         # criterion): sample several fresh sequences the loss wasn't just
@@ -377,9 +350,10 @@ def main() -> None:
         true_chunks, pred_chunks = [], []
         for _ in range(20):
             rb = buffer.sample(batch_size, seq_len)
-            r_out = model(rb["obs"].to(device), rb["actions"].to(device))
+            rb_g = to_device(rb, device)
+            r_out = model(rb_g["obs"], rb_g["actions"])
             true_chunks.append(rb["rewards"].numpy().reshape(-1))
-            pred_chunks.append(r_out.reward_pred.squeeze(-1).cpu().numpy().reshape(-1))
+            pred_chunks.append(r_out.reward_pred.squeeze(-1).float().cpu().numpy().reshape(-1))
         reward_true = np.concatenate(true_chunks)
         reward_pred = np.concatenate(pred_chunks)
 

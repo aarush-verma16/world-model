@@ -54,22 +54,25 @@ code gets written.
 **Depends on:** nothing (starting point).
 
 **Tasks:**
-- Conda environment, PyTorch install, MPS verification
+- Conda environment, PyTorch install, CUDA verification
 - Gymnasium + Crafter + MiniGrid install and smoke test
 - Repo skeleton, `.cursor/rules`, `PROJECT_BRIEF.md` committed
 - TensorBoard working locally (log one dummy scalar and confirm it renders)
 
 **Exit criteria:**
-- `torch.backends.mps.is_available()` returns `True`
+- `torch.cuda.is_available()` returns `True` and `nvidia-smi` sees the GPU
 - `CrafterReward-v1` resets and steps, returns `(64, 64, 3)` observations
 - A dummy TensorBoard scalar log is viewable in the browser
 - Repo pushed to GitHub with a real README stub (not the default)
 
 **Common failure modes:**
-- MPS silently falls back to CPU on certain ops without erroring — you won't notice until
-  training is mysteriously slow. Mitigation: set `PYTORCH_ENABLE_MPS_FALLBACK=1` now and
-  grep logs for fallback warnings once you have real training code running.
-- Crafter install conflicts with a system-level OpenGL/rendering dependency on macOS —
+- `pip install torch` from PyPI on Windows installs a **CPU-only** wheel, so
+  `cuda.is_available()` is False even though `nvidia-smi` works. Mitigation:
+  install from `https://download.pytorch.org/whl/cu128` (see README /
+  `scripts/setup_windows.ps1`).
+- RTX 50-series (Blackwell, sm_120) on a CUDA 12.4/12.1 build raises
+  "no kernel image is available". Mitigation: CUDA 12.8+ PyTorch, recent driver.
+- Crafter install conflicts with a system-level OpenGL/rendering dependency —
   mitigation: install inside the conda env only, never system Python.
 
 **Artifact:** tag `v0.0-setup-complete`.
@@ -116,8 +119,8 @@ consistent prior/posterior latents without yet being trained end-to-end on the f
 
 **Tasks:**
 - GRU-based deterministic state `h`
-- Discrete categorical stochastic latent `z` (start at 8x8 or 16x16 grid for memory headroom,
-  not DreamerV3's full 32x32)
+- Discrete categorical stochastic latent `z` (DreamerV3's 32x32; M2's forward-pass
+  config may still use 16x16 as a cheap shape check, which is not a training recipe)
 - Posterior head: `z_posterior` from `h` + real encoder embedding
 - Prior head: `z_prior` from `h` alone
 - Straight-through gradient estimator for the discrete sampling step
@@ -261,8 +264,8 @@ score, directly comparable to published numbers.
 **Depends on:** M5.
 
 **Tasks:**
-- Hyperparameter pass suited to your 24GB memory budget (batch size, sequence length, latent
-  grid size)
+- Hyperparameter pass suited to the 16 GiB VRAM budget (batch size, sequence length;
+  keep the 32x32 latent — that is the recipe, not a memory knob)
 - Implement the Crafter evaluation harness matching the paper's metric (achievement
   percentages + geometric mean score)
 - Run the full baseline training run to completion (likely several hours to overnight)
@@ -409,9 +412,9 @@ finished, regardless of which day you happen to hit it on.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| MPS backend instability/slowness | Medium | High | Verify early (M0), keep fallback flag on, profile before long runs |
+| CUDA / driver / wrong torch wheel | Medium | High | Verify early (M0) with `nvidia-smi` + `smoke_cuda_step.py`; never install torch from PyPI on Windows |
 | Posterior collapse in RSSM | Medium | High | KL balancing, monitor KL term separately in logs, not just summed loss |
-| Memory overflow on 24GB during long training runs | Medium | Medium | Start with small batch/sequence/latent sizes, scale up only after profiling |
+| CUDA OOM on 16 GiB during the XL CNN + 3 decode heads | Medium | Medium | Default is batch 16 × seq 32 + bf16; drop batch_size if a smoke step OOMs. Desktop compositor already uses ~1.5 GiB. Replay stays in system RAM. |
 | Ablation invalidated by accidentally changing 2+ variables | Medium | High | Config-diff check before launching each ablation run — literally diff the yaml files |
 | Running out of time before M8/M9 | Medium | Medium | M6 (baseline) is the non-negotiable milestone — if time runs short, a working baseline with a smaller/simpler ablation is a better outcome than an unfinished larger one |
 | Overclaiming results in the paper | Low | High | Limitations section written honestly, framed as a controlled small-scale study throughout |

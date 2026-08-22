@@ -2,7 +2,7 @@
 
 Usage (worldmodel env active):
     python scripts/watch_crafter.py
-    open results/m0_random_rollout.gif
+    # writes results/m0_random_rollout.gif
 """
 
 from __future__ import annotations

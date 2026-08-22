@@ -5,8 +5,9 @@ dependencies:
   - python=3.11
   - pip
   - pip:
-      - torch
-      - torchvision
+      # torch/torchvision are installed separately from the CUDA 12.8 index
+      # (see README / scripts/setup_windows.ps1). Do not pip-install torch
+      # from PyPI here — that wheel is CPU-only on Windows and will skip the 5080.
       - gymnasium
       - crafter
       - minigrid
@@ -18,4 +19,3 @@ dependencies:
       - matplotlib
       - jupyter
       - ipykernel
-      - -e .

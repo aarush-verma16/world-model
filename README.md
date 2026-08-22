@@ -2,7 +2,7 @@
 
 A Dreamer-style world model for [Crafter](https://github.com/danijar/crafter): learn a compressed predictive model of the environment from pixels, then train a policy inside imagined rollouts instead of on every real interaction.
 
-Built in PyTorch for Apple Silicon (MPS). No cloud APIs in the training or inference path — everything runs locally.
+Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally.
 
 <p align="center">
   <img src="results/m1/recon_final.png" alt="Real vs reconstructed Crafter frames" width="720" />
@@ -19,7 +19,7 @@ Dreamer separates **world modeling** from **decision making**:
 3. A **decoder** and auxiliary heads reconstruct observations and predict reward / continuation, which train the world model.
 4. An **actor-critic** acts in latent imagination — rolling the world model forward with `z_prior` only — so most learning happens without stepping the real environment.
 
-This repo follows the DreamerV2/V3 recipe (discrete latents, straight-through gradients, unimix categorical floor, layer-normalized GRU) at a scale that fits ~24GB unified memory (e.g. 16×16 categorical latents rather than 32×32).
+This repo follows the DreamerV2/V3 recipe (discrete latents, straight-through gradients, unimix categorical floor, layer-normalized GRU) at the paper's 32×32 categorical size, trained with bf16 AMP at batch 16 × seq 32 on a 16 GiB GPU.
 
 ## What’s included
 
@@ -34,69 +34,77 @@ Architecture notes and naming conventions live in [`PROJECT_BRIEF.md`](PROJECT_B
 
 ## Requirements
 
-- macOS on Apple Silicon (MPS)
-- [Miniforge](https://github.com/conda-forge/miniforge) / conda
+- Windows 10/11, NVIDIA GPU (this machine: RTX 5080, 16 GiB, Blackwell sm_120)
+- Recent Game Ready / Studio driver (`nvidia-smi` must work)
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Miniforge
 - Python 3.11
-
-CUDA is not supported. Set `PYTORCH_ENABLE_MPS_FALLBACK=1` so unsupported ops fall back to CPU cleanly.
+- **CUDA 12.8+ PyTorch**. RTX 50-series will not run on cu124/cu121 or the default PyPI CPU wheel.
 
 ## Install
 
-```bash
-conda env create -f environment.yml
+PowerShell from the repo root (one-shot):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup_windows.ps1
 conda activate worldmodel
-pip install -e ".[dev]"
-export PYTORCH_ENABLE_MPS_FALLBACK=1
 ```
 
-If `conda activate` fails on zsh, run `conda init zsh`, open a new shell, and try again.
+Or by hand:
+
+```powershell
+conda env create -f environment.yml
+conda activate worldmodel
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+pip install -e ".[dev]"
+python -m ipykernel install --user --name worldmodel --display-name "Python (worldmodel)"
+```
+
+If `conda activate` fails in PowerShell, run `conda init powershell`, open a new terminal, and try again.
 
 Upstream `crafter` registers only with the legacy `gym` package. This repo re-registers the same env IDs for Gymnasium via `src/envs/crafter_env.py`.
 
 Smoke-check the stack:
 
-```bash
+```powershell
 python scripts/verify_m0.py
+python scripts/smoke_cuda_step.py
 pytest -q
 ```
+
+`smoke_cuda_step.py` prints steps/sec and peak VRAM for the current `m3` batch/seq. If it OOMs, drop `train.batch_size` 16 → 8 in `configs/m3_world_model.yaml` and re-run the smoke.
 
 ## Usage
 
 **Perception (autoencoder)**
 
-```bash
+```powershell
 python scripts/collect_random_frames.py
 python scripts/train_autoencoder.py --config configs/m1_autoencoder.yaml
 # optional fine-tune:
-# python scripts/train_autoencoder.py --config configs/m1_autoencoder_finetune.yaml \
+# python scripts/train_autoencoder.py --config configs/m1_autoencoder_finetune.yaml `
 #   --resume checkpoints/m1_autoencoder_stem_rgb/ckpt_best.pt
 ```
 
-**World model**
+**World model** — run this from the notebook so you can watch it and stop it:
 
-```bash
+```powershell
 python scripts/collect_replay.py --config configs/m3_world_model.yaml
-python scripts/train_world_model.py --config configs/m3_world_model.yaml
-tensorboard --logdir runs   # m3/recon, m3/reward, m3/continue, m3/kl, …
+jupyter notebook notebooks/05_train_world_model.ipynb
+tensorboard --logdir runs
 ```
+
+The CLI (`python scripts/train_world_model.py`) is the same loop without live plots.
 
 **RSSM diagnostics**
 
-```bash
+```powershell
 python scripts/verify_rssm_forward.py
 python scripts/visualize_rssm.py
 ```
 
-**Notebooks** — reconstructions, live RSSM plots, and env checks:
-
-```bash
-python -m ipykernel install --user --name worldmodel --display-name "Python (worldmodel)"
-jupyter notebook notebooks/
-```
-
 **TensorBoard**
 
-```bash
+```powershell
 tensorboard --logdir runs
 # http://localhost:6006
 ```
@@ -107,10 +115,10 @@ tensorboard --logdir runs
 configs/       Experiment YAML
 src/envs/      Crafter / MiniGrid wrappers
 src/models/    Encoder, decoder, autoencoder, RSSM
-src/training/  Device helpers, rollouts, diagnostics
+src/training/  Device helpers, rollouts, diagnostics, AMP train step
 src/agents/    Actor-critic
 notebooks/     Interactive exploration (inline figures)
-scripts/       CLI entry points
+scripts/       CLI entry points (including setup_windows.ps1)
 results/       Figures and rollouts
 docs/          MkDocs source
 paper/         Paper draft and figures

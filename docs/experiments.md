@@ -2,6 +2,24 @@
 
 Living log of approaches tried, including failures and why they failed.
 
+## Windows / CUDA migration (2026-08-21)
+
+Moved the project off the M4 Pro (24 GB unified memory, MPS) onto a Windows
+desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
+
+- Device helper is CUDA-first (`src/training/device.py`). bf16 AMP + TF32 +
+  cuDNN benchmark are the training defaults.
+- `configs/m3_world_model.yaml` scales from the Mac swap workaround
+  (`batch_size=4`, `seq_len=32`, fp32) to batch 16 × seq 32 + bf16 (4× the
+  frames per step). DreamerV3's seq 64 filled 15.8 / 16.3 GiB on a live smoke
+  (desktop compositor already holds ~1.5 GiB) and is left as a later bump.
+- Install path: `scripts/setup_windows.ps1` (CUDA 12.8 wheels). Default PyPI
+  torch is CPU-only on Windows.
+- M3 recipe is otherwise unchanged (`edge_weight=8`, XL CNN, three decode
+  heads). Start the Windows run with `RESUME = None` in
+  `notebooks/05_train_world_model.ipynb` — Mac checkpoints are the same shapes
+  but were trained fp32 / batch 4, and this box should take a clean faster pass.
+
 ## Setup / M0 (2026-07-31)
 
 - Created conda env `worldmodel` (Python 3.11) via Miniforge.
@@ -15,8 +33,9 @@ Living log of approaches tried, including failures and why they failed.
 
 - Upstream `crafter` only registers with legacy `gym`; we wrap it for Gymnasium in
   `src/envs/crafter_env.py`.
-- On zsh, `conda init` (no args) may only patch `.bash_profile` — use `conda init zsh`
-  and open a new shell before `conda activate worldmodel`.
+- (Historical, Mac) On zsh, `conda init` (no args) may only patch `.bash_profile`
+  — use `conda init zsh` and open a new shell before `conda activate worldmodel`.
+  On this Windows box, use `conda init powershell` if `conda activate` fails.
 - Craftax migration was tried and reverted; benchmark remains original Python Crafter.
 
 ## M1 — Encoder/Decoder

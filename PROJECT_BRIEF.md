@@ -17,7 +17,7 @@ trial-and-error in the real environment.
 **Environment:** Crafter (`CrafterReward-v1`), a 64x64 pixel-observation survival game used as
 the reference benchmark in the DreamerV3 paper. Chosen because it requires long-horizon
 reasoning and tool use, published baseline numbers exist for direct comparison, and it is cheap
-enough to run on a single laptop.
+enough to run on a single workstation.
 
 **Research goal:** this is not a novel-architecture paper. It is a faithful, small-scale
 implementation of the Dreamer/RSSM recipe, followed by a controlled ablation study under a
@@ -35,15 +35,21 @@ compute. No scope creep into multi-environment generalization — Crafter only.
 
 ## 2. Hardware & Runtime Constraints
 
-- MacBook Pro, Apple M4 Pro, 14 cores, 24GB unified memory, 1TB storage.
-- No CUDA. PyTorch runs on the **MPS** (Metal Performance Shaders) backend.
-- MPS has rougher edges than CUDA: some ops silently fall back to CPU, mixed-precision support
-  is inconsistent. Verify `torch.backends.mps.is_available()` returns `True` before writing any
-  training code, and set `PYTORCH_ENABLE_MPS_FALLBACK=1` during development.
-- Design all batch sizes, sequence lengths, and latent dimensions to fit comfortably in 24GB —
-  prefer smaller-than-paper defaults (e.g. batch size 16–32, sequence length 32–50, discrete
-  latent grid as small as 8x8 or 16x16 rather than DreamerV3's 32x32) and scale up only if
-  memory allows after profiling.
+- Windows desktop: AMD CPU, NVIDIA GeForce RTX 5080 (16 GiB GDDR7, Blackwell /
+  sm_120), 32 GiB system RAM, 2 TB SSD.
+- PyTorch runs on **CUDA**. RTX 50-series requires a CUDA **12.8+** build
+  (`pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`).
+  The default PyPI torch wheel is CPU-only on Windows and will silently skip
+  the GPU.
+- Verify `torch.cuda.is_available()` returns `True` before any training work.
+  Mixed precision is **bf16 AMP** (native on this card, no GradScaler). TF32
+  matmuls and cuDNN autotune are on (`training.device.configure_runtime`).
+- VRAM budget is 16 GiB dedicated; the Windows desktop already uses ~1.5 GiB.
+  Replay lives in system RAM. Default world-model train config is batch 16 ×
+  seq 32 + bf16 AMP (4× the Mac swap-safe batch). seq 64 is the DreamerV3
+  default but filled this card in a smoke test — only bump it if nvidia-smi
+  shows headroom. If a step OOMs, drop `batch_size` 16 → 8. Do not shrink
+  the 32×32 categorical latent.
 
 ---
 
@@ -51,8 +57,8 @@ compute. No scope creep into multi-environment generalization — Crafter only.
 
 | Purpose | Tool |
 |---|---|
-| Language / framework | Python 3.11, PyTorch (MPS backend) |
-| Environment manager | conda (via miniforge) |
+| Language / framework | Python 3.11, PyTorch (CUDA 12.8+, bf16 AMP) |
+| Environment manager | conda (Miniforge / Miniconda, Windows) |
 | RL environment | Gymnasium + `crafter` package (MiniGrid optional for early debugging) |
 | Experiment tracking | TensorBoard (local only — no Weights & Biases, no cloud service) |
 | Config management | YAML configs, one per experiment/ablation run |
@@ -80,8 +86,8 @@ stack (e.g. 4 conv layers, stride 2, increasing channels), no pooling, ReLU or S
 - **Deterministic state `h`**: produced by a GRU cell, carries memory across time.
 - **Stochastic latent `z`**: **discrete categorical**, not continuous Gaussian (DreamerV2/V3
   design choice — trains more stably). Default: 32 categorical variables x 32 classes each
-  (reduce to e.g. 16x16 if memory-constrained). Use straight-through gradient estimation for
-  backprop through the discrete sampling step.
+  (DreamerV3 standard; do not shrink this for VRAM — drop batch/seq instead). Use
+  straight-through gradient estimation for backprop through the discrete sampling step.
 - Two ways to compute `z` at each step — **must be named explicitly and never conflated**:
   - `z_posterior`: computed from `h` **and** the real observation's encoder embedding (used
     during world-model training, when real data is available).
@@ -183,15 +189,17 @@ world-model/
 ## 8. Immediate Setup Tasks (execute in order)
 
 1. Initialize the repo structure exactly as in Section 5.
-2. Set up the conda environment (`worldmodel`, Python 3.11), install PyTorch, verify
-   `torch.backends.mps.is_available()` returns `True` before proceeding to anything else.
+2. Set up the conda environment (`worldmodel`, Python 3.11) via
+   `scripts/setup_windows.ps1` (or the README steps). Install CUDA PyTorch,
+   verify `torch.cuda.is_available()` returns `True` before proceeding to
+   anything else. `python scripts/smoke_cuda_step.py` must fit in VRAM.
 3. Install `gymnasium`, `crafter`, `minigrid`.
 4. Write a minimal smoke-test script confirming `CrafterReward-v1` resets and steps correctly,
    observation shape is `(64, 64, 3)`.
 5. Create `.cursor/rules` containing the tensor convention, prior/posterior naming rule, and
-   MPS-not-CUDA note from Sections 4.4 and 2.
+   CUDA-not-MPS note from Sections 4.4 and 2.
 6. Write the initial `README.md` stub (real project description, not the GitHub default).
 7. Commit directly to `main` at this point (project skeleton is not yet a "feature") with a
-   message like: "Project skeleton, environment verified, MPS confirmed working."
+   message like: "Project skeleton, environment verified, CUDA confirmed working."
 8. Stop here and hand back control — do not begin implementing the encoder/decoder or any
    model code until this setup is confirmed working end to end.

@@ -197,3 +197,40 @@ def test_replay_buffer_samples_contiguous_windows() -> None:
     for i in range(4):
         acts = batch["actions"][i]
         assert torch.equal(acts[1:] - acts[:-1], torch.ones(7, dtype=torch.int64))
+
+
+def test_world_model_step_updates_weights() -> None:
+    from training.device import make_grad_scaler
+    from training.wm_step import world_model_step
+
+    device = torch.device("cpu")
+    wm = _tiny_wm().to(device)
+    before = wm.perception.stem[0].weight.detach().clone()
+    optim = torch.optim.Adam(wm.parameters(), lr=1e-3)
+    train_cfg = {
+        "dyn_scale": 0.5,
+        "rep_scale": 0.1,
+        "free_nats": 1.0,
+        "recon_scale": 1.0,
+        "recon_embed_scale": 1.0,
+        "recon_bottleneck_scale": 1.0,
+        "reward_scale": 1.0,
+        "continue_scale": 1.0,
+        "kl_scale": 1.0,
+        "grad_scale": 0.0,
+        "recon_loss": "l1",
+        "edge_weight": 0.0,
+    }
+    batch = {
+        "obs": torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8),
+        "actions": torch.randint(0, 5, (2, 4), dtype=torch.int64),
+        "rewards": torch.zeros(2, 4),
+        "cont": torch.ones(2, 4),
+    }
+    scaler = make_grad_scaler(device, None)
+    loss, metrics = world_model_step(
+        wm, optim, batch, device=device, train_cfg=train_cfg, amp_dtype=None, scaler=scaler
+    )
+    assert torch.isfinite(loss.total)
+    assert "recon" in metrics
+    assert not torch.equal(before, wm.perception.stem[0].weight.detach())

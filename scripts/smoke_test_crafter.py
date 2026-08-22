@@ -6,8 +6,6 @@ Run from the repo root with the worldmodel conda env active:
 
 from __future__ import annotations
 
-import sys
-
 import gymnasium as gym
 import numpy as np
 import torch
@@ -20,12 +18,16 @@ EXPECTED_OBS_SHAPE = (64, 64, 3)
 NUM_STEPS = 5
 
 
-def check_mps() -> None:
-    available = torch.backends.mps.is_available()
+def check_torch() -> None:
     print(f"torch {torch.__version__}")
-    print(f"MPS available: {available}")
-    if not available:
-        raise SystemExit("FAIL: torch.backends.mps.is_available() is False")
+    print(f"CUDA built: {torch.version.cuda}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        x = torch.ones(2, device="cuda")
+        print(f"CUDA tensor device: {x.device}")
+    else:
+        print("WARN: CUDA not available — training will not use the 5080.")
 
 
 def check_crafter() -> None:
@@ -62,11 +64,11 @@ def check_crafter() -> None:
 
 
 def main() -> int:
-    check_mps()
+    check_torch()
     check_crafter()
     print("PASS: Crafter smoke test succeeded")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -9,9 +9,7 @@ same graphs inline. This script writes PNGs + TensorBoard images.
 
 Usage:
     conda activate worldmodel
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
     python scripts/visualize_rssm.py
-    open results/m2/*.png
     tensorboard --logdir runs   # runs/m2_rssm_diagnostics
 """
 
@@ -35,7 +33,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from models.encoder import Encoder
 from models.rssm import RSSM, one_hot_action, unimix_probs
-from training.device import get_device
+from training.device import configure_runtime, describe_device, get_device
 from training.rollout import collect_sequences, encode_sequence
 from training.rssm_diagnostics import (
     imagination_divergence,
@@ -61,7 +59,8 @@ def main() -> None:
 
     set_seed(int(cfg["seed"]))
     device = get_device()
-    print(f"device: {device}")
+    configure_runtime(device)
+    print(f"device: {describe_device(device)}")
 
     enc_cfg = cfg["encoder"]
     rssm_cfg = cfg["rssm"]

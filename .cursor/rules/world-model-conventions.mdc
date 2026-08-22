@@ -1,5 +1,5 @@
 ---
-description: Core conventions for the Dreamer-style world model (tensors, naming, MPS)
+description: Core conventions for the Dreamer-style world model (tensors, naming, CUDA)
 alwaysApply: true
 ---
 
@@ -9,10 +9,15 @@ Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguo
 
 ## Hardware / Runtime
 
-- Target device is **MPS** (Apple Silicon), never CUDA.
-- Verify `torch.backends.mps.is_available()` before training work.
-- Set `PYTORCH_ENABLE_MPS_FALLBACK=1` during development.
-- Keep batch sizes, sequence lengths, and latent dims small enough for 24GB unified memory.
+- Target device is **CUDA** (NVIDIA RTX 5080, Blackwell). Not MPS.
+- Verify `torch.cuda.is_available()` before training work.
+- Install PyTorch from the **CUDA 12.8+** wheel index, never the default PyPI
+  CPU wheel. RTX 50-series needs sm_120 kernels.
+- Default mixed precision is **bf16 AMP**. Enable TF32 / cuDNN benchmark via
+  `training.device.configure_runtime`.
+- Fit the XL CNN + 3 decode heads in **16 GiB VRAM** (batch 16 × seq 32 + bf16).
+  Desktop compositor already uses ~1.5 GiB. seq 64 filled the card; if a step
+  OOMs, drop `batch_size` 16 → 8. Replay lives in the 32 GiB system RAM.
 
 ## Tensor Convention
 
@@ -47,6 +52,7 @@ Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguo
 - Short smoke tests (a few dozen steps, in a scratch config, to check shapes
   or throughput after a code/config change) are fine and expected — just
   don't let them run long or stand in for a real training run.
+  `scripts/smoke_cuda_step.py` is the CUDA VRAM/throughput check.
 - If a fix needs real training to validate, make the code/config change,
   verify it with a smoke test, then hand off to the user to run the actual
   training pass themselves and report back results.

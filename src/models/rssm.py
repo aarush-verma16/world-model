@@ -37,9 +37,9 @@ split), each independently verifiable against the real dreamerv3 codebase:
 Scope note: this module still only covers M2 (forward pass / mechanism
 correctness, verified via `scripts/verify_rssm_forward.py` and
 `scripts/visualize_rssm.py`). KL loss, free bits, and KL balancing between
-prior and posterior are M3 — deliberately not implemented here. Latent grid
-is 16x16 rather than DreamerV3's 32x32 per `PROJECT_BRIEF.md`'s memory budget
-for 24GB unified memory — that is a scale choice, not a mechanism gap.
+prior and posterior are M3 — deliberately not implemented here. The M2
+verify config uses a 16x16 latent as a cheap shape check; M3 training uses
+DreamerV3's 32x32. That is a milestone split, not a VRAM workaround.
 """
 
 from __future__ import annotations
