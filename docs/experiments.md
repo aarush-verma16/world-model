@@ -20,6 +20,12 @@ desktop: RTX 5080 (16 GiB dedicated VRAM, Blackwell sm_120), 32 GiB system RAM.
   not cell size: M1's U-Net `stem_to_rgb` was on the world-model graph and
   could copy the frame without putting content in the RSSM embedding.
   World model now uses skip-free `Encoder`. 8x8 spatial experiment reverted.
+- Skip-free 4-stride CNN still dropped cows/HUD/trees at step ~4700 (embed
+  and `[h,z]` both blob-less except a smeared player). DreamerV3's CNN is
+  `ImageEncoderResnet`: stride-2 then `cnn_blocks=2` residual 3x3 pairs at
+  each scale. The skinny stack aliased 8-12px sprites into grass. Switched
+  encoder to that ResNet (still 4x4 flatten, no skip-to-RGB). Decoder
+  residuals were tried and reverted: two XL ResNet decoders used 19 GiB.
 
 ## Setup / M0 (2026-07-31)
 

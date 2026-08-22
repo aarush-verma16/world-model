@@ -225,6 +225,8 @@ def main() -> None:
         decoder_channels=tuple(int(c) for c in dec.get("channels", [256, 128, 64, 32])),
         head_hidden=int(heads.get("hidden", 512)),
         head_layers=int(heads.get("layers", 2)),
+        encoder_blocks=int(enc.get("blocks", 2)),
+        decoder_blocks=int(dec.get("blocks", 0)),
         stem_channels=int(enc.get("stem_channels", 64)),
         spatial=int(enc.get("spatial", 4)),
     ).to(device)

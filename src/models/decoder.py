@@ -3,6 +3,11 @@
 Used by the M1 skip-free encode→decode path and by the M3 world model
 (decoding from `concat(h, flatten(z))`). Nearest upsample + conv avoids
 ConvTranspose checkerboard artifacts on pixel art.
+
+Residual 3x3 blocks live on the *encoder* (DreamerV3 ImageEncoderResnet).
+Putting the same blocks on both `[h,z]` and embed decoders doubled the
+activation footprint (smoke: 19 GiB / 0.17 steps/s). Blob-level sprites
+have to be *in the embedding* first; a skinny decoder can paint them.
 """
 
 from __future__ import annotations
@@ -33,10 +38,16 @@ class Decoder(nn.Module):
         out_channels: int = 3,
         channels: tuple[int, ...] = (512, 256, 128, 64),
         start_res: int = 4,
+        blocks: int = 0,
     ) -> None:
         super().__init__()
         if start_res not in (4, 8):
             raise ValueError(f"start_res must be 4 or 8, got {start_res}")
+        if blocks != 0:
+            raise ValueError(
+                "decoder residual blocks are disabled (VRAM: two XL decoders). "
+                f"got blocks={blocks}"
+            )
         # 4→8→16→32→64 needs 4 upsamples; 8→16→32→64 needs 3.
         n_up = 4 if start_res == 4 else 3
         if len(channels) != n_up:
@@ -48,8 +59,7 @@ class Decoder(nn.Module):
         self.channels0 = channels[0]
         self.start_res = start_res
         self.channels = tuple(channels)
-        # Plain linear — LayerNorm-over-flat was washing out spatial structure
-        # early in training (decoder collapsed to mean color).
+        self.blocks = 0
         self.fc: nn.Module = (
             nn.Identity() if embed_dim == flat_dim else nn.Linear(embed_dim, flat_dim)
         )

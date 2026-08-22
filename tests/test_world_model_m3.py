@@ -6,6 +6,7 @@ import torch
 
 from models.heads import ContinueHead, RewardHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_float
+from models.encoder import Encoder
 from models.world_model import WorldModel
 from training.losses import (
     categorical_kl,
@@ -199,8 +200,6 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
 
     import yaml
 
-    from models.encoder import Encoder
-
     cfg = yaml.safe_load(Path("configs/m3_world_model.yaml").read_text(encoding="utf-8"))
     enc = cfg["encoder"]
     channels = tuple(int(c) for c in enc["channels"])
@@ -209,7 +208,8 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert int(enc["embed_dim"]) == channels[-1] * 4 * 4
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
-    assert float(cfg["train"]["grad_scale"]) == 0.0
+    assert int(enc.get("blocks", 2)) == 2
+    assert int(cfg["decoder"].get("blocks", 0)) == 0
 
     # Leftover spatial=8 kwargs must not switch the decoder to 8×8.
     wm = WorldModel.from_config_dims(
@@ -230,6 +230,17 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert not hasattr(wm, "perception")
     assert wm.embed_decoder.start_res == 4
     assert wm.decoder.start_res == 4
+    assert wm.encoder.blocks == 2
+
+
+def test_resnet_encoder_identity_flatten_and_backward() -> None:
+    enc = Encoder(embed_dim=12288, channels=(96, 192, 384, 768), blocks=2)
+    assert isinstance(enc.fc, torch.nn.Identity)
+    obs = torch.randn(2, 3, 64, 64)
+    embed = enc(obs)
+    assert embed.shape == (2, 12288)
+    embed.sum().backward()
+    assert enc.conv[0].weight.grad is not None
 
 
 def test_replay_buffer_samples_contiguous_windows() -> None:

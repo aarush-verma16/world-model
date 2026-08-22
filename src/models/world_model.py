@@ -2,13 +2,11 @@
 
 Trains on real replay sequences (M3). Imagination / actor-critic is M4.
 
-The encoder is the skip-free CNN (`Encoder`), not M1's `PerceptionAutoencoder`.
-That U-Net was wired in as an aux recon path so the dashboard could show a
-sharp "encoder works" panel. Its `stem_to_rgb(skips[0])` copies the real
-frame and never has to put sprites/HUD into the embedding the RSSM actually
-consumes — which is why `[h,z]` and "embed, no skips" stayed smeared while
-the middle panel looked solved. M1 already proved skip recon; it does not
-belong on the world-model training graph.
+The encoder is a skip-free ResNet CNN (`Encoder`), not M1's
+`PerceptionAutoencoder`. That U-Net's `stem_to_rgb(skips[0])` copies the
+real frame. DreamerV3's CNN is stride-2 + residual blocks at each scale
+(`cnn_blocks=2`); a plain 4-layer stride-2 stack aliases sprites/HUD away
+before the 4x4 flatten.
 
 Two skip-free decode heads:
   - `decoder`: `[h, z_posterior]` → pixels (the imagination path)
@@ -113,15 +111,22 @@ class WorldModel(nn.Module):
         head_layers: int = 2,
         stem_channels: int = 64,
         spatial: int = 4,
+        encoder_blocks: int = 2,
+        decoder_blocks: int = 0,
     ) -> WorldModel:
         """Construct a consistently-sized world model from scalar dims.
 
         `stem_channels` / `spatial` are ignored leftover kwargs from the
-        U-Net / 8×8-bottleneck experiments. Encoder is always skip-free
-        4-stride CNN; both decoders always start at 4×4.
+        U-Net / 8×8-bottleneck experiments. Encoder is skip-free ResNet
+        (DreamerV3 ImageEncoderResnet: stride-2 then residual blocks at
+        each scale) flattening to 4×4. Both decoders start at 4×4.
         """
         del stem_channels, spatial
-        encoder = Encoder(embed_dim=embed_dim, channels=encoder_channels)
+        encoder = Encoder(
+            embed_dim=embed_dim,
+            channels=encoder_channels,
+            blocks=encoder_blocks,
+        )
         rssm = RSSM(
             embed_dim=embed_dim,
             action_dim=action_dim,
@@ -135,9 +140,17 @@ class WorldModel(nn.Module):
             rec_depth=rec_depth,
         )
         feat_dim = deter_dim + stoch * classes
-        decoder = Decoder(embed_dim=feat_dim, channels=decoder_channels, start_res=4)
+        decoder = Decoder(
+            embed_dim=feat_dim,
+            channels=decoder_channels,
+            start_res=4,
+            blocks=decoder_blocks,
+        )
         embed_decoder = Decoder(
-            embed_dim=embed_dim, channels=decoder_channels, start_res=4
+            embed_dim=embed_dim,
+            channels=decoder_channels,
+            start_res=4,
+            blocks=decoder_blocks,
         )
         reward_head = RewardHead(feat_dim, hidden=head_hidden, layers=head_layers)
         continue_head = ContinueHead(feat_dim, hidden=head_hidden, layers=head_layers)

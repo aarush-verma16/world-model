@@ -1,8 +1,14 @@
 # Milestone 3 — world-model training.
 #
 # Wiring (this is the architecture, not a loss knob):
-#   skip-free Encoder (4 stride-2 convs) → RSSM → skip-free [h,z] decoder
+#   skip-free ResNet Encoder (DreamerV3 ImageEncoderResnet: stride-2 then
+#   residual 3x3 blocks at 32/16/8/4) → RSSM → skip-free [h,z] decoder
 #   + skip-free embed→pixel aux (supervises the vector RSSM actually sees)
+#
+# The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
+# into grass before they could become features. Residual blocks at each
+# scale are how DreamerV3's CNN actually works (`cnn_blocks=2`). Still 4x4
+# flatten — not U-Net skip-to-RGB, not 8px decoder cells.
 #
 # Failed experiments that did not fix missing sprites/HUD (do not revive):
 #   - M1 U-Net (`PerceptionAutoencoder`) as the world-model encoder. Its
@@ -21,9 +27,10 @@ seed: 0
 
 encoder:
   # 12288 == channels[-1]*4*4 (768*16). Flatten IS the embedding (no mixing
-  # Linear). World model uses the skip-free `Encoder`, not M1's U-Net.
+  # Linear). ResNet stages (blocks=2) match DreamerV3 ImageEncoderResnet.
   embed_dim: 12288
   channels: [96, 192, 384, 768]
+  blocks: 2
 
 rssm:
   deter_dim: 512
@@ -36,9 +43,10 @@ rssm:
   rec_depth: 1
 
 decoder:
-  # channels[0]=768 matches encoder.channels[-1], so embed_decoder's fc is
-  # Identity (768*4*4=12288).
+  # Residual blocks live on the encoder. Two ResNet decoders OOMed the 16
+  # GiB card (19 GiB / 0.17 steps/s in a smoke). Keep this at 0.
   channels: [768, 384, 192, 96]
+  blocks: 0
 
 heads:
   hidden: 512
