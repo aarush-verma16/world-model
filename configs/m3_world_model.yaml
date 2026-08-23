@@ -59,13 +59,23 @@ rssm:
   # `h` size-L capacity is what stops [h,z] hallucinating layout. A larger `h`
   # also makes the prior better at predicting z, which pushes KL raw *down*.
   deter_dim: 2048
+  # stoch/classes stay 32x32. Raising them raises *capacity*, which was never
+  # the binding constraint — the free-nats floor caps the *rate* at ~1 nat, and
+  # more categoricals only make the summed KL larger against that same floor.
+  # See `train.free_nats_dyn`.
   stoch: 32
   classes: 32
-  hidden: 512
+  # 512 was a narrow waist between a 2048-dim `h` and a 1024-dim z_flat: the
+  # prior (2048 -> 512 -> 1024), the GRU input, and the posterior conv all
+  # squeeze through it. Prior accuracy is what decides how much detail is free.
+  hidden: 1024
   unimix: 0.01
   act: silu
   initial: learned
   rec_depth: 1
+  # Hidden layers in prior_net (h -> z logits). Anything the prior predicts
+  # costs the posterior zero nats, so this is the cheapest place to buy detail.
+  prior_layers: 2
 
 decoder:
   # Residual blocks live on the encoder. Two ResNet decoders OOMed the 16
@@ -113,7 +123,20 @@ train:
   image_every: 50
   dyn_scale: 0.5
   rep_scale: 0.1
+  # Floor on the *rep* KL — the information-rate budget. Stays 1.0.
+  # `kl_rep_raw` in nats is literally how much the latent tells the decoder
+  # that the prior did not already predict, so this is "1 nat of surprise per
+  # frame is free".
   free_nats: 1.0
+  # Floor on the *dyn* KL, which trains the prior only (the posterior is
+  # detached in that term, so it cannot restrict information). Flooring it at
+  # 1.0 froze the dynamics model the instant it got within a nat, and that is
+  # what welded kl_raw to ~1.006 for 10k steps: the prior stopped improving, so
+  # mob motion never became predictable, so anything moving had to be paid for
+  # out of the 1-nat budget and was dropped instead. At 0.0 the prior keeps
+  # learning; because predictable content is free, that lowers kl_raw *and*
+  # raises how much detail reaches the decoder.
+  free_nats_dyn: 0.0
   recon_loss: l1
   # Primary: decode from [h, z_posterior]
   recon_scale: 5.0

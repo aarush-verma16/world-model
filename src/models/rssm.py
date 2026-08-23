@@ -268,6 +268,7 @@ class RSSM(nn.Module):
         initial: str = "learned",
         rec_depth: int = 1,
         embed_spatial: int | None = None,
+        prior_layers: int = 2,
     ) -> None:
         super().__init__()
         if stoch < 1 or classes < 2:
@@ -285,6 +286,7 @@ class RSSM(nn.Module):
         self.unimix = unimix
         self.initial_mode = initial
         self.rec_depth = rec_depth
+        self.prior_layers = max(1, prior_layers)
         self.z_flat_dim = stoch * classes
 
         # GRU input: previous stochastic latent + previous action.
@@ -306,16 +308,26 @@ class RSSM(nn.Module):
                 )
         self.prior_net: nn.Module
         self.posterior_net: nn.Module
-        # Prior is always Linear(h → z). A 4×4 SpatialPrior has to paint
+        # Prior is an MLP on `h` alone. A 4×4 SpatialPrior has to paint
         # per-cell logits from a single vector and lagged the posterior
         # (KL raw stuck at 1.2–1.6 vs ~0.8 on the Linear-prior 8k run).
         # Posterior stays spatial/per-cell so observe-time z keeps layout.
-        self.prior_net = nn.Sequential(
-            nn.Linear(deter_dim, hidden),
-            nn.LayerNorm(hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, self.z_flat_dim),
-        )
+        #
+        # Depth matters more here than anywhere else in the model: anything
+        # this net can predict about `z` costs the posterior *zero* nats, so
+        # the prior's accuracy is what decides how much detail fits inside
+        # `free_nats`. One hidden layer of `hidden` units on a `deter_dim`
+        # state is a narrow waist for that job.
+        prior_layers = max(1, prior_layers)
+        prior_stack: list[nn.Module] = []
+        prior_in = deter_dim
+        for _ in range(prior_layers):
+            prior_stack.extend(
+                (nn.Linear(prior_in, hidden), nn.LayerNorm(hidden), nn.SiLU())
+            )
+            prior_in = hidden
+        prior_stack.append(nn.Linear(hidden, self.z_flat_dim))
+        self.prior_net = nn.Sequential(*prior_stack)
         if embed_spatial is not None:
             self.posterior_net = SpatialPosterior(
                 embed_spatial, deter_dim, hidden, stoch, classes

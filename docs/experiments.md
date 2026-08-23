@@ -48,6 +48,47 @@ loses sprites, while sub-pixel renders legible digits and visible saplings.
 Nearest was a **6.4x** worse HUD at the capacity ceiling, so no loss weight
 could ever have fixed it.
 
+### The free-nats floor was on the wrong term (same day)
+
+`kl_raw` sat at ~1.006 for 10k steps. Diagnosis: **capacity was never the
+binding constraint.** `z` is 32 cats x 32 classes = 160 bits of *capacity*, but
+`kl_rep_raw` is the *rate*, and the floor pinned it at 1 nat = 1.44 bits per
+frame. Spread over 32 categoricals that is 0.031 nats each — the posterior was
+telling the decoder essentially nothing the prior had not already predicted.
+
+The mechanism: `kl_dyn` detaches the **posterior**, so it can only train the
+**prior** and cannot restrict information at all — yet it got the same
+`clamp_min(free_nats)`. So once the prior was within a nat, its gradient went to
+exactly zero and the dynamics model stopped improving. Since content the prior
+predicts costs *zero* rate, freezing the prior permanently charged the
+posterior's 1-nat budget for anything that moved, and it was dropped instead.
+That closed loop is why the plateau never broke no matter which loss weight was
+tuned.
+
+Fix: `free_nats_dyn: 0.0` (floor on the rep term only). Verified by a unit test
+that optimizes a prior toward a fixed posterior with plain SGD:
+
+| dyn floor  | final `kl_raw` |
+| ---------- | -------------- |
+| 1.0 (old)  | 0.998 (stalls) |
+| 0.0 (new)  | 0.072          |
+
+14x better prior from an identical budget. `free_nats` stays **1.0** on rep, so
+the rate constraint is unchanged; `kl_raw` should now fall *below* 1.0, and a
+lower KL with improving recon means more detail is free rather than less.
+
+Supporting changes, both aimed at prior accuracy (the thing that decides how
+much is free):
+
+- `rssm.hidden` 512 -> **1024**. It was a narrow waist between a 2048-dim `h`
+  and a 1024-dim `z_flat`: prior (2048 -> 512 -> 1024), GRU input, and the
+  posterior conv all squeezed through it.
+- `rssm.prior_layers: 2` (was a single hidden layer, now configurable).
+- 146M params, 9.2 GiB peak, 0.32 s/step.
+
+Explicitly **not** done: raising `stoch`/`classes`. That buys capacity, which was
+not the limit, and more categoricals raise the summed KL against the same floor.
+
 Also this pass:
 
 - `recon_avatar_scale` / `recon_hud_scale` 0.0 -> **0.5**. Not the 5.0 that

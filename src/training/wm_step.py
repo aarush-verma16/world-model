@@ -91,6 +91,11 @@ def world_model_step(
             dyn_scale=float(train_cfg["dyn_scale"]),
             rep_scale=float(train_cfg["rep_scale"]),
             free_nats=float(train_cfg["free_nats"]),
+            free_nats_dyn=(
+                None
+                if train_cfg.get("free_nats_dyn") is None
+                else float(train_cfg["free_nats_dyn"])
+            ),
             recon_scale=float(train_cfg["recon_scale"]),
             recon_embed_scale=float(train_cfg.get("recon_embed_scale", 1.0)),
             recon_bottleneck_scale=float(train_cfg.get("recon_bottleneck_scale", 0.0)),

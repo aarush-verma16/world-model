@@ -225,6 +225,7 @@ def main() -> None:
         act=str(rssm.get("act", "silu")),
         initial=str(rssm.get("initial", "learned")),
         rec_depth=int(rssm.get("rec_depth", 1)),
+        prior_layers=int(rssm.get("prior_layers", 2)),
         decoder_channels=tuple(int(c) for c in dec.get("channels", [256, 128, 64, 32])),
         head_hidden=int(heads.get("hidden", 512)),
         head_layers=int(heads.get("layers", 2)),

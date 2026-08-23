@@ -56,6 +56,115 @@ def test_heads_forward_and_grad() -> None:
     assert torch.isfinite(feat.grad).all()
 
 
+def _near_identical_logits(scale: float) -> tuple[torch.Tensor, torch.Tensor]:
+    """Posterior + a prior `scale` away from it, so total KL is controllable."""
+    torch.manual_seed(0)
+    post = torch.randn(2, 3, 8, 6)
+    prior = (post + scale * torch.randn_like(post)).clone().requires_grad_(True)
+    return post, prior
+
+
+def test_dyn_floor_freezes_the_prior_below_free_nats() -> None:
+    """The dyn floor stops the dynamics model learning — the actual trap.
+
+    `kl_dyn` detaches the posterior, so it can only train the prior; it cannot
+    restrict information. Flooring it means that once the prior is within
+    `free_nats` it stops improving, and since predictable content is free, that
+    permanently charges the posterior's small budget for anything that moves.
+    """
+    post, prior = _near_identical_logits(0.01)
+
+    kl_floored, _, _, dyn_raw, _ = kl_balance(post, prior, free_nats=1.0)
+    assert float(dyn_raw.detach()) < 1.0, "fixture must sit below the floor"
+    kl_floored.backward()
+    assert prior.grad is not None
+    assert float(prior.grad.abs().sum()) == 0.0
+
+    prior.grad = None
+    kl_open, _, _, _, _ = kl_balance(post, prior, free_nats=1.0, free_nats_dyn=0.0)
+    kl_open.backward()
+    assert prior.grad is not None
+    assert float(prior.grad.abs().sum()) > 0.0
+
+
+def test_rep_floor_still_caps_the_rate_when_dyn_is_open() -> None:
+    """`free_nats_dyn=0` must not loosen the posterior's rate budget.
+
+    `kl_rep_raw` in nats *is* the information the latent adds over the prior's
+    prediction, so up to `free_nats` of it has to stay free.
+    """
+    torch.manual_seed(0)
+    prior = torch.randn(2, 3, 8, 6)
+    post = (prior + 0.01 * torch.randn_like(prior)).clone().requires_grad_(True)
+
+    kl, _, _, _, rep_raw = kl_balance(post, prior, free_nats=1.0, free_nats_dyn=0.0)
+    assert float(rep_raw.detach()) < 1.0
+    kl.backward()
+    assert post.grad is None or float(post.grad.abs().sum()) == 0.0
+
+
+def test_floored_dyn_stalls_prior_training_at_free_nats() -> None:
+    """The floor does not slow the prior down, it stops it dead at `free_nats`.
+
+    Optimizes a prior toward a fixed posterior using only `kl_balance` (the rep
+    term detaches the prior, so this isolates the dynamics model). Floored, the
+    trajectory parks at the floor; open, it keeps descending. That difference is
+    the whole reason `kl_raw` sat at ~1.006 for 10k steps.
+    """
+    def train_prior(free_nats_dyn: float, steps: int = 3000) -> float:
+        torch.manual_seed(0)
+        target = torch.randn(4, 8, 6) * 2.0
+        prior = torch.zeros(4, 8, 6, requires_grad=True)
+        # Plain SGD: zero gradient freezes the parameter exactly, so the stall
+        # is visible without Adam's momentum coasting past the kink.
+        opt = torch.optim.SGD([prior], lr=0.1)
+        for _ in range(steps):
+            opt.zero_grad()
+            kl, _, _, _, _ = kl_balance(
+                target, prior, free_nats=1.0, free_nats_dyn=free_nats_dyn
+            )
+            kl.backward()
+            opt.step()
+        with torch.no_grad():
+            _, _, _, dyn_raw, _ = kl_balance(target, prior, free_nats=1.0)
+        return float(dyn_raw)
+
+    floored = train_prior(1.0)
+    opened = train_prior(0.0)
+    # Floored lands on the floor and stops (measured 0.998); open keeps going
+    # (measured 0.072) — a 14x better dynamics model from the same budget.
+    assert 0.95 <= floored <= 1.05, f"expected a stall at the floor, got {floored}"
+    assert opened < 0.25, f"open floor should keep learning, got {opened}"
+
+
+def test_free_nats_dyn_defaults_to_free_nats() -> None:
+    """Omitting it must reproduce DreamerV3 exactly (old configs unchanged)."""
+    post, prior = _near_identical_logits(0.5)
+    default = kl_balance(post, prior, free_nats=1.0)
+    explicit = kl_balance(post, prior, free_nats=1.0, free_nats_dyn=1.0)
+    assert torch.allclose(default[0], explicit[0])
+
+
+def test_prior_net_depth_follows_prior_layers() -> None:
+    """Prior accuracy decides how much detail fits under free_nats."""
+    from models.rssm import RSSM
+
+    def n_linear(rssm: RSSM) -> int:
+        return sum(isinstance(layer, torch.nn.Linear) for layer in rssm.prior_net)
+
+    shallow = RSSM(
+        embed_dim=32, action_dim=5, deter_dim=16, stoch=4, classes=4,
+        hidden=32, prior_layers=1,
+    )
+    deep = RSSM(
+        embed_dim=32, action_dim=5, deter_dim=16, stoch=4, classes=4,
+        hidden=32, prior_layers=2,
+    )
+    assert n_linear(shallow) == 2
+    assert n_linear(deep) == 3
+    assert deep.prior_net[-1].out_features == 4 * 4
+
+
 def test_kl_balance_asymmetric_and_finite() -> None:
     post = torch.randn(2, 4, 3, 5, requires_grad=True)
     prior = torch.randn(2, 4, 3, 5, requires_grad=True)

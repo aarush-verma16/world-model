@@ -89,6 +89,7 @@ def kl_balance(
     dyn_scale: float = 0.5,
     rep_scale: float = 0.1,
     free_nats: float = 1.0,
+    free_nats_dyn: float | None = None,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
     """DreamerV2/V3 KL balancing with a free-nats floor on the *whole latent*.
 
@@ -101,16 +102,39 @@ def kl_balance(
     whole carrying one. That bug kept the KL loss pinned at the floor almost
     indefinitely even once the latent was already informative.
 
+    The two terms do very different jobs, so they do not want the same floor:
+
+    - `kl_rep` trains the **posterior** (prior detached). This is the actual
+      information-rate constraint: `kl_rep_raw` in nats *is* how much the
+      latent tells the decoder that the prior did not already predict. A floor
+      here is what "up to `free_nats` of information is free" means.
+    - `kl_dyn` trains the **prior** (posterior detached). It cannot restrict
+      information at all — it only makes the dynamics model better at
+      predicting `z`. Flooring it means the prior stops improving the moment it
+      is within `free_nats`, which is a trap: content the prior can predict
+      costs *zero* rate, so freezing the prior permanently charges the
+      posterior's small budget for anything that moves, and it gets dropped
+      instead. Pass `free_nats_dyn=0.0` to leave the dynamics model learning.
+      That lowers `kl_raw` (a better prior) while *increasing* how much detail
+      reaches the decoder — the opposite of trading one against the other.
+
+    Args:
+        free_nats: floor on the rep term (the rate budget).
+        free_nats_dyn: floor on the dyn term; `None` reuses `free_nats` (the
+            DreamerV3 default, kept so old configs behave identically).
+
     Returns:
         `(kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean)`
         where the `_raw` values are the mean per-timestep *total* KL (summed
         over `stoch`, averaged over batch/time) before the free-nats floor.
     """
+    if free_nats_dyn is None:
+        free_nats_dyn = free_nats
     kl_dyn_raw = categorical_kl(post_logits.detach(), prior_logits, unimix=unimix).sum(dim=-1)
     kl_rep_raw = categorical_kl(post_logits, prior_logits.detach(), unimix=unimix).sum(dim=-1)
     kl_dyn_raw_mean = kl_dyn_raw.mean()
     kl_rep_raw_mean = kl_rep_raw.mean()
-    kl_dyn = kl_dyn_raw.clamp_min(free_nats) if free_nats > 0.0 else kl_dyn_raw
+    kl_dyn = kl_dyn_raw.clamp_min(free_nats_dyn) if free_nats_dyn > 0.0 else kl_dyn_raw
     kl_rep = kl_rep_raw.clamp_min(free_nats) if free_nats > 0.0 else kl_rep_raw
     kl_dyn_mean = kl_dyn.mean()
     kl_rep_mean = kl_rep.mean()
@@ -273,6 +297,7 @@ def world_model_loss(
     dyn_scale: float = 0.5,
     rep_scale: float = 0.1,
     free_nats: float = 1.0,
+    free_nats_dyn: float | None = None,
     recon_scale: float = 1.0,
     recon_embed_scale: float = 1.0,
     recon_bottleneck_scale: float = 0.0,
@@ -298,6 +323,10 @@ def world_model_loss(
         reward_pred / cont_logit: `[B, T, 1]` or `[B, T]`
         cont: `[B, T]` in `{0, 1}`
         post_logits / prior_logits: `[B, T, stoch, classes]`
+        free_nats: floor on the rep KL (the information-rate budget).
+        free_nats_dyn: floor on the dyn KL, which only trains the prior. `0.0`
+            keeps the dynamics model learning past the budget; `None` reuses
+            `free_nats` (DreamerV3 default). See `kl_balance`.
         grad_scale: weight on the edge-aware gradient term (see
             `gradient_l1_loss`); `0.0` disables it entirely (default, for
             backward compat with earlier checkpoints/configs).
@@ -358,6 +387,7 @@ def world_model_loss(
         dyn_scale=dyn_scale,
         rep_scale=rep_scale,
         free_nats=free_nats,
+        free_nats_dyn=free_nats_dyn,
     )
 
     total = (

@@ -156,6 +156,7 @@ class WorldModel(nn.Module):
         act: str = "silu",
         initial: str = "learned",
         rec_depth: int = 1,
+        prior_layers: int = 2,
         decoder_channels: tuple[int, ...] = (512, 256, 128, 64),
         head_hidden: int = 512,
         head_layers: int = 2,
@@ -188,6 +189,7 @@ class WorldModel(nn.Module):
             initial=initial,
             rec_depth=rec_depth,
             embed_spatial=embed_spatial,
+            prior_layers=prior_layers,
         )
         feat_dim = deter_dim + stoch * classes
         shared = (
