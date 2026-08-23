@@ -277,9 +277,12 @@ def test_m3_yaml_is_skip_free_identity_flatten() -> None:
     assert float(cfg["train"]["recon_bottleneck_scale"]) == 0.0
     assert float(cfg["train"]["recon_map_scale"]) == 1.0
     assert float(cfg["train"]["recon_blob_scale"]) == 0.0
-    # Crop losses + pasted HUD head flattened early recon. Stay off.
-    assert float(cfg["train"]["recon_avatar_scale"]) == 0.0
-    assert float(cfg["train"]["recon_hud_scale"]) == 0.0
+    # Crop losses at 5.0 (alongside a pasted HUD head) flattened early recon.
+    # The head is gone and these are plain L1 on a crop, so a small weight is
+    # allowed — but full-frame L1 gives a pixel 5.0/4096, and anything above
+    # ~1.0 here swamps that and re-flattens the rest of the frame.
+    assert 0.0 <= float(cfg["train"]["recon_avatar_scale"]) <= 1.0
+    assert 0.0 <= float(cfg["train"]["recon_hud_scale"]) <= 1.0
     assert float(cfg["train"]["free_nats"]) == 1.0
     assert float(cfg["train"]["edge_weight"]) == 0.0
     assert int(enc.get("blocks", 2)) == 2
@@ -376,6 +379,69 @@ def test_hz_to_map_linear_z_when_stoch_divides_16() -> None:
     out.recon.mean().backward()
     assert wm.hz_to_map.z_proj.weight.grad is not None
     assert float(wm.hz_to_map.z_proj.weight.grad.abs().sum()) > 0.0
+
+
+def test_decoder_upsamples_with_subpixel_conv() -> None:
+    """Nearest upsample makes sub-cell position undecodable.
+
+    It replicates each latent cell into a 2x2 block of identical values, so the
+    following 3x3 conv cannot tell where inside the cell it is. At a 4x4 latent
+    a cell is 16x16 px, which is where 7px sprites and 1-2px inventory digits
+    live — that is the flat-16x16-block failure, not a loss-weight problem.
+    """
+    from models.decoder import Decoder
+
+    dec = Decoder(embed_dim=16 * 4 * 4, channels=(16, 8, 4, 4))
+    mods = list(dec.up.modules())
+    assert any(isinstance(m, torch.nn.PixelShuffle) for m in mods)
+    assert not any(isinstance(m, torch.nn.Upsample) for m in mods)
+    out = dec(torch.randn(2, 16 * 4 * 4))
+    assert out.shape == (2, 3, 64, 64)
+    # detach_weights path has to understand PixelShuffle too ([h,z] uses it).
+    feat = torch.randn(2, 16, 4, 4, requires_grad=True)
+    dec.from_map(feat, detach_weights=True).mean().backward()
+    assert feat.grad is not None and float(feat.grad.abs().sum()) > 0.0
+
+
+def test_icnr_init_starts_as_nearest_upsample() -> None:
+    """ICNR seeds one filter per output channel and replicates it.
+
+    Without it a fresh sub-pixel conv gives each output sub-position an
+    independent filter, so the decoder starts checkerboarded and spends early
+    steps unlearning that.
+    """
+    from models.decoder import icnr_
+
+    conv = torch.nn.Conv2d(4, 3 * 4, kernel_size=3, padding=1)
+    icnr_(conv.weight, 2)
+    sub_filters = conv.weight.view(3, 4, 4, 3, 3)
+    for sub in range(1, 4):
+        assert torch.equal(sub_filters[:, 0], sub_filters[:, sub])
+
+
+def test_hz_to_map_writes_h_per_cell() -> None:
+    """`h` must project to a full map, not a `[B, C, 1, 1]` broadcast bias.
+
+    Broadcast `h` leaves `z` (32 cats x 32 classes = 160 bits/frame) as the only
+    source of layout, which cannot place 63 Crafter tiles plus a 9-slot
+    inventory — so `[h,z]` guessed placement while embed recon looked fine.
+    """
+    from models.world_model import HzToMap
+
+    torch.manual_seed(0)
+    hz = HzToMap(deter_dim=32, stoch=4, classes=4, channels=8, spatial=4)
+    assert hz.h_proj.out_features == hz.h_channels * hz.spatial * hz.spatial
+
+    with torch.no_grad():
+        h = torch.randn(2, 32)
+        h_map = hz.h_proj(h).view(2, hz.h_channels, hz.spatial, hz.spatial)
+        # Spread *across cells* within a channel is what broadcast h lacked.
+        assert float(h_map.flatten(2).std(dim=-1).mean()) > 1e-3
+
+        z = torch.zeros(2, 16)
+        z[:, 0] = 1.0
+        delta = (hz(h, z) - hz(torch.randn(2, 32), z)).abs().mean(dim=1)
+        assert float(delta.flatten(1).std(dim=-1).mean()) > 1e-4
 
 
 def test_recon_map_trains_hz_to_map() -> None:

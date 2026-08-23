@@ -4,25 +4,36 @@
 #   skip-free ResNet Encoder (DreamerV3 ImageEncoderResnet: stride-2 then
 #   residual 3x3 blocks at 32/16/8/4) → SpatialPosterior RSSM → one shared
 #   4x4 decoder. Embed reshapes the encoder map; [h,z] predicts that map
-#   (Linear z → 4×4) then paints with the same upsample (decoder weights
-#   frozen on the [h,z] paint so it cannot teach 16×16 solid cells).
+#   (HzToMap) then paints with the same upsample, decoder weights frozen on
+#   that paint so [h,z] must match a map the encoder already renders well.
 #   recon_map L1 aligns the maps. Pixel L1 trains texture + inventory.
 #   recon_blob is off. free_nats=1. Per-cell z is off (it parked KL at 1.2–1.6).
-#   Not 8px decoder, not edge_weight, not skip-to-RGB.
 #
-# The 4-layer stride-2 stack (no residuals) averaged 8-12px cows/HUD/trees
-# into grass before they could become features. Residual blocks at each
-# scale are how DreamerV3's CNN actually works (`cnn_blocks=2`). Still 4x4
-# flatten — not U-Net skip-to-RGB, not 8px decoder cells.
+# Two structural fixes after the 12k run came out blurry, sprite-free, with
+# [h,z] placing terrain in the wrong spots:
+#
+#   1. Decoder upsampling is **sub-pixel conv** (PixelShuffle + ICNR), not
+#      `Upsample(mode="nearest")`. Nearest copies each latent cell into a 2x2
+#      block of identical values, so the next 3x3 conv cannot tell where inside
+#      the cell it is. At a 4x4 latent a cell is 16x16 px, so all the sub-cell
+#      phase a 7px tree/zombie/sapling and the 1-2px inventory digits are made
+#      of was discarded before any conv could use it. That is the real source
+#      of the flat 16x16 blocks — it was never a loss-weight problem.
+#   2. `HzToMap` gives `h` a **spatial** projection. It was a [B,C,1,1]
+#      per-channel bias identical in all 16 cells, so 100% of [h,z] layout came
+#      from z's 160 bits/frame. See `rssm.deter_dim` below.
 #
 # Failed experiments that did not fix missing sprites/HUD (do not revive):
 #   - M1 U-Net (`PerceptionAutoencoder`) as the world-model encoder. Its
 #     `stem_to_rgb(skips[0])` copies the real frame, so the dashboard "embed
 #     + skips" panel looked solved while RSSM never saw that content.
 #   - Mixing Linear: `embed_dim` != channels[-1]*4*4 (was 2048 vs 8192).
-#   - 8×8 spatial bottleneck ("8 px cells"). Reverted; stay at 4×4.
+#   - 8×8 spatial bottleneck ("8 px cells"). Rejected; stay at 4×4. Sub-pixel
+#     conv is the fix for sub-cell detail, not a finer latent grid.
 #   - `edge_weight` / `grad_scale` stacked on unweighted L1. Off.
 #   - `recon_scale=40` + `kl_scale=0.1` (z ~ noise, mean-color collapse).
+#   - `recon_blob_scale=5.0` (solid-color-per-tile objective).
+#   - A pasted HUD head over rows 49–63 (stayed black, hid the inventory).
 #
 # Identity flatten is C*4*4, but the posterior used to be
 # Linear(C*16 + deter, hidden) — mixing every 4x4 cell before z. That is
@@ -40,7 +51,14 @@ encoder:
   blocks: 2
 
 rssm:
-  deter_dim: 512
+  # 512 was DreamerV3 size-S paired with an XL CNN. `h` is the only place a
+  # *persistent* Crafter map can live: h_t = GRU(h_{t-1}, [z_{t-1}, a_{t-1}])
+  # sees no current frame, so the only per-frame information reaching the
+  # decoder is z (32 cats x 32 classes = 160 bits) — which cannot place 63
+  # tiles plus a 9-slot inventory. Grass/water/trees do not move, so giving
+  # `h` size-L capacity is what stops [h,z] hallucinating layout. A larger `h`
+  # also makes the prior better at predicting z, which pushes KL raw *down*.
+  deter_dim: 2048
   stoch: 32
   classes: 32
   hidden: 512
@@ -72,12 +90,14 @@ train:
   # Windows / RTX 5080 (16 GiB dedicated VRAM, ~1.5 GiB already used by the
   # desktop compositor). Replay lives in the 32 GiB system RAM; only the
   # current window sits on the GPU. bf16 AMP halves activation memory vs the
-  # Mac fp32 run. DreamerV3's published recipe is batch 16 x seq 64 -- a live
-  # smoke on this box filled 15.8 / 16.3 GiB at that size and thrashed, so
-  # seq_len stays 32 (same temporal window as the Mac run) while batch_size
-  # goes 4 -> 16. That is 4x the frames per step of the swap-safe Mac config.
-  # If nvidia-smi shows lots of free VRAM after a few steps, seq_len 32 -> 64
-  # is the next knob; if a step OOMs, drop batch_size 16 -> 8.
+  # Mac fp32 run.
+  #
+  # DreamerV3's published recipe is batch 16 x seq 64. Do not try it on this
+  # box. Re-measured with the sub-pixel decoder (`scripts/smoke_cuda_step.py`):
+  #   batch 16 x seq 32 -> 8.8 GiB allocated / 9.5 reserved, 0.29 s/step
+  #   batch 16 x seq 64 -> 15.8 GiB allocated / 16.1 reserved, 33 s/step
+  # 64 does not OOM, it thrashes: ~100x slower for a 2x longer window. If a
+  # step ever does OOM, drop batch_size 16 -> 8 rather than touching seq_len.
   batch_size: 16
   seq_len: 32
   # bf16 AMP (native on RTX 30/40/50). No GradScaler. Set to "off" only if
@@ -113,11 +133,20 @@ train:
   # heart. Sprites still have to live in the encoder; pixel L1 is enough
   # to start them as blurs once the renderer is allowed texture.
   recon_blob_scale: 0.0
-  # Extra crop losses (avatar 21×21, HUD 14×63) at the same scale as the
-  # 64×64 mean L1 over-weighted those pixels and a pasted HUD head then
-  # overwrote the inventory the world decoder was learning. Off.
-  recon_avatar_scale: 0.0
-  recon_hud_scale: 0.0
+  # Crop losses on the player (21×21 = 441 px) and inventory strip
+  # (14×63 = 882 px). These were 5.0 with a pasted HUD head, which
+  # over-weighted the crops and then painted over the inventory anyway. The
+  # head is gone; what is left is plain L1 on a crop, so the weight is set
+  # from the arithmetic instead of guessed. Full-frame L1 gives each pixel
+  # 5.0/4096. A crop term of scale s gives its pixels s/n_crop_px extra:
+  #   avatar 0.5/441   = 1.13e-3 vs 1.22e-3  -> ~1.9x total
+  #   hud    0.5/882 x2 (hud_recon_loss is pixel L1 + slot-mean L1)
+  #                    = 1.13e-3 vs 1.22e-3  -> ~1.9x total
+  # ~2x is enough to stop 4px inventory glyphs and the player sprite being
+  # rounded off as noise against 4096 mostly-grass pixels, and small enough
+  # that it cannot flatten the rest of the frame the way 5.0 did.
+  recon_avatar_scale: 0.5
+  recon_hud_scale: 0.5
   reward_scale: 1.0
   continue_scale: 1.0
   kl_scale: 1.0

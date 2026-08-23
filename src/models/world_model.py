@@ -3,13 +3,16 @@
 Trains on real replay sequences (M3). Imagination / actor-critic is M4.
 
 When the encoder flatten is a 4x4 map (Identity `embed_dim == C*4*4`), there
-is **one** skip-free decoder upsample. Embed recon reshapes that map and
-paints. `[h,z]` recon predicts the same 4x4 layout (`HzToMap`) then uses
-the same upsample with decoder weights detached so a 4×4 map cannot
-teach 16×16 solid cells. `z` is a 32×32 categorical (unstructured).
-Per-cell `z` (2 cats × 16 cells) held KL raw at 1.2–1.6 above
-`free_nats=1`. A separate HUD head that pasted over rows 49–63 hid the
-inventory; that head is gone. `recon_blob` (tile-mean L1) is off.
+is **one** skip-free decoder upsample (sub-pixel conv — see `decoder`). Embed
+recon reshapes that map and paints. `[h,z]` recon predicts the same 4x4 layout
+(`HzToMap`) then uses the same upsample with decoder weights detached, so
+`[h,z]` has to reproduce a map the encoder path already renders well instead
+of bending the renderer toward blobs.
+
+`z` is a 32×32 categorical (unstructured); per-cell `z` (2 cats × 16 cells)
+held KL raw at 1.2–1.6 above `free_nats=1`. A separate HUD head that pasted
+over rows 49–63 hid the inventory; that head is gone. `recon_blob` (tile-mean
+L1) is off — it is a solid-color-per-tile objective.
 """
 
 from __future__ import annotations
@@ -20,14 +23,24 @@ import torch
 from torch import Tensor, nn
 
 from models.decoder import Decoder
-from models.encoder import Encoder
+from models.encoder import Encoder, ResidualBlock
 from models.heads import ContinueHead, RewardHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_float
 from models.rssm import RSSM, RSSMOutput, one_hot_action
 
 
 class HzToMap(nn.Module):
-    """`h` + `z_posterior` → 4x4 feature map (encoder layout)."""
+    """`h` + `z_posterior` → 4x4 feature map (encoder layout).
+
+    `h` gets its own **spatial** projection. It used to be
+    `h_proj(h).unsqueeze(-1).unsqueeze(-1)`: a `[B, C, 1, 1]` per-channel bias,
+    identical in all 16 cells. That left `z_proj` as the only source of layout,
+    and `z` is 32 categoricals x 32 classes = 160 bits per frame — nowhere near
+    enough to place 63 Crafter tiles plus a 9-slot inventory, so `[h,z]` guessed
+    where things were while embed recon looked fine. Crafter layout is mostly
+    *persistent* (grass/water/trees do not move) which is exactly what `h`
+    accumulates over the sequence; it simply had no spatial slot to write it to.
+    """
 
     def __init__(
         self,
@@ -36,23 +49,26 @@ class HzToMap(nn.Module):
         classes: int,
         channels: int,
         spatial: int = 4,
+        h_channels: int = 128,
+        blocks: int = 1,
     ) -> None:
         super().__init__()
         self.channels = channels
         self.spatial = spatial
-        self.h_proj = nn.Linear(deter_dim, channels)
-        self.z_proj = nn.Linear(stoch * classes, channels * spatial * spatial)
-        self.fuse = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-            nn.SiLU(),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-        )
+        self.h_channels = h_channels
+        cells = spatial * spatial
+        self.h_proj = nn.Linear(deter_dim, h_channels * cells)
+        self.z_proj = nn.Linear(stoch * classes, channels * cells)
+        self.mix = nn.Conv2d(channels + h_channels, channels, kernel_size=3, padding=1)
+        refine: list[nn.Module] = [nn.SiLU()]
+        refine.extend(ResidualBlock(channels) for _ in range(blocks))
+        self.refine = nn.Sequential(*refine)
 
     def forward(self, h: Tensor, z_flat: Tensor) -> Tensor:
-        """`h` `[B, deter]`, `z_flat` `[B, stoch*classes]` → `[B, C, 4, 4]`."""
+        """`h` `[B, deter]`, `z_flat` `[B, stoch*classes]` → `[B, C, S, S]`."""
         z_map = self.z_proj(z_flat).view(-1, self.channels, self.spatial, self.spatial)
-        h_map = self.h_proj(h).unsqueeze(-1).unsqueeze(-1)
-        return self.fuse(z_map + h_map)
+        h_map = self.h_proj(h).view(-1, self.h_channels, self.spatial, self.spatial)
+        return self.refine(self.mix(torch.cat([z_map, h_map], dim=1)))
 
 
 @dataclass
@@ -255,8 +271,9 @@ class WorldModel(nn.Module):
             h_flat = rssm_out.h.reshape(batch * time, -1)
             z_flat = rssm_out.z_posterior.reshape(batch * time, -1)
             hz_map = self.hz_to_map(h_flat, z_flat)
+            spatial = self.hz_to_map.spatial
             embed_map = flat_embed.view(
-                batch * time, self.hz_to_map.channels, 4, 4
+                batch * time, self.hz_to_map.channels, spatial, spatial
             )
             recon = self.decoder.from_map(hz_map, detach_weights=True).view(
                 batch, time, 3, 64, 64
