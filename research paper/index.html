@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>World-model findings archive</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="data/metrics.js"></script>
+  <style>
+    :root {
+      --bg: #f7f5f0;
+      --paper: #fffcf7;
+      --ink: #1b1b1b;
+      --muted: #5c5c5c;
+      --line: #d9d4c8;
+      --navy: #1f4e79;
+      --rust: #c45c26;
+      --chip: #ece7dc;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 "Source Serif 4", "Iowan Old Style", Georgia, serif; }
+    a { color: var(--navy); }
+    header {
+      position: sticky; top: 0; z-index: 5;
+      background: var(--paper); border-bottom: 1px solid var(--line);
+      padding: 14px 28px; display: flex; gap: 24px; align-items: baseline; flex-wrap: wrap;
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: 0.01em; }
+    header p { margin: 0; color: var(--muted); font-size: 13px; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .wrap { display: grid; grid-template-columns: 220px 1fr; gap: 0; max-width: 1280px; margin: 0 auto; }
+    nav {
+      padding: 20px 16px 40px 28px; border-right: 1px solid var(--line);
+      font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px;
+    }
+    nav a { display: block; color: var(--ink); text-decoration: none; padding: 5px 0; }
+    nav a:hover { color: var(--navy); }
+    main { padding: 28px 32px 80px; }
+    .banner {
+      background: var(--paper); border: 1px solid var(--line); padding: 16px 18px; margin-bottom: 28px;
+      font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px;
+    }
+    h2 { font-size: 22px; margin: 36px 0 10px; }
+    h3 { font-size: 16px; margin: 0 0 8px; }
+    .muted { color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
+    .chips button {
+      font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px;
+      border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+      padding: 4px 10px; cursor: pointer;
+    }
+    .chips button.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+    input[type="search"] {
+      width: 100%; max-width: 420px; padding: 8px 10px; border: 1px solid var(--line);
+      background: var(--paper); font: 14px ui-sans-serif, system-ui, sans-serif;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card {
+      background: var(--paper); border: 1px solid var(--line); padding: 16px 16px 12px;
+    }
+    .card h3 { cursor: pointer; }
+    .card .body { display: none; margin-top: 10px; font-size: 15px; }
+    .card.open .body { display: block; }
+    .tag { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--navy); }
+    figure { margin: 12px 0 4px; }
+    figure img { width: 100%; height: auto; border: 1px solid var(--line); background: #111; }
+    figcaption { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .chart-box { background: var(--paper); border: 1px solid var(--line); padding: 12px 14px 8px; height: 280px; }
+    table { border-collapse: collapse; width: 100%; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 6px 8px; }
+    th { color: var(--muted); font-weight: 600; }
+    ul.revive { columns: 2; font-size: 14px; }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; }
+      nav { display: none; }
+      .grid, .compare, ul.revive { grid-template-columns: 1fr; columns: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Findings archive</h1>
+    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-24.</p>
+  </header>
+  <div class="wrap">
+    <nav>
+      <a href="#charts">50k curves</a>
+      <a href="#graphs">Two training graphs</a>
+      <a href="#findings">Findings</a>
+      <a href="#stills">Recon stills</a>
+      <a href="#revive">Do not revive</a>
+      <a href="README.md">README</a>
+      <a href="catalog.json">catalog.json</a>
+    </nav>
+    <main>
+      <div class="banner">
+        This page is a working archive so a later paper can be spun from evidence.
+        Nothing here restates DreamerV3’s RSSM recipe. Click a finding card to expand;
+        hover the charts; filter by tag. Full writeups are the Markdown files in
+        <code>findings/</code>.
+      </div>
+
+      <h2 id="charts">M3 reset, 50k steps (size S)</h2>
+      <p class="muted">Source: <code>results/m3_dreamer_s/train_metrics.json</code> (1001 log ticks). Interactive — hover a step. PNG fallbacks live in <code>figures/</code>.</p>
+      <div class="grid">
+        <div class="chart-box"><canvas id="chartKl"></canvas></div>
+        <div class="chart-box"><canvas id="chartLoss"></canvas></div>
+      </div>
+      <table style="margin-top:16px">
+        <thead><tr><th>Gate</th><th>Start</th><th>50k</th><th>Read as</th></tr></thead>
+        <tbody>
+          <tr><td>recon_l1</td><td>0.326</td><td>0.0095</td><td>97% drop; log-only, not the trained term</td></tr>
+          <tr><td>kl_rep_raw</td><td>3.59 nats</td><td>3.49 nats (peak 6.14 @ 16.7k)</td><td>Floor is 1.0 — not a setpoint</td></tr>
+          <tr><td>reward NLL</td><td>5.63</td><td>0.077</td><td>Held-out correlation r = 0.91</td></tr>
+          <tr><td>continue BCE</td><td>0.84</td><td>4e-4</td><td>Log-y spikes are one terminal / batch</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="graphs">Why two weeks of extra losses could not work</h2>
+      <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
+      <div class="grid">
+        <div class="card open">
+          <h3>Pre-reset graph</h3>
+          <div class="body" style="display:block">
+            <div class="mermaid">
+flowchart LR
+  obs[obs 64x64] --> enc[encoder]
+  enc --> emb[embedding]
+  emb --> rssm[RSSM]
+  rssm --> hz["feat h, z_post"]
+  emb --> decE[embed decoder LIVE]
+  hz --> decF["h,z decoder FROZEN"]
+  decE --> pixE[recon_embed]
+  decF --> pixH[recon_hz]
+            </div>
+            <p>Pixel loss can fall on the left branch. The RSSM is optional.</p>
+          </div>
+        </div>
+        <div class="card open">
+          <h3>Reset graph (what 50k trained)</h3>
+          <div class="body" style="display:block">
+            <div class="mermaid">
+flowchart LR
+  obs[obs 64x64] --> enc[encoder]
+  enc --> rssm[RSSM]
+  rssm --> feat["feat = concat h, z_post"]
+  feat --> dec[one live decoder]
+  feat --> rew[symlog two-hot reward]
+  feat --> cont[continue BCE]
+  rssm --> kl[KL post || prior]
+  dec --> pix[sum-MSE image]
+            </div>
+            <p>No path reconstructs without <code>z_posterior</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="findings">Findings</h2>
+      <input type="search" id="q" placeholder="Filter findings…" />
+      <div class="chips" id="chips"></div>
+      <div id="list"></div>
+
+      <h2 id="stills">Reconstructions</h2>
+      <p class="muted">Left: pre-reset 12k on the bypass graph. Right: reset 50k, one live decoder. Then early vs late on the reset run, and the 50k open-loop strip.</p>
+      <div class="compare">
+        <figure>
+          <img src="figures/pre_reset_recon_step_12000.png" alt="Pre-reset step 12000" />
+          <figcaption>Pre-reset step 12k — embed could look like Crafter while [h,z] did not.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/reset_recon_step_50000.png" alt="Reset step 50000" />
+          <figcaption>Reset step 50k — player, trees, HUD blocks on the posterior. Movers still ghosts.</figcaption>
+        </figure>
+      </div>
+      <div class="compare">
+        <figure>
+          <img src="figures/reset_recon_step_00200.png" alt="Reset step 200" />
+          <figcaption>Reset step 200 — blurry grass, as expected.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/reset_recon_final.png" alt="Reset final recon grid" />
+          <figcaption>Reset final grid — day/night/cave; digits mostly held.</figcaption>
+        </figure>
+      </div>
+      <figure>
+        <img src="figures/reset_video_pred_step_50000.png" alt="Open-loop video prediction at 50k" />
+        <figcaption>Open-loop video-pred at 50k (context then z_prior). Use this — not posterior sharpness — to judge dynamics.</figcaption>
+      </figure>
+      <div class="compare">
+        <figure>
+          <img src="figures/decoder_capacity_4k.png" alt="Nearest vs sub-pixel capacity overfit" />
+          <figcaption>Decoder capacity overfit: nearest upsample vs sub-pixel. HUD digits are the tell.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/posterior_ghost_mobs.png" alt="Ghost sapling/cow residue" />
+          <figcaption>MSE ghosts: residue where a rare mover should be. Not a missing crop loss.</figcaption>
+        </figure>
+      </div>
+
+      <h2 id="revive">Do not revive</h2>
+      <p class="muted">Each item failed for a documented reason in the findings. Re-adding it is how M3 stalled.</p>
+      <ul class="revive" id="revive"></ul>
+    </main>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+
+    const FINDINGS = [
+      { id:"01", tags:["graph","negative-result"], title:"Auxiliary embed decoder is an RSSM bypass",
+        file:"findings/01-rssm-bypass.md",
+        body:"If any reconstruction path skips z_posterior, pixel loss can fall while the RSSM stays empty. Stacked with a frozen [h,z] decoder, the renderer never learns on the world-model path. Two weeks of crop/HUD/HzToMap knobs were diagnosing that split. Paper spin: identifiability pitfall, not a new architecture." },
+      { id:"02", tags:["loss-scale"], title:"Mean pixel loss inverts the paper’s recon/KL ratio",
+        file:"findings/02-recon-reduction.md",
+        body:"Mean L1 on 64×64×3 is ~12,288× smaller than DreamerV3’s sum-over-pixels MSE. At recon_scale=5 that was O(0.15) next to KL O(1–2). After the fix, step 1950 is recon≈57 vs kl≈3.7 — the paper ratio. recon_l1 is log-only and must never be multiplied into total." },
+      { id:"03", tags:["kl","negative-result"], title:"Free-nats on kl_dyn freezes the prior",
+        file:"findings/03-free-nats-dyn.md",
+        body:"kl_dyn trains the prior with the posterior detached. Flooring it at 1 nat zeros prior gradients. Movers must then be paid from a 1-nat posterior budget and are dropped. Unit test: dyn floor 1.0 stalls at 0.998 nats; floor 0.0 reaches 0.072 (14×). free_nats is a floor, not a setpoint — the 50k pass sits at 3.5 nats." },
+      { id:"04", tags:["geometry","negative-result"], title:"Crafter’s 7px tiles vs a 4×4 latent",
+        file:"findings/04-crafter-pixel-geometry.md",
+        body:"One 4-stride cell is 16×16 px — larger than a tree, the player, and the 14px HUD. Nearest upsample discards sub-cell phase (inventory L1 0.0487 vs 0.0076 sub-pixel). Tile-mean blob L1 paints solid colors. A pasted HUD head leaves a black bar. Geometry, not a missing loss term." },
+      { id:"05", tags:["qualitative","negative-result"], title:"Ghost movers are MSE + coverage, not a missing head",
+        file:"findings/05-mse-ghosts.md",
+        body:"At 50k, trees/player/HUD reconstruct; saplings/cows/zombies are same-color smudges. Residue means bits without commitment. 600 random episodes barely contain those objects. Do not add sapling losses. 300k continuation tests how far MSE gets; leftover ghosts after that are coverage, not step count." },
+      { id:"06", tags:["kl"], title:"Table 4 vs size-S YAML KL scales",
+        file:"findings/06-kl-scale-mismatch.md",
+        body:"DreamerV3 Table 4 lists dyn_scale=1.0; the torch size-S YAML uses 0.5/0.1. With honest sum-MSE, 0.5/0.1 lets the posterior buy bits (KL 6.2 at 1950). Restart at dyn=1.0, rep=0.5, prior_layers=2: KL peaks 6.14 at step 16650 then falls to 3.49 at 50k while recon_l1 hits 0.0095." },
+      { id:"07", tags:["eval"], title:"Dashboard signals that are not in the weights",
+        file:"findings/07-lying-diagnostics.md",
+        body:"Empty resume history autoscales a 0.006 wiggle into an explosion. Log-y continue spikes from one terminal. Embed-vs-[h,z] panels diagnose the bypass, not decoder capacity. bf16 open-loop .numpy() went gray. kl_dyn_raw == kl_rep_raw is the forward KL, not broken balancing." },
+      { id:"08", tags:["compute"], title:"16 GiB constraints that changed the recipe",
+        file:"findings/08-workstation-recipe.md",
+        body:"seq 64: 15.8 GiB and 33 s/step vs 0.29 s at seq 32 — thrash, not OOM. Dual XL residual decoders used 19 GiB. Size-S one decoder is 18.7M params / 2.4 GiB. 80-episode replay memorizes grass; 600 is still sparse on mobs. Jupyter kernels hold ~11 GiB after the loop stops. is_first is unused because windows never cross episode bounds." }
+    ];
+    const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
+    const REVIVE = [
+      "Second decoder / recon_embed / skip-to-RGB on the world-model graph",
+      "detach_weights on a path that must learn to render",
+      "Per-pixel mean as the trained reconstruction term",
+      "Per-region crop / blob / HUD / edge losses",
+      "Pasted HUD head over rows 49–63",
+      "Treating free_nats=1 as a KL setpoint",
+      "Shrinking the 32×32 categorical latent to save VRAM",
+      "Raising stoch/classes to fix a rate-floor bug"
+    ];
+
+    let tag = "all";
+    const chips = document.getElementById("chips");
+    TAGS.forEach(t => {
+      const b = document.createElement("button");
+      b.textContent = t;
+      b.dataset.tag = t;
+      if (t === "all") b.classList.add("on");
+      b.onclick = () => { tag = t; [...chips.children].forEach(x => x.classList.toggle("on", x.dataset.tag === t)); render(); };
+      chips.appendChild(b);
+    });
+    document.getElementById("q").addEventListener("input", render);
+    document.getElementById("revive").innerHTML = REVIVE.map(x => `<li>${x}</li>`).join("");
+
+    function render() {
+      const q = document.getElementById("q").value.toLowerCase();
+      const root = document.getElementById("list");
+      root.innerHTML = "";
+      FINDINGS.filter(f => (tag === "all" || f.tags.includes(tag)) && (!q || (f.title + f.body).toLowerCase().includes(q)))
+        .forEach(f => {
+          const el = document.createElement("article");
+          el.className = "card";
+          el.innerHTML = `<div class="tag">${f.tags.join(" · ")}</div>
+            <h3>${f.id}. ${f.title}</h3>
+            <div class="body"><p>${f.body}</p><p class="muted"><a href="${f.file}">Full writeup</a></p></div>`;
+          el.querySelector("h3").onclick = () => el.classList.toggle("open");
+          root.appendChild(el);
+        });
+    }
+    render();
+
+    function series(key) {
+      const pts = (window.M3_50K && window.M3_50K.points) || [];
+      return { labels: pts.map(p => p.step), data: pts.map(p => p[key]) };
+    }
+    const ticks = { maxTicksLimit: 8 };
+    const common = {
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { x: { title: { display: true, text: "step" }, ticks }, y: { title: { display: true, text: "" } } }
+    };
+    if (window.M3_50K && window.Chart) {
+      const kl = series("kl_rep_raw");
+      const l1 = series("recon_l1");
+      new Chart(document.getElementById("chartKl"), {
+        type: "line",
+        data: {
+          labels: kl.labels,
+          datasets: [
+            { label: "kl_rep_raw (nats)", data: kl.data, borderColor: "#c45c26", pointRadius: 0, yAxisID: "y" },
+            { label: "recon_l1", data: l1.data, borderColor: "#1f4e79", pointRadius: 0, yAxisID: "y1" }
+          ]
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { title: { display: true, text: "training step" }, ticks },
+            y: { title: { display: true, text: "KL nats" }, min: 0, max: 7, position: "left" },
+            y1: { title: { display: true, text: "recon_l1" }, min: 0, position: "right", grid: { drawOnChartArea: false } }
+          },
+          plugins: { ...common.plugins, title: { display: true, text: "Information rate vs mean |pixel| (hover)" } }
+        }
+      });
+      const rec = series("recon");
+      const kll = series("kl");
+      new Chart(document.getElementById("chartLoss"), {
+        type: "line",
+        data: {
+          labels: rec.labels,
+          datasets: [
+            { label: "recon sum-MSE (trained)", data: rec.data, borderColor: "#1f4e79", pointRadius: 0 },
+            { label: "weighted KL (trained)", data: kll.data, borderColor: "#c45c26", pointRadius: 0 }
+          ]
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { title: { display: true, text: "training step" }, ticks },
+            y: { title: { display: true, text: "contribution to total" }, min: 0 }
+          },
+          plugins: { ...common.plugins, title: { display: true, text: "After the reduction fix, recon dominates total" } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

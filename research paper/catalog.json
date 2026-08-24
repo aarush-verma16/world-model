@@ -1,0 +1,100 @@
+{
+  "title": "World-model findings archive (not the paper)",
+  "updated": "2026-08-24",
+  "runs": {
+    "pre_reset_12k": {
+      "config": "configs/m3_world_model.yaml",
+      "steps": 12000,
+      "recon_l1": 0.032,
+      "note": "Dual decoder, mean L1, crop losses. Sprites absent on [h,z]."
+    },
+    "reset_50k": {
+      "config": "configs/m3_dreamer_s.yaml",
+      "steps": 50000,
+      "recon_l1_start": 0.326,
+      "recon_l1_end": 0.00951,
+      "kl_peak": 6.139,
+      "kl_peak_step": 16650,
+      "kl_end": 3.493,
+      "reward_r": 0.91,
+      "params_m": 18.72,
+      "note": "One live decoder, sum-MSE, dyn=1.0, rep=0.5, free_nats_dyn=0. Continuation to 300k in progress."
+    }
+  },
+  "findings": [
+    {
+      "id": "01",
+      "file": "findings/01-rssm-bypass.md",
+      "title": "Auxiliary embed decoder is an RSSM bypass",
+      "tags": ["graph", "negative-result"],
+      "one_liner": "A reconstruction path that skips z_posterior lets pixel loss fall while the world model stays empty.",
+      "paper_spin": "Implementation pitfall / identifiability appendix — not a new architecture."
+    },
+    {
+      "id": "02",
+      "file": "findings/02-recon-reduction.md",
+      "title": "Mean pixel loss inverts the paper’s recon/KL ratio",
+      "tags": ["loss-scale"],
+      "one_liner": "Mean L1 is ~12288× smaller than sum-MSE on 64×64×3, so KL outvoted reconstruction.",
+      "paper_spin": "One-paragraph reduction mismatch with the 0.15 vs 57 bar chart."
+    },
+    {
+      "id": "03",
+      "file": "findings/03-free-nats-dyn.md",
+      "title": "Free-nats on kl_dyn freezes the prior",
+      "tags": ["kl", "negative-result"],
+      "one_liner": "Flooring the dynamics KL zeros prior gradients; movers are then dropped from a 1-nat posterior budget.",
+      "paper_spin": "KL-balancing appendix: floor ≠ setpoint; dyn vs rep floors are not interchangeable."
+    },
+    {
+      "id": "04",
+      "file": "findings/04-crafter-pixel-geometry.md",
+      "title": "Crafter’s 7px tiles vs a 4×4 latent",
+      "tags": ["geometry", "negative-result"],
+      "one_liner": "One latent cell is 16×16 px. Nearest upsample and tile-mean blob losses cannot represent 7px sprites or 4px HUD glyphs.",
+      "paper_spin": "Geometry figure: annotated 7px grid + nearest vs sub-pixel HUD."
+    },
+    {
+      "id": "05",
+      "file": "findings/05-mse-ghosts.md",
+      "title": "Ghost movers are MSE + coverage, not a missing head",
+      "tags": ["qualitative", "negative-result"],
+      "one_liner": "Sapling/cow/zombie residue at 50k means bits without commitment. Crop losses are how we fought the RSSM for two weeks.",
+      "paper_spin": "Limitations: reconstructions are not sprite sheets; residue vs absence distinguishes this from finding 01."
+    },
+    {
+      "id": "06",
+      "file": "findings/06-kl-scale-mismatch.md",
+      "title": "Table 4 vs size-S YAML KL scales",
+      "tags": ["kl"],
+      "one_liner": "With honest sum-MSE, dyn=0.5/rep=0.1 lets the posterior buy bits (KL 6.2 at 1950). 50k at dyn=1/rep=0.5 peaks then falls to 3.5 nats.",
+      "paper_spin": "Reimplementation note; promote to ablation if we re-run 0.5/0.1 vs 1.0/0.5 on the reset graph."
+    },
+    {
+      "id": "07",
+      "file": "findings/07-lying-diagnostics.md",
+      "title": "Dashboard signals that are not in the weights",
+      "tags": ["eval"],
+      "one_liner": "Empty resume history, log-continue, embed-vs-[h,z] panels, bf16 open-loop gray, and free_nats drawn as a target all lie.",
+      "paper_spin": "Evaluation subsection so those screenshots never become figures."
+    },
+    {
+      "id": "08",
+      "file": "findings/08-workstation-recipe.md",
+      "title": "16 GiB constraints that changed the recipe",
+      "tags": ["compute"],
+      "one_liner": "seq 64 fits and thrashes (33 s/step). Dual XL decoders OOM. 80-episode replay memorizes grass. Jupyter holds 11 GiB after the loop stops.",
+      "paper_spin": "Hardware / limitations appendix — honest small-scale study, not a DreamerV3 score."
+    }
+  ],
+  "do_not_revive": [
+    "Second decoder / recon_embed / recon_bottleneck / skip-to-RGB on the world-model graph",
+    "detach_weights on any path that must learn to render",
+    "Per-pixel mean as the trained reconstruction term",
+    "Per-region crop/blob/HUD/edge losses",
+    "Pasted HUD head over rows 49–63",
+    "Treating free_nats=1 as a KL setpoint",
+    "Shrinking the 32×32 categorical latent to save VRAM (drop batch/seq instead)",
+    "Raising stoch/classes to fix a rate-floor bug"
+  ]
+}

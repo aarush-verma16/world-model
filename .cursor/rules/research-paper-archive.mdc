@@ -1,0 +1,20 @@
+---
+description: Keep research paper/ updated with original findings after any real discovery
+alwaysApply: true
+---
+
+# Research paper archive
+
+`research paper/` is a **findings archive** for a future arXiv draft, not the paper itself. Do not write the paper. Do keep the archive current **in the same session** as the discovery — do not wait to be asked.
+
+## When to add or update a finding
+
+Write if we measured, implemented, or ruled out something that is **not** already in DreamerV3 / PlaNet, **or** is a failure mode of a naive extra loss / graph tweak. Typical triggers: a recon/video-pred qualitative change with a mechanism, a KL/recon scale interaction, a Crafter-pixel geometry result, a negative result we should not revive, a workstation constraint that changed the recipe.
+
+Skip: restating the DreamerV3 recipe, git/notebook plumbing, “loss went down,” and re-recording a claim unless **new numbers or images** change it.
+
+## What to write
+
+One file under `research paper/findings/` (or an update to an existing one): claim in one sentence, why it is not the paper, evidence (metrics, recon / video-pred stills, plots), failed alternatives, and a “paper spin” note (which section it could feed). Copy stills/plots into `research paper/figures/`. Add or update the entry in `research paper/catalog.json` and `research paper/index.html`. Keep `research paper/README.md`’s index in sync.
+
+Do not dump DreamerV3 background. Prefer negative results and implementation-identifiability bugs over hyperparameter folklore.
