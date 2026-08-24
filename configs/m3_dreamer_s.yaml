@@ -103,13 +103,17 @@ train:
   # frozen decoder and a much weaker recon term; 1000 is a ceiling for
   # genuine blowups, not a routine clamp, and matches the paper.
   lr: 1.0e-4
-  steps: 50000
+  # 50k was enough to pass M3 gates (recon_l1 ~0.01, reward r~0.9). Rare
+  # movers (sapling/cow/zombie) stay as MSE ghosts until the posterior is
+  # sure — that takes more steps on the same frozen random replay, not a
+  # new loss. 300k is ~8–10h at ~8 steps/s from scratch; resume from the
+  # 50k `ckpt_final.pt` / `ckpt_latest.pt` to skip the first 50k.
+  steps: 300000
   log_every: 50
-  checkpoint_every: 1000
-  # Video-pred (open-loop 5+11 rollout) is more expensive than a plain
-  # forward pass; every 200 steps is enough to watch the trend without
-  # slowing training down noticeably.
-  image_every: 200
+  checkpoint_every: 10000
+  # Video-pred every 500 steps on a long run (~600 strips) instead of every
+  # 200 (~1500). Still dense enough to watch sprites firm up.
+  image_every: 500
   # Paper lists dyn_scale=0.5 / rep_scale=0.1. At those weights the 1950-step
   # reset run had recon≈57 vs kl_loss≈3.7, so the posterior kept buying bits
   # (kl_raw 3.5 → 6.2 and still climbing). Same failure the 12k run hit:

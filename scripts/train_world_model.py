@@ -30,6 +30,7 @@ from torch.utils.tensorboard import SummaryWriter
 from models.preprocess import nchw_unit_to_nhwc_uint8, nhwc_uint8_to_nchw_unit
 from models.symlog import symlog_twohot_mean
 from models.world_model import WorldModel
+from training.ckpt import resolve_resume
 from training.device import (
     autocast_context,
     configure_runtime,
@@ -242,7 +243,11 @@ def print_exit_criteria(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=Path("configs/m3_dreamer_s.yaml"))
-    parser.add_argument("--resume", type=Path, default=None)
+    parser.add_argument(
+        "--resume",
+        default=None,
+        help='Checkpoint path, or "auto" for ckpt_latest/ckpt_final/latest step file.',
+    )
     args = parser.parse_args()
     with args.config.open() as f:
         cfg = yaml.safe_load(f)
@@ -270,18 +275,19 @@ def main() -> None:
     print(f"params: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M")
 
     optim = torch.optim.Adam(model.parameters(), lr=float(train["lr"]))
+    ckpt_dir = Path(train["checkpoint_dir"])
+    results_dir = Path(train["results_dir"])
     start_step = 0
-    if args.resume is not None:
-        ckpt = torch.load(args.resume, weights_only=False, map_location=device)
+    resume_path = resolve_resume(args.resume, ckpt_dir)
+    if resume_path is not None:
+        ckpt = torch.load(resume_path, weights_only=False, map_location=device)
         model.load_state_dict(ckpt["model"], strict=True)
         if "optim" in ckpt:
             optim.load_state_dict(ckpt["optim"])
         start_step = int(ckpt.get("step", 0))
-        print(f"resumed from {args.resume} at step {start_step}")
+        print(f"resumed from {resume_path} at step {start_step}")
 
     log_dir = Path(train["log_dir"])
-    ckpt_dir = Path(train["checkpoint_dir"])
-    results_dir = Path(train["results_dir"])
     for p in (log_dir, ckpt_dir, results_dir):
         p.mkdir(parents=True, exist_ok=True)
     writer = SummaryWriter(log_dir=str(log_dir))
@@ -299,8 +305,14 @@ def main() -> None:
 
     model.train()
     history: list[dict[str, float]] = []
+    metrics_path = results_dir / "train_metrics.json"
+    if start_step > 0 and metrics_path.is_file():
+        prev = json.loads(metrics_path.read_text(encoding="utf-8"))
+        history = [h for h in prev if int(h.get("step", 0)) <= start_step]
+        print(f"loaded {len(history)} logged points up to step {start_step}")
     last_log_time = time.time()
     last_log_step = start_step
+    print(f"training to step {steps} (start={start_step}, remaining={steps - start_step})")
     for step in range(start_step + 1, steps + 1):
         batch = buffer.sample(batch_size, seq_len)
         _loss, metrics = world_model_step(
@@ -352,19 +364,17 @@ def main() -> None:
             model.train()
 
         if step % ckpt_every == 0:
-            path = ckpt_dir / f"ckpt_step_{step:05d}.pt"
-            torch.save(
-                {"step": step, "model": model.state_dict(), "optim": optim.state_dict()},
-                path,
-            )
+            payload = {"step": step, "model": model.state_dict(), "optim": optim.state_dict()}
+            path = ckpt_dir / f"ckpt_step_{step:06d}.pt"
+            torch.save(payload, path)
+            torch.save(payload, ckpt_dir / "ckpt_latest.pt")
+            metrics_path.write_text(json.dumps(history, indent=2))
             print(f"wrote {path}")
 
     final = ckpt_dir / "ckpt_final.pt"
-    torch.save(
-        {"step": steps, "model": model.state_dict(), "optim": optim.state_dict()},
-        final,
-    )
-    metrics_path = results_dir / "train_metrics.json"
+    payload = {"step": steps, "model": model.state_dict(), "optim": optim.state_dict()}
+    torch.save(payload, final)
+    torch.save(payload, ckpt_dir / "ckpt_latest.pt")
     metrics_path.write_text(json.dumps(history, indent=2))
     writer.flush()
     writer.close()

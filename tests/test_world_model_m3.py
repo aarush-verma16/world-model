@@ -3,6 +3,8 @@ and the end-to-end forward/loss/step graph (DreamerV3 M3 reset)."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 
 from models.heads import ContinueHead, RewardHead, rssm_features
@@ -438,6 +440,7 @@ def test_m3_dreamer_s_config_has_no_bypass_and_holds_kl() -> None:
     assert float(train["dyn_scale"]) == 1.0
     assert float(train["rep_scale"]) == 0.5
     assert float(train["recon_scale"]) == 1.0
+    assert int(train["steps"]) == 300000
     assert int(cfg["rssm"].get("prior_layers", 1)) == 2
 
     from train_world_model import build_model
@@ -445,3 +448,19 @@ def test_m3_dreamer_s_config_has_no_bypass_and_holds_kl() -> None:
     wm = build_model(cfg)
     assert not hasattr(wm, "hz_to_map")
     assert wm.decoder.output_activation == "linear"
+
+
+def test_resolve_resume_picks_highest_step_not_lexicographic(tmp_path: Path) -> None:
+    from training.ckpt import resolve_resume
+
+    assert resolve_resume(None, tmp_path) is None
+    (tmp_path / "ckpt_step_050000.pt").write_bytes(b"a")
+    (tmp_path / "ckpt_step_100000.pt").write_bytes(b"b")
+    picked = resolve_resume("auto", tmp_path)
+    assert picked is not None and picked.name == "ckpt_step_100000.pt"
+    (tmp_path / "ckpt_final.pt").write_bytes(b"c")
+    picked = resolve_resume("auto", tmp_path)
+    assert picked is not None and picked.name == "ckpt_final.pt"
+    (tmp_path / "ckpt_latest.pt").write_bytes(b"d")
+    picked = resolve_resume("auto", tmp_path)
+    assert picked is not None and picked.name == "ckpt_latest.pt"
