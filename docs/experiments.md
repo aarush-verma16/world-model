@@ -89,6 +89,28 @@ much is free):
 Explicitly **not** done: raising `stoch`/`classes`. That buys capacity, which was
 not the limit, and more categoricals raise the summed KL against the same floor.
 
+### 12k run: KL stayed *above* free_nats after 4.5k (same day)
+
+The dyn-floor fix did what it was supposed to early: steps 2k–4.5k sat under
+the line (mean 0.92, 76% of logs < 1). Then the decoder became good enough to
+spend leftover nats, and KL climbed and stayed there:
+
+| window     | KL mean | share < 1 | recon_l1 |
+| ---------- | ------- | --------- | -------- |
+| 2k–4.5k    | 0.92    | 76%       | 0.064    |
+| 4.5k–12k   | 1.35    | 3% (4/151)| 0.043    |
+
+Peak 2.19 around 10k, finish 1.13. Those extra 0.35 nats did **not** buy
+sprites: `recon_step_12000.png` still has no trees/zombies/saplings, HUD digits
+are streaks, `[h,z]` still misplaces terrain. So this was not "using the free
+budget on mobs" — it was recon L1 spending bits on grass texture because the
+rate term was too weak to push back.
+
+Cause: `recon_scale=5` (5× DreamerV3's rec=1) with `dyn_scale=0.5`,
+`rep_scale=0.1` left the paper's dyn/rec and rep/rec ratios 10× and 5× weaker.
+Fix: `dyn_scale` 0.5 → **1.0**, `rep_scale` 0.1 → **0.5**. `free_nats` stays
+1.0, `free_nats_dyn` stays 0.0. Not raising `free_nats` to paper over it.
+
 Also this pass:
 
 - `recon_avatar_scale` / `recon_hud_scale` 0.0 -> **0.5**. Not the 5.0 that

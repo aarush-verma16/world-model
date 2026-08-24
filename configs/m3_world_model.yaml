@@ -121,8 +121,18 @@ train:
   # refreshes and looks "collapsed" even though training is progressing
   # (this is what happened: image panel was 500 steps behind the loss curve).
   image_every: 50
-  dyn_scale: 0.5
-  rep_scale: 0.1
+  # DreamerV3 is rec=1, dyn=1, rep=0.1. Ours is rec=5 (needed so 7px sprites
+  # are not median-erased by 64x64 L1), so the KL coefficients have to move
+  # with it or the rate constraint is 5x weaker than the paper's. That is
+  # exactly what the 12k run did after ~4.5k: KL sat under 1 while the decoder
+  # was still coarse (2k-4.5k: 76% of logs < 1, mean 0.92), then the decoder
+  # got good enough to spend leftover nats on grass texture, KL climbed to
+  # mean 1.35 and stayed there (4.5k-12k: 4 of 151 logs < 1). Those extra
+  # 0.35 nats did not buy sprites — recon_final still has no trees/zombies.
+  # dyn=1 / rep=0.5 restores the paper's dyn/rec and rep/rec ratios.
+  # free_nats stays 1.0; free_nats_dyn stays 0.0.
+  dyn_scale: 1.0
+  rep_scale: 0.5
   # Floor on the *rep* KL — the information-rate budget. Stays 1.0.
   # `kl_rep_raw` in nats is literally how much the latent tells the decoder
   # that the prior did not already predict, so this is "1 nat of surprise per
