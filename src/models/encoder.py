@@ -101,7 +101,9 @@ class Encoder(nn.Module):
         """Encode images.
 
         Args:
-            obs: float images `[B, 3, 64, 64]` in `[-1, 1]`.
+            obs: float images `[B, 3, 64, 64]`. Range doesn't matter to this
+                module (GroupNorm absorbs it) — `[-1, 1]` for M1's perception
+                autoencoder, `[0, 1]` for the M3 world model.
 
         Returns:
             embeddings `[B, embed_dim]`.

@@ -1,18 +1,15 @@
-"""WorldModel: skip-free encoder + RSSM + decoder + reward/continue heads.
+"""WorldModel: encoder + RSSM + decoder + reward/continue heads (DreamerV3 M3).
 
-Trains on real replay sequences (M3). Imagination / actor-critic is M4.
+Trains on real replay sequences. Imagination / actor-critic is M4.
 
-When the encoder flatten is a 4x4 map (Identity `embed_dim == C*4*4`), there
-is **one** skip-free decoder upsample (sub-pixel conv — see `decoder`). Embed
-recon reshapes that map and paints. `[h,z]` recon predicts the same 4x4 layout
-(`HzToMap`) then uses the same upsample with decoder weights detached, so
-`[h,z]` has to reproduce a map the encoder path already renders well instead
-of bending the renderer toward blobs.
-
-`z` is a 32×32 categorical (unstructured); per-cell `z` (2 cats × 16 cells)
-held KL raw at 1.2–1.6 above `free_nats=1`. A separate HUD head that pasted
-over rows 49–63 hid the inventory; that head is gone. `recon_blob` (tile-mean
-L1) is off — it is a solid-color-per-tile objective.
+One decoder, live weights, decoding from `feat = concat(h, flatten(z))` —
+this is the paper's actual graph (`decoder(get_feat(post))` in
+NM512/dreamerv3-torch's `WorldModel._train`). There is no separate "embed
+recon" path: an auxiliary decoder trained straight off the encoder embedding
+turns into a plain autoencoder that makes low pixel loss trivially achievable
+without the RSSM carrying anything, which is exactly the bypass that let two
+weeks of M3 runs report falling loss while `[h,z]` stayed empty. See
+`docs/experiments.md` ("DreamerV3 M3 reset") for the full postmortem.
 """
 
 from __future__ import annotations
@@ -23,52 +20,10 @@ import torch
 from torch import Tensor, nn
 
 from models.decoder import Decoder
-from models.encoder import Encoder, ResidualBlock
+from models.encoder import Encoder
 from models.heads import ContinueHead, RewardHead, rssm_features
-from models.preprocess import nhwc_uint8_to_nchw_float
+from models.preprocess import nhwc_uint8_to_nchw_unit
 from models.rssm import RSSM, RSSMOutput, one_hot_action
-
-
-class HzToMap(nn.Module):
-    """`h` + `z_posterior` → 4x4 feature map (encoder layout).
-
-    `h` gets its own **spatial** projection. It used to be
-    `h_proj(h).unsqueeze(-1).unsqueeze(-1)`: a `[B, C, 1, 1]` per-channel bias,
-    identical in all 16 cells. That left `z_proj` as the only source of layout,
-    and `z` is 32 categoricals x 32 classes = 160 bits per frame — nowhere near
-    enough to place 63 Crafter tiles plus a 9-slot inventory, so `[h,z]` guessed
-    where things were while embed recon looked fine. Crafter layout is mostly
-    *persistent* (grass/water/trees do not move) which is exactly what `h`
-    accumulates over the sequence; it simply had no spatial slot to write it to.
-    """
-
-    def __init__(
-        self,
-        deter_dim: int,
-        stoch: int,
-        classes: int,
-        channels: int,
-        spatial: int = 4,
-        h_channels: int = 128,
-        blocks: int = 1,
-    ) -> None:
-        super().__init__()
-        self.channels = channels
-        self.spatial = spatial
-        self.h_channels = h_channels
-        cells = spatial * spatial
-        self.h_proj = nn.Linear(deter_dim, h_channels * cells)
-        self.z_proj = nn.Linear(stoch * classes, channels * cells)
-        self.mix = nn.Conv2d(channels + h_channels, channels, kernel_size=3, padding=1)
-        refine: list[nn.Module] = [nn.SiLU()]
-        refine.extend(ResidualBlock(channels) for _ in range(blocks))
-        self.refine = nn.Sequential(*refine)
-
-    def forward(self, h: Tensor, z_flat: Tensor) -> Tensor:
-        """`h` `[B, deter]`, `z_flat` `[B, stoch*classes]` → `[B, C, S, S]`."""
-        z_map = self.z_proj(z_flat).view(-1, self.channels, self.spatial, self.spatial)
-        h_map = self.h_proj(h).view(-1, self.h_channels, self.spatial, self.spatial)
-        return self.refine(self.mix(torch.cat([z_map, h_map], dim=1)))
 
 
 @dataclass
@@ -79,39 +34,43 @@ class WorldModelOutput:
     rssm: RSSMOutput
     feat: Tensor
     recon: Tensor
-    recon_embed: Tensor
-    recon_bottleneck: Tensor
     reward_pred: Tensor
     cont_logit: Tensor
-    hz_map: Tensor | None = None
-    embed_map: Tensor | None = None
+
+
+@dataclass
+class VideoPrediction:
+    """Open-loop rollout for visual/behavioral diagnosis (DreamerV3 `video_pred`).
+
+    `context_recon` decodes `z_posterior` for the first `context_len` steps
+    (real observations available). `imagined_recon` decodes `z_prior` for the
+    remaining steps, rolled forward with **no** access to the real frames —
+    only the actions and the world model's own dynamics. A healthy world
+    model keeps `imagined_recon` Crafter-like for several steps before
+    degrading; garbage from the first imagined step means the dynamics model
+    itself (not just the decoder) is broken.
+    """
+
+    context_recon: Tensor  # [B, context_len, 3, 64, 64]
+    imagined_recon: Tensor  # [B, T - context_len, 3, 64, 64]
+    imagined_reward: Tensor  # [B, T - context_len] decoded scalar reward
 
 
 class WorldModel(nn.Module):
-    """End-to-end world model used for M3 supervised training on replay.
-
-    With Identity encoder flatten matching `decoder.channels[0]`, `decoder`
-    and `embed_decoder` are the same module. `HzToMap` is the only extra
-    `[h,z]` path (imagination still has no pixels to skip from).
-    """
+    """End-to-end world model used for M3 supervised training on replay."""
 
     def __init__(
         self,
         encoder: Encoder,
         rssm: RSSM,
         decoder: Decoder,
-        embed_decoder: Decoder,
         reward_head: RewardHead,
         continue_head: ContinueHead,
-        hz_to_map: HzToMap | None = None,
     ) -> None:
         super().__init__()
         self.encoder = encoder
         self.rssm = rssm
         self.decoder = decoder
-        self.embed_decoder = embed_decoder
-        self.embed_decoder_bottleneck = embed_decoder
-        self.hz_to_map = hz_to_map
         self.reward_head = reward_head
         self.continue_head = continue_head
         feat_dim = rssm.deter_dim + rssm.z_flat_dim
@@ -119,21 +78,11 @@ class WorldModel(nn.Module):
             raise ValueError(
                 f"encoder.embed_dim={encoder.embed_dim} != rssm.embed_dim={rssm.embed_dim}"
             )
-        if embed_decoder.embed_dim != rssm.embed_dim:
-            raise ValueError(
-                f"embed_decoder.embed_dim={embed_decoder.embed_dim} != "
-                f"rssm.embed_dim={rssm.embed_dim}"
-            )
-        if hz_to_map is None and decoder.embed_dim != feat_dim:
+        if decoder.embed_dim != feat_dim:
             raise ValueError(
                 f"decoder.embed_dim={decoder.embed_dim} != feat_dim={feat_dim} "
                 f"(deter {rssm.deter_dim} + z_flat {rssm.z_flat_dim})"
             )
-        if hz_to_map is not None:
-            if decoder is not embed_decoder:
-                raise ValueError("shared 4x4 decoder requires decoder is embed_decoder")
-            if hz_to_map.channels != decoder.channels0:
-                raise ValueError("HzToMap channels must match decoder.channels[0]")
         if reward_head.in_dim != feat_dim or continue_head.in_dim != feat_dim:
             raise ValueError("reward/continue heads must match RSSM feature dim")
 
@@ -160,22 +109,23 @@ class WorldModel(nn.Module):
         decoder_channels: tuple[int, ...] = (512, 256, 128, 64),
         head_hidden: int = 512,
         head_layers: int = 2,
-        stem_channels: int = 64,
-        spatial: int = 4,
         encoder_blocks: int = 2,
         decoder_blocks: int = 0,
+        output_activation: str = "linear",
+        reward_num_bins: int = 255,
+        reward_low: float = -20.0,
+        reward_high: float = 20.0,
     ) -> WorldModel:
-        """Construct a consistently-sized world model from scalar dims."""
-        del stem_channels, spatial
+        """Construct a consistently-sized world model from scalar dims.
+
+        `output_activation="linear"` (DreamerV3 `cnn_sigmoid=False`, pixels in
+        `[0, 1]`) is the M3 default; pass `"tanh"` only to reproduce the old
+        `[-1, 1]` M1-style pixel convention.
+        """
         encoder = Encoder(
             embed_dim=embed_dim,
             channels=encoder_channels,
             blocks=encoder_blocks,
-        )
-        embed_spatial = (
-            encoder_channels[-1]
-            if embed_dim == encoder_channels[-1] * 4 * 4
-            else None
         )
         rssm = RSSM(
             embed_dim=embed_dim,
@@ -188,43 +138,26 @@ class WorldModel(nn.Module):
             act=act,
             initial=initial,
             rec_depth=rec_depth,
-            embed_spatial=embed_spatial,
             prior_layers=prior_layers,
         )
         feat_dim = deter_dim + stoch * classes
-        shared = (
-            embed_spatial is not None and decoder_channels[0] == embed_spatial
+        decoder = Decoder(
+            embed_dim=feat_dim,
+            channels=decoder_channels,
+            start_res=4,
+            blocks=decoder_blocks,
+            output_activation=output_activation,
         )
-        if shared:
-            decoder = Decoder(
-                embed_dim=embed_dim,
-                channels=decoder_channels,
-                start_res=4,
-                blocks=decoder_blocks,
-            )
-            embed_decoder = decoder
-            hz_to_map: HzToMap | None = HzToMap(
-                deter_dim, stoch, classes, embed_spatial
-            )
-        else:
-            decoder = Decoder(
-                embed_dim=feat_dim,
-                channels=decoder_channels,
-                start_res=4,
-                blocks=decoder_blocks,
-            )
-            embed_decoder = Decoder(
-                embed_dim=embed_dim,
-                channels=decoder_channels,
-                start_res=4,
-                blocks=decoder_blocks,
-            )
-            hz_to_map = None
-        reward_head = RewardHead(feat_dim, hidden=head_hidden, layers=head_layers)
+        reward_head = RewardHead(
+            feat_dim,
+            hidden=head_hidden,
+            layers=head_layers,
+            num_bins=reward_num_bins,
+            low=reward_low,
+            high=reward_high,
+        )
         continue_head = ContinueHead(feat_dim, hidden=head_hidden, layers=head_layers)
-        return cls(
-            encoder, rssm, decoder, embed_decoder, reward_head, continue_head, hz_to_map
-        )
+        return cls(encoder, rssm, decoder, reward_head, continue_head)
 
     def encode(self, obs_u8: Tensor) -> Tensor:
         """uint8 obs `[B, T, H, W, C]` or `[B, H, W, C]` → embeds with time dim."""
@@ -235,9 +168,15 @@ class WorldModel(nn.Module):
             raise ValueError(f"expected obs [B,T,H,W,C] or [B,H,W,C], got {tuple(obs_u8.shape)}")
         batch, time = obs_u8.shape[:2]
         flat = obs_u8.reshape(batch * time, *obs_u8.shape[2:])
-        embeds = self.encoder(nhwc_uint8_to_nchw_float(flat))
+        embeds = self.encoder(nhwc_uint8_to_nchw_unit(flat))
         embeds = embeds.view(batch, time, -1)
         return embeds.squeeze(1) if squeeze else embeds
+
+    def decode(self, feat: Tensor) -> Tensor:
+        """`feat` `[..., feat_dim]` → images `[..., 3, 64, 64]` (any leading dims)."""
+        lead = feat.shape[:-1]
+        flat = self.decoder(feat.reshape(-1, feat.shape[-1]))
+        return flat.view(*lead, 3, 64, 64)
 
     def forward(
         self,
@@ -255,61 +194,71 @@ class WorldModel(nn.Module):
         """
         if obs_u8.ndim != 5:
             raise ValueError(f"expected obs [B,T,H,W,C], got {tuple(obs_u8.shape)}")
-        batch, time = obs_u8.shape[:2]
-        flat_obs = obs_u8.reshape(batch * time, *obs_u8.shape[2:])
-        flat_embed = self.encoder(nhwc_uint8_to_nchw_float(flat_obs))
-        embeds = flat_embed.view(batch, time, -1)
-        if actions_onehot:
-            act = actions.float()
-        else:
-            act = one_hot_action(actions, self.rssm.action_dim)
+        embeds = self.encode(obs_u8)
+        act = actions.float() if actions_onehot else one_hot_action(actions, self.rssm.action_dim)
         rssm_out = self.rssm.observe(embeds, act)
         feat = rssm_features(rssm_out.h, rssm_out.z_posterior)
-        _, _, feat_dim = feat.shape
-        flat_feat = feat.reshape(batch * time, feat_dim)
-        hz_map = None
-        embed_map = None
-        if self.hz_to_map is not None:
-            h_flat = rssm_out.h.reshape(batch * time, -1)
-            z_flat = rssm_out.z_posterior.reshape(batch * time, -1)
-            hz_map = self.hz_to_map(h_flat, z_flat)
-            spatial = self.hz_to_map.spatial
-            embed_map = flat_embed.view(
-                batch * time, self.hz_to_map.channels, spatial, spatial
-            )
-            recon = self.decoder.from_map(hz_map, detach_weights=True).view(
-                batch, time, 3, 64, 64
-            )
-            recon_from_embed = self.decoder.from_map(embed_map).view(
-                batch, time, 3, 64, 64
-            )
-        else:
-            hz_feat = self.decoder.fc(flat_feat)
-            hz_feat = hz_feat.view(
-                -1, self.decoder.channels0, self.decoder.start_res, self.decoder.start_res
-            )
-            recon = self.decoder.from_map(hz_feat).view(batch, time, 3, 64, 64)
-            emb_feat = self.embed_decoder.fc(flat_embed)
-            emb_feat = emb_feat.view(
-                -1,
-                self.embed_decoder.channels0,
-                self.embed_decoder.start_res,
-                self.embed_decoder.start_res,
-            )
-            recon_from_embed = self.embed_decoder.from_map(emb_feat).view(
-                batch, time, 3, 64, 64
-            )
-        reward_pred = self.reward_head(flat_feat).view(batch, time, 1)
+        recon = self.decode(feat)
+        flat_feat = feat.reshape(-1, feat.shape[-1])
+        batch, time = obs_u8.shape[:2]
+        reward_pred = self.reward_head(flat_feat).view(batch, time, -1)
         cont_logit = self.continue_head(flat_feat).view(batch, time, 1)
         return WorldModelOutput(
             embeds=embeds,
             rssm=rssm_out,
             feat=feat,
             recon=recon,
-            recon_embed=recon_from_embed,
-            recon_bottleneck=recon_from_embed,
             reward_pred=reward_pred,
             cont_logit=cont_logit,
-            hz_map=hz_map,
-            embed_map=embed_map,
+        )
+
+    @torch.no_grad()
+    def video_predict(
+        self,
+        obs_u8: Tensor,
+        actions: Tensor,
+        *,
+        context_len: int,
+    ) -> VideoPrediction:
+        """DreamerV3-style open-loop video prediction (diagnostic only).
+
+        Observes the first `context_len` steps with real frames
+        (`z_posterior`), then rolls the RSSM forward for the rest using only
+        actions and `z_prior` — no encoder access — and decodes both halves.
+        This is the actual test of whether the *dynamics* work, independent
+        of how good posterior reconstruction looks (posterior recon can look
+        fine even when the prior/imagination path is broken).
+
+        Args:
+            obs_u8: `[B, T, 64, 64, 3]` uint8, `T > context_len`.
+            actions: `[B, T]` int64.
+            context_len: number of real steps to condition on before
+                switching to imagination.
+        """
+        from models.symlog import symlog_twohot_mean
+
+        batch, time = obs_u8.shape[:2]
+        if context_len < 1 or context_len >= time:
+            raise ValueError(f"need 1 <= context_len < T={time}, got {context_len}")
+        act = one_hot_action(actions, self.rssm.action_dim)
+
+        embeds = self.encode(obs_u8[:, :context_len])
+        rssm_ctx = self.rssm.observe(embeds, act[:, :context_len])
+        ctx_feat = rssm_features(rssm_ctx.h, rssm_ctx.z_posterior)
+        context_recon = self.decode(ctx_feat)
+
+        h0 = rssm_ctx.h[:, -1]
+        z0 = rssm_ctx.z_posterior[:, -1]
+        future_actions = act[:, context_len:]
+        h_img, z_img, _ = self.rssm.imagine(h0, z0, future_actions)
+        img_feat = rssm_features(h_img, z_img)
+        imagined_recon = self.decode(img_feat)
+        flat_img_feat = img_feat.reshape(-1, img_feat.shape[-1])
+        reward_logits = self.reward_head(flat_img_feat).view(batch, time - context_len, -1)
+        imagined_reward = symlog_twohot_mean(reward_logits, self.reward_head.bins)
+
+        return VideoPrediction(
+            context_recon=context_recon,
+            imagined_recon=imagined_recon,
+            imagined_reward=imagined_reward,
         )

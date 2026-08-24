@@ -18,7 +18,6 @@ from pathlib import Path
 import torch
 import yaml
 
-from models.world_model import WorldModel
 from training.device import (
     configure_runtime,
     describe_device,
@@ -30,10 +29,14 @@ from training.device import (
 )
 from training.wm_step import world_model_step
 
+# `python scripts/smoke_cuda_step.py` puts this file's directory on sys.path,
+# so the sibling script is importable directly.
+from train_world_model import build_model
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, default=Path("configs/m3_world_model.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("configs/m3_dreamer_s.yaml"))
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--seq-len", type=int, default=None)
     parser.add_argument("--steps", type=int, default=3, help="warmup + timed steps")
@@ -47,10 +50,6 @@ def main() -> None:
     warn_if_not_cuda(device)
     print(f"device: {describe_device(device)}")
 
-    enc = cfg["encoder"]
-    rssm = cfg["rssm"]
-    dec = cfg.get("decoder", {})
-    heads = cfg.get("heads", {})
     train = dict(cfg["train"])
     batch_size = int(args.batch_size or train["batch_size"])
     seq_len = int(args.seq_len or train["seq_len"])
@@ -58,27 +57,7 @@ def main() -> None:
     amp_dtype = parse_amp(train.get("amp", "bf16"), device)
     print(f"amp={train.get('amp', 'bf16')}  batch={batch_size}  seq_len={seq_len}")
 
-    model = WorldModel.from_config_dims(
-        embed_dim=int(enc["embed_dim"]),
-        encoder_channels=tuple(int(c) for c in enc["channels"]),
-        action_dim=action_dim,
-        deter_dim=int(rssm["deter_dim"]),
-        stoch=int(rssm["stoch"]),
-        classes=int(rssm["classes"]),
-        hidden=int(rssm["hidden"]),
-        unimix=float(rssm.get("unimix", 0.01)),
-        act=str(rssm.get("act", "silu")),
-        initial=str(rssm.get("initial", "learned")),
-        rec_depth=int(rssm.get("rec_depth", 1)),
-        prior_layers=int(rssm.get("prior_layers", 2)),
-        decoder_channels=tuple(int(c) for c in dec.get("channels", [256, 128, 64, 32])),
-        head_hidden=int(heads.get("hidden", 512)),
-        head_layers=int(heads.get("layers", 2)),
-        encoder_blocks=int(enc.get("blocks", 2)),
-        decoder_blocks=int(dec.get("blocks", 0)),
-        stem_channels=int(enc.get("stem_channels", 64)),
-        spatial=int(enc.get("spatial", 4)),
-    ).to(device)
+    model = build_model(cfg).to(device)
     n_params = sum(p.numel() for p in model.parameters()) / 1e6
     print(f"params: {n_params:.2f}M")
 
@@ -117,10 +96,7 @@ def main() -> None:
                 times.append(dt)
             print(f"  step {i + 1}/{args.steps}  {dt:.3f}s  total={metrics['total']:.4f}")
     except torch.cuda.OutOfMemoryError:
-        print(
-            "FAIL: CUDA OOM. Drop `train.batch_size` 16 -> 8 in "
-            "configs/m3_world_model.yaml."
-        )
+        print(f"FAIL: CUDA OOM. Drop `train.batch_size` 16 -> 8 in {args.config}.")
         raise
 
     vram = vram_peak_gb()

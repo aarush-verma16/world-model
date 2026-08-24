@@ -3,6 +3,12 @@
 Reward and continue heads are what make imagined rollouts useful for the
 actor-critic: they score trajectories without touching the real environment.
 Both take the same feature vector `feat = concat(h, flatten(z))`.
+
+`RewardHead` outputs symlog two-hot logits (DreamerV3-style discrete
+regression, `models.symlog`), not a raw scalar — Crafter reward is ~always
+0, so a plain MSE head learns to always predict 0 and never distinguishes
+the rare nonzero achievement/damage steps. Decode a scalar with
+`symlog_twohot_mean(logits, head.bins)`.
 """
 
 from __future__ import annotations
@@ -70,10 +76,25 @@ class MLPHead(nn.Module):
 
 
 class RewardHead(MLPHead):
-    """Predict scalar reward from `[h, z]`. Output `[..., 1]`."""
+    """Predict reward from `[h, z]` as symlog two-hot logits `[..., num_bins]`.
 
-    def __init__(self, in_dim: int, hidden: int = 512, layers: int = 2) -> None:
-        super().__init__(in_dim=in_dim, out_dim=1, hidden=hidden, layers=layers)
+    `bins` is a registered buffer (moves with `.to(device)`, saved/loaded by
+    `state_dict`) of ascending symlog-space bin centers. Use
+    `models.symlog.symlog_twohot_loss` for training and
+    `symlog_twohot_mean` to decode a scalar reward for logging/imagination.
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        hidden: int = 512,
+        layers: int = 2,
+        num_bins: int = 255,
+        low: float = -20.0,
+        high: float = 20.0,
+    ) -> None:
+        super().__init__(in_dim=in_dim, out_dim=num_bins, hidden=hidden, layers=layers)
+        self.register_buffer("bins", torch.linspace(low, high, num_bins))
 
 
 class ContinueHead(MLPHead):

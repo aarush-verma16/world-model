@@ -40,3 +40,21 @@ def nchw_float_to_nhwc_uint8(frames: Tensor) -> Tensor:
     x = frames.detach().clamp(-1.0, 1.0)
     x = x.add(1.0).mul(0.5).mul(255.0).round().to(torch.uint8)
     return x.movedim(-3, -1).contiguous()
+
+
+def nhwc_uint8_to_nchw_unit(frames: Tensor) -> Tensor:
+    """Convert uint8 NHWC `[..., H, W, C]` to float NCHW `[..., C, H, W]` in [0, 1].
+
+    DreamerV3 convention (`obs["image"] / 255.0`, no `[-1, 1]` shift), used by
+    the M3 world model (`Decoder(output_activation="linear")`). M1's
+    perception autoencoder keeps the `[-1, 1]` functions above unchanged.
+    """
+    x = frames.float() / 255.0
+    return x.movedim(-1, -3).contiguous()
+
+
+def nchw_unit_to_nhwc_uint8(frames: Tensor) -> Tensor:
+    """Convert float NCHW `[0, 1]` back to uint8 NHWC for logging / GIFs."""
+    x = frames.detach().clamp(0.0, 1.0)
+    x = x.mul(255.0).round().to(torch.uint8)
+    return x.movedim(-3, -1).contiguous()

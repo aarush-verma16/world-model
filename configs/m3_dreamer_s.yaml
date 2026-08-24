@@ -1,0 +1,132 @@
+# Milestone 3 — DreamerV3 M3 reset (size-S-class, paper-faithful recipe).
+#
+# Why this file exists instead of tuning configs/m3_world_model.yaml further:
+# two weeks of runs on that config never got past blurry/sprite-free
+# reconstructions because the *graph*, not the loss weights, had drifted from
+# DreamerV3 — an auxiliary "embed recon" path let the encoder+decoder train
+# as a plain autoencoder bypassing the RSSM, `[h,z]` decoded through a
+# **frozen** copy of that decoder (so it could never actually learn to
+# render), and unweighted-mean pixel L1 made reconstruction ~30x weaker than
+# KL relative to the paper. See `docs/experiments.md` ("DreamerV3 M3 reset")
+# for the full postmortem and the do-not-revive list.
+#
+# This config trains the actual DreamerV3 world-model step end to end:
+#   encoder -> RSSM.observe -> feat=[h, z_posterior] -> ONE live decoder
+#   -> {image MSE (paper reduction), reward symlog-twohot, continue BCE, KL}
+#
+# Success bar (see milestones.md M3, and PROJECT_BRIEF.md): a *faithful*
+# DreamerV3 world model, not pixel-art. DreamerV3's own Crafter
+# reconstructions are recognizable and blurry, not sharp — chasing readable
+# HUD digits or crisp sprites here is what produced the crop/blob/HUD losses
+# that fought the RSSM for two weeks. Judge this against the gates in
+# `scripts/train_world_model.py:print_exit_criteria`, not eyeballed sharpness.
+
+seed: 0
+
+encoder:
+  # DreamerV3 "size S" cnn_depth=32: channels double each stage (32-64-128-256).
+  # blocks=1 residual pair per resolution (paper's cnn_blocks, kept small here
+  # since size-S is for *verifying the recipe*, not maximizing recon quality).
+  # embed_dim = 256*4*4 = 4096 is an Identity flatten (no mixing Linear),
+  # matching the paper's "4x4 followed by flattening".
+  embed_dim: 4096
+  channels: [32, 64, 128, 256]
+  blocks: 1
+
+rssm:
+  # DreamerV3 size-S: deter=512, hidden=512, stoch=32 x classes=32 (paper
+  # default categorical latent — do not shrink this for VRAM, drop
+  # batch_size/seq_len instead, same rule as the old config).
+  deter_dim: 512
+  stoch: 32
+  classes: 32
+  hidden: 512
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  # Paper's dynamics predictor is one hidden layer on `h` (img_out_layers is
+  # a single Linear+norm+act before the stats head) — not the 2-layer prior
+  # the old config used to compensate for a frozen decoder that no longer
+  # exists in this graph.
+  prior_layers: 1
+
+decoder:
+  # Mirrors the encoder (256-128-64-32). blocks=1 residual decoder is
+  # affordable now that there is only ONE decoder in the graph (the old
+  # config's two decoders — [h,z] + embed — is what made a residual decoder
+  # OOM at 19 GiB; a single one at this depth fits comfortably in 16 GiB).
+  channels: [256, 128, 64, 32]
+  blocks: 1
+  # DreamerV3 cnn_sigmoid=False: linear conv output + 0.5, pixels in [0, 1].
+  # Not tanh/[-1,1] (that's the M1 perception-autoencoder convention only).
+  output_activation: linear
+
+heads:
+  hidden: 512
+  layers: 2
+  # Symlog two-hot reward head (models.symlog): Crafter reward is ~always 0
+  # (sparse +1 achievements, -0.1 damage), so a plain MSE head learns to
+  # always predict 0 and never distinguishes the rare nonzero steps. 255
+  # bins over symlog([-20, 20]) is the paper default and covers Crafter's
+  # reward range many times over.
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+collect:
+  # 80 episodes (~tens of thousands of frames touched hundreds of times over
+  # 12k steps) let the model memorize mean grass. 600 random episodes gives
+  # far more unique frames per step of training — still random/frozen at
+  # this milestone (M3 is supervised world-model training on replay; the
+  # online collect -> WM -> actor-critic loop is M4/M5).
+  num_episodes: 600
+  max_episode_steps: 400
+  out_path: data/m3_dreamer_s_replay.pt
+
+train:
+  # Same VRAM budget as before (RTX 5080, 16 GiB, ~1.5 GiB used by the
+  # desktop compositor); re-measure with scripts/smoke_cuda_step.py before a
+  # real run, since encoder/decoder shapes changed. batch 16 x seq 32 is the
+  # safe starting point; try seq 64 only if the smoke shows headroom.
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  # DreamerV3 model_lr=1e-4, opt=adam, grad_clip=1000 (NM512/dreamerv3-torch
+  # configs.yaml). The old config's clip=100 was tuned for a graph with a
+  # frozen decoder and a much weaker recon term; 1000 is a ceiling for
+  # genuine blowups, not a routine clamp, and matches the paper.
+  lr: 1.0e-4
+  steps: 50000
+  log_every: 50
+  checkpoint_every: 1000
+  # Video-pred (open-loop 5+11 rollout) is more expensive than a plain
+  # forward pass; every 200 steps is enough to watch the trend without
+  # slowing training down noticeably.
+  image_every: 200
+  # DreamerV3 defaults (configs.yaml): dyn_scale=0.5, rep_scale=0.1,
+  # free_nats=1.0 on BOTH kl_dyn and kl_rep (free_nats_dyn: null reuses
+  # free_nats). Start here; only reopen kl_dyn (free_nats_dyn: 0.0) if a run
+  # shows kl_dyn_raw welded to exactly 1.0 for thousands of steps AND
+  # open-loop video is still broken once this whole recipe is running.
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  free_nats_dyn: null
+  # Paper scale (rec=1, rew=1, con=1, kl folds dyn/rep above). Reconstruction
+  # is `image_mse_loss` (sum over C,H,W, mean over B,T) — see
+  # src/training/losses.py — which is what makes it the dominant term against
+  # a KL pinned near 1 nat by free bits. Do not add per-region loss terms
+  # (crop/blob/HUD/edge) here; the do-not-revive list in docs/experiments.md
+  # explains why each of those failed.
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0
+  log_dir: runs/m3_dreamer_s
+  checkpoint_dir: checkpoints/m3_dreamer_s
+  results_dir: results/m3_dreamer_s

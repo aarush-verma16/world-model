@@ -1,7 +1,8 @@
 """CNN decoder: reconstructs Crafter frames from an embedding / RSSM feature.
 
-Used by the M1 skip-free encode→decode path and by the M3 world model
-(shared 4x4 upsample from the encoder map / `HzToMap`).
+Used by the M1 skip-free encode→decode path and by the M3 world model, which
+decodes live from `feat = concat(h, z_posterior)` — no auxiliary decoder, no
+frozen copy, no encoder-embedding bypass (see `models.world_model`).
 
 Upsampling is **sub-pixel convolution** (`Conv2d(in, out*4)` + `PixelShuffle`),
 not `Upsample(mode="nearest")`. Nearest replicates each latent cell into a
@@ -14,9 +15,14 @@ Sub-pixel conv learns one filter per output sub-position instead, and ICNR
 init (`icnr_`) starts those four filters identical so the layer *begins* as a
 nearest upsample and cannot checkerboard.
 
-Residual 3x3 blocks live on the *encoder* (DreamerV3 ImageEncoderResnet).
-Putting the same blocks on both `[h,z]` and embed decoders doubled the
-activation footprint (smoke: 19 GiB / 0.17 steps/s).
+Residual 3x3 blocks are optional per upsample stage (`blocks`, mirroring the
+encoder's `ResidualBlock`), off by default (`blocks=0`) — a live residual
+decoder is heavier than a plain one, so only turn it on if VRAM allows.
+
+`output_activation`: `"tanh"` (default) targets pixels in `[-1, 1]` — this is
+the M1 perception-autoencoder convention (`models.preprocess`). `"linear"`
+targets `[0, 1]` with `mean = conv_out + 0.5` (no squashing activation),
+matching DreamerV3's `cnn_sigmoid=False` decoder — used by the M3 world model.
 """
 
 from __future__ import annotations
@@ -24,8 +30,9 @@ from __future__ import annotations
 import math
 
 import torch
-import torch.nn.functional as F
 from torch import Tensor, nn
+
+from models.encoder import ResidualBlock
 
 
 def icnr_(weight: Tensor, upscale: int = 2) -> None:
@@ -76,51 +83,39 @@ def _upsample_block(in_ch: int, out_ch: int) -> nn.Sequential:
     )
 
 
-def _to_rgb_block(in_ch: int, out_channels: int) -> nn.Sequential:
+def _to_rgb_block(in_ch: int, out_channels: int, output_activation: str = "tanh") -> nn.Sequential:
     """Final ×2 to `out_channels` at 64×64.
 
     Both convs run at 32×32 and the upsample is the last op, so this is
     *cheaper* than a 64×64 3x3 conv while giving the RGB layer a hidden conv
     to build 1-2px pixel-art detail with.
+
+    `output_activation="tanh"` squashes to `[-1, 1]` (M1 convention).
+    `"linear"` leaves the conv output as-is; `Decoder.from_map` adds `+ 0.5`
+    to center an untrained network near gray in `[0, 1]` (DreamerV3
+    `cnn_sigmoid=False`), rather than squashing through `sigmoid`/`tanh`.
     """
-    return nn.Sequential(
+    layers: list[nn.Module] = [
         nn.Conv2d(in_ch, in_ch, kernel_size=3, padding=1),
         nn.SiLU(),
         _subpixel_conv(in_ch, out_channels),
         nn.PixelShuffle(2),
-        nn.Tanh(),
-    )
-
-
-def _apply_detached(module: nn.Module, x: Tensor) -> Tensor:
-    """Run `module` with frozen weights so grads flow to `x` only."""
-    if isinstance(module, nn.Sequential):
-        for child in module:
-            x = _apply_detached(child, x)
-        return x
-    if isinstance(module, nn.Conv2d):
-        bias = None if module.bias is None else module.bias.detach()
-        return F.conv2d(
-            x,
-            module.weight.detach(),
-            bias,
-            stride=module.stride,
-            padding=module.padding,
-            dilation=module.dilation,
-            groups=module.groups,
-        )
-    if isinstance(
-        module, (nn.Upsample, nn.PixelShuffle, nn.SiLU, nn.Tanh, nn.Identity)
-    ):
-        return module(x)
-    raise TypeError(f"detach decode unsupported for {type(module)}")
+    ]
+    if output_activation == "tanh":
+        layers.append(nn.Tanh())
+    elif output_activation != "linear":
+        raise ValueError(f"unknown output_activation {output_activation!r}")
+    return nn.Sequential(*layers)
 
 
 class Decoder(nn.Module):
-    """Embedding → image: `[B, embed_dim]` → `[B, 3, 64, 64]` in `[-1, 1]`.
+    """Embedding → image: `[B, embed_dim]` → `[B, 3, 64, 64]`.
 
     Path: embed → `start_res`×`start_res` map, then sub-pixel ×2 stages up to
-    64×64.
+    64×64, with `blocks` residual 3x3 pairs at each resolution (mirrors the
+    encoder; `0` skips them). Pixel range is `[-1, 1]` for
+    `output_activation="tanh"` or `[0, 1]` for `"linear"` — see module
+    docstring.
     """
 
     def __init__(
@@ -130,15 +125,13 @@ class Decoder(nn.Module):
         channels: tuple[int, ...] = (512, 256, 128, 64),
         start_res: int = 4,
         blocks: int = 0,
+        output_activation: str = "tanh",
     ) -> None:
         super().__init__()
         if start_res not in (4, 8):
             raise ValueError(f"start_res must be 4 or 8, got {start_res}")
-        if blocks != 0:
-            raise ValueError(
-                "decoder residual blocks are disabled (VRAM). "
-                f"got blocks={blocks}"
-            )
+        if blocks < 0:
+            raise ValueError(f"blocks must be >= 0, got {blocks}")
         # 4→8→16→32→64 needs 4 upsamples; 8→16→32→64 needs 3.
         n_up = 4 if start_res == 4 else 3
         if len(channels) != n_up:
@@ -150,7 +143,8 @@ class Decoder(nn.Module):
         self.channels0 = channels[0]
         self.start_res = start_res
         self.channels = tuple(channels)
-        self.blocks = 0
+        self.blocks = blocks
+        self.output_activation = output_activation
         self.fc: nn.Module = (
             nn.Identity() if embed_dim == flat_dim else nn.Linear(embed_dim, flat_dim)
         )
@@ -159,26 +153,25 @@ class Decoder(nn.Module):
         prev = channels[0]
         for ch in channels[1:]:
             stages.append(_upsample_block(prev, ch))
+            if blocks > 0:
+                stages.append(nn.Sequential(*[ResidualBlock(ch) for _ in range(blocks)]))
             prev = ch
-        stages.append(_to_rgb_block(prev, out_channels))
+        stages.append(_to_rgb_block(prev, out_channels, output_activation))
         self.up = nn.Sequential(*stages)
         self.embed_dim = embed_dim
         self.flat_dim = flat_dim
 
-    def from_map(self, feat_map: Tensor, *, detach_weights: bool = False) -> Tensor:
-        """Decode a `start_res` feature map: `[B, C, S, S]` → `[B, 3, 64, 64]`.
-
-        `detach_weights=True` keeps grads on `feat_map` (for `HzToMap`) but
-        does not train this upsample, so `[h,z]` has to reproduce the map the
-        encoder path already renders well instead of bending the renderer.
-        """
+    def from_map(self, feat_map: Tensor) -> Tensor:
+        """Decode a `start_res` feature map: `[B, C, S, S]` → `[B, 3, 64, 64]`."""
         expected = (self.channels0, self.start_res, self.start_res)
         if feat_map.ndim != 4 or feat_map.shape[1:] != expected:
             raise ValueError(
                 f"expected feat map [B, {expected[0]}, {expected[1]}, {expected[2]}], "
                 f"got {tuple(feat_map.shape)}"
             )
-        out = _apply_detached(self.up, feat_map) if detach_weights else self.up(feat_map)
+        out = self.up(feat_map)
+        if self.output_activation == "linear":
+            out = out + 0.5
         if out.shape[1:] != (3, 64, 64):
             raise RuntimeError(f"decoder produced unexpected shape {tuple(out.shape)}")
         return out
@@ -190,7 +183,7 @@ class Decoder(nn.Module):
             embed: `[B, embed_dim]`.
 
         Returns:
-            float images `[B, 3, 64, 64]` in `[-1, 1]`.
+            float images `[B, 3, 64, 64]` (range per `output_activation`).
         """
         if embed.ndim != 2 or embed.shape[1] != self.embed_dim:
             raise ValueError(

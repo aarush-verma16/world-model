@@ -18,7 +18,7 @@ from training.replay_buffer import collect_random_episodes
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, default=Path("configs/m3_world_model.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("configs/m3_dreamer_s.yaml"))
     args = parser.parse_args()
     with args.config.open() as f:
         cfg = yaml.safe_load(f)

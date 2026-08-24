@@ -1,18 +1,21 @@
-"""World-model loss terms, including Dreamer-style KL balancing.
+"""World-model loss terms: DreamerV3's four-term recipe, nothing else.
 
-Loss = recon_[h,z] + recon_embed + reward + continue + KL. Logged per term
-so a healthy sum cannot hide a collapsed/exploding KL (M3 exit criterion).
+`total = recon_scale*recon + reward_scale*reward + continue_scale*continue
+       + kl_scale*(dyn_scale*kl_dyn + rep_scale*kl_rep)`
 
-`recon_embed` is skip-free embed→pixels (what the RSSM actually receives).
-`recon_bottleneck` is a log-compat alias of that same tensor on `WorldModel`;
-its scale must stay 0 or the aux recon is counted twice. Do not put M1's
-U-Net skip decoder on this graph — `stem_to_rgb` can copy the frame without
-the embedding carrying anything the RSSM can use.
+Logged per term so a healthy sum cannot hide a collapsed/exploded KL (M3
+exit criterion). `recon_l1` / `reward_mae` are unweighted, human-readable
+metrics — never multiplied into `total` — kept alongside the trained losses
+so "is it actually improving" doesn't require decoding the loss scale by
+hand.
 
-`edge_weight` / `grad_scale` are optional 1px-edge terms, off in the M3
-config. `recon_blob` is 7px-tile mean L1, **off** in the M3 config (it
-is a solid-color-per-tile objective). `recon_avatar` / `recon_hud` are
-optional crop terms, also off. `recon_l1` is always unweighted 64x64 L1.
+This module previously carried ~10 extra terms (embed-bypass recon, a frozen
+`[h,z]` decoder, tile/avatar/HUD crop losses, an edge-aware reweighting).
+None of that is in DreamerV3, and it is why M3 spent weeks not converging —
+see `docs/experiments.md` ("DreamerV3 M3 reset") for the postmortem. Do not
+re-add per-region loss terms; if reconstruction quality is the problem, it is
+almost always a graph/scale bug (recon bypassing the RSSM, or recon too weak
+relative to KL), not a missing loss term.
 """
 
 from __future__ import annotations
@@ -21,36 +24,25 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
-from models.crafter_layout import TILE, avatar_slice, hud_slice, world_slice
 from torch import Tensor
+
+from models.symlog import symlog_twohot_loss, symlog_twohot_mean
 
 
 @dataclass
 class WorldModelLossBreakdown:
     """Per-term losses (already reduced to scalars) plus the weighted total.
 
-    `recon` / `recon_embed` / `recon_bottleneck` are the values actually
-    multiplied into `total` (content-weighted when `edge_weight > 0`).
-    `*_l1` are always plain unweighted pixel loss — the number to compare
-    across runs and against the historical ~0.10 early / ~0.05 late band.
+    `recon` / `reward` / `continue_loss` / `kl` are the values actually
+    multiplied into `total`. `recon_l1` / `reward_mae` are unweighted,
+    log-only metrics for humans.
     """
 
     total: Tensor
     recon: Tensor
-    recon_embed: Tensor
-    recon_bottleneck: Tensor
     recon_l1: Tensor
-    recon_embed_l1: Tensor
-    recon_bottleneck_l1: Tensor
-    recon_map: Tensor
-    recon_blob: Tensor
-    recon_embed_blob: Tensor
-    recon_avatar: Tensor
-    recon_embed_avatar: Tensor
-    recon_hud: Tensor
-    recon_embed_hud: Tensor
-    grad: Tensor
     reward: Tensor
+    reward_mae: Tensor
     continue_loss: Tensor
     kl: Tensor
     kl_dyn: Tensor
@@ -110,18 +102,16 @@ def kl_balance(
       here is what "up to `free_nats` of information is free" means.
     - `kl_dyn` trains the **prior** (posterior detached). It cannot restrict
       information at all — it only makes the dynamics model better at
-      predicting `z`. Flooring it means the prior stops improving the moment it
-      is within `free_nats`, which is a trap: content the prior can predict
-      costs *zero* rate, so freezing the prior permanently charges the
-      posterior's small budget for anything that moves, and it gets dropped
-      instead. Pass `free_nats_dyn=0.0` to leave the dynamics model learning.
-      That lowers `kl_raw` (a better prior) while *increasing* how much detail
-      reaches the decoder — the opposite of trading one against the other.
+      predicting `z`. DreamerV3's default (`free_nats_dyn=None` → reuse
+      `free_nats`) floors this too; only pass `free_nats_dyn=0.0` if a run
+      shows `kl_dyn_raw` welded exactly to `free_nats` for thousands of steps
+      *and* open-loop video prediction is still broken after everything else
+      in this recipe is paper-faithful (recon scale/reduction, live decoder).
 
     Args:
         free_nats: floor on the rep term (the rate budget).
         free_nats_dyn: floor on the dyn term; `None` reuses `free_nats` (the
-            DreamerV3 default, kept so old configs behave identically).
+            DreamerV3 default).
 
     Returns:
         `(kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean)`
@@ -142,153 +132,33 @@ def kl_balance(
     return kl_loss, kl_dyn_mean, kl_rep_mean, kl_dyn_raw_mean, kl_rep_raw_mean
 
 
-def _pixel_loss(pred: Tensor, target: Tensor, kind: str) -> Tensor:
-    if kind == "l1":
-        return F.l1_loss(pred, target)
-    if kind == "mse":
-        return F.mse_loss(pred, target)
-    raise ValueError(f"unknown recon_loss_type {kind!r}")
+def image_mse_loss(pred: Tensor, target: Tensor) -> Tensor:
+    """Squared-error image loss, DreamerV3 reduction: sum over pixels, mean over B/T.
 
-
-def content_weight_map(target: Tensor, edge_weight: float) -> Tensor:
-    """Per-pixel weight `[..., 1, H, W]`, boosted where `target` has structure.
-
-    Plain per-pixel L1/MSE rewards matching each region's *average* color.
-    In Crafter, flat grass/dirt is ~90% of pixels while HUD icons, sprite
-    silhouettes, and tile edges -- the actually informative content -- are a
-    tiny minority. Getting the grass right already gets loss very low, so
-    the optimizer has little incentive to spend capacity on the sparse stuff
-    (confirmed via a probe: `[h,z]` correctly picks up large regions like
-    water, but leaves HUD/sprites blank even as pixel loss drops nicely).
-
-    This weights each pixel by the squared local gradient magnitude of the
-    *real* frame only (never the prediction -- it's a fixed target-side
-    weight, detached from the graph). Squaring matters: Crafter's grass/dirt
-    dithering has small but nonzero gradients everywhere, while HUD icon
-    edges and sprite outlines are near-maximal-contrast jumps. Squaring
-    keeps the dithering noise's weight close to 1x while sharp structural
-    edges reach 10-100x, so the loss actually cares whether icons/sprites
-    are there instead of averaging them away.
-
-    Args:
-        target: `[..., C, H, W]`, any leading dims, values in `[-1, 1]`.
-        edge_weight: strength of the boost; `0.0` means uniform weight `1.0`
-            (equivalent to unweighted L1/MSE).
-    """
-    dx = F.pad(target[..., :, 1:] - target[..., :, :-1], (0, 1, 0, 0))
-    dy = F.pad(target[..., 1:, :] - target[..., :-1, :], (0, 0, 0, 1))
-    mag = dx.abs().mean(dim=-3, keepdim=True) + dy.abs().mean(dim=-3, keepdim=True)
-    return 1.0 + edge_weight * mag.pow(2)
-
-
-def blob_recon_loss(pred: Tensor, target: Tensor, pool: int = 8) -> Tensor:
-    """L1 on average-pooled images (sprite-scale cells, not 1px edges).
-
-    64x64 L1 is a median: an 8px cow in a 16x16 decoder cell is a minority
-    of that cell, so the optimum is to paint grass and the cow never even
-    appears as a blur. Crafter tiles are 8px. Pooling to 8x8 makes that cow
-    a majority of its cell, so the same L1 has to match the cow's color — a
-    blob in the right place. This is not `edge_weight` (HUD digit strokes)
-    and not an 8px decoder bottleneck (RSSM flatten stays 4x4).
-
-    Args:
-        pred / target: `[..., C, H, W]` in `[-1, 1]`. `H` and `W` must be
-            divisible by `pool`.
-        pool: window size. `8` → 8x8 cells on a 64x64 frame.
-    """
-    if pred.shape != target.shape:
-        raise ValueError(f"pred {tuple(pred.shape)} != target {tuple(target.shape)}")
-    if pred.ndim < 4:
-        raise ValueError(f"expected [..., C, H, W], got {tuple(pred.shape)}")
-    pred_n = pred.reshape(-1, *pred.shape[-3:])
-    target_n = target.reshape(-1, *target.shape[-3:])
-    _, _, height, width = pred_n.shape
-    if height % pool != 0 or width % pool != 0:
-        raise ValueError(f"spatial {(height, width)} not divisible by pool={pool}")
-    return F.l1_loss(F.avg_pool2d(pred_n, pool), F.avg_pool2d(target_n, pool))
-
-
-def tile_blob_loss(pred: Tensor, target: Tensor, local_scale: float = 4.0) -> Tensor:
-    """L1 on Crafter's 7px tiles, weighted by local 3×3 deviation.
-
-    Trees are large/common so plain 8×8 blob L1 finds them. Cows, zombies,
-    skeletons, and saplings are one 7px tile and rare; this term equalizes
-    tiles and boosts cells that differ from their neighbors (an object on
-    grass) without 1px `edge_weight`.
-    """
-    pred_w = world_slice(pred.reshape(-1, *pred.shape[-3:]))
-    target_w = world_slice(target.reshape(-1, *target.shape[-3:]))
-    pred_c = F.avg_pool2d(pred_w, TILE)
-    target_c = F.avg_pool2d(target_w, TILE)
-    diff = (pred_c - target_c).abs()
-    bg = F.avg_pool2d(target_c, kernel_size=3, stride=1, padding=1)
-    dev = (target_c - bg).abs().mean(dim=1, keepdim=True)
-    weight = 1.0 + local_scale * dev.detach()
-    return (weight * diff).mean()
-
-
-def avatar_recon_loss(pred: Tensor, target: Tensor) -> Tensor:
-    """L1 on the 3×3 tiles around the (fixed) Crafter player camera."""
-    return F.l1_loss(
-        avatar_slice(pred.reshape(-1, *pred.shape[-3:])),
-        avatar_slice(target.reshape(-1, *target.shape[-3:])),
-    )
-
-
-def hud_recon_loss(pred: Tensor, target: Tensor) -> Tensor:
-    """L1 on the 14×63 inventory strip plus 2×9 slot-mean L1.
-
-    Amount glyphs are ~4px in a 7px slot. Slot-mean L1 makes occupancy
-    (empty vs health=9 vs health=3) required; pixel L1 on the strip can
-    then change the digit texture. Not skip-to-RGB; the HUD head paints
-    this region from the bottom 4×4 row.
-    """
-    pred_h = hud_slice(pred.reshape(-1, *pred.shape[-3:]))
-    target_h = hud_slice(target.reshape(-1, *target.shape[-3:]))
-    pixel = F.l1_loss(pred_h, target_h)
-    slot = F.l1_loss(F.avg_pool2d(pred_h, TILE), F.avg_pool2d(target_h, TILE))
-    return pixel + slot
-
-
-def weighted_pixel_loss(pred: Tensor, target: Tensor, kind: str, edge_weight: float) -> Tensor:
-    """`_pixel_loss` but reweighted by `content_weight_map` when `edge_weight > 0`."""
-    if edge_weight <= 0.0:
-        return _pixel_loss(pred, target, kind)
-    weight = content_weight_map(target, edge_weight).detach()
-    diff = (pred - target).abs() if kind == "l1" else (pred - target).pow(2)
-    return (weight * diff).mean()
-
-
-def gradient_l1_loss(pred: Tensor, target: Tensor) -> Tensor:
-    """L1 loss between image finite-difference gradients (edge-aware term).
-
-    Plain per-pixel L1/MSE rewards matching a region's *average* color, so a
-    1-2px sprite outline or HUD icon/number stroke (a tiny fraction of a
-    region's pixels) barely moves that average -- the optimizer has little
-    incentive to sharpen it even as pixel loss keeps dropping. Comparing
-    horizontal/vertical finite differences instead explicitly rewards
-    matching *where* the image changes, which is what "sharp edges" actually
-    means. This directly targets blurry backgrounds and illegible HUD bars
-    that persist despite falling pixel loss.
+    This is what makes reconstruction the dominant term against a KL that
+    free-bits pins near 1 nat — a per-pixel *mean* (as an unweighted L1/MSE
+    metric would give) is ~4 orders of magnitude smaller than the paper's
+    per-timestep sum and lets KL dominate the gradient instead, which is what
+    silently starved reconstruction in the pre-reset loss (see
+    `docs/experiments.md`).
 
     Args:
         pred / target: `[..., C, H, W]`, any leading dims.
+
+    Returns:
+        scalar mean over the leading dims of the per-step summed squared error.
     """
-    pred_dx = pred[..., :, 1:] - pred[..., :, :-1]
-    pred_dy = pred[..., 1:, :] - pred[..., :-1, :]
-    target_dx = target[..., :, 1:] - target[..., :, :-1]
-    target_dy = target[..., 1:, :] - target[..., :-1, :]
-    return F.l1_loss(pred_dx, target_dx) + F.l1_loss(pred_dy, target_dy)
+    se = (pred - target).pow(2)
+    return se.flatten(start_dim=pred.ndim - 3).sum(dim=-1).mean()
 
 
 def world_model_loss(
     *,
     obs: Tensor,
     recon: Tensor,
-    recon_embed: Tensor,
-    recon_bottleneck: Tensor,
     reward: Tensor,
     reward_pred: Tensor,
+    reward_bins: Tensor,
     cont: Tensor,
     cont_logit: Tensor,
     post_logits: Tensor,
@@ -299,83 +169,33 @@ def world_model_loss(
     free_nats: float = 1.0,
     free_nats_dyn: float | None = None,
     recon_scale: float = 1.0,
-    recon_embed_scale: float = 1.0,
-    recon_bottleneck_scale: float = 0.0,
     reward_scale: float = 1.0,
     continue_scale: float = 1.0,
     kl_scale: float = 1.0,
-    grad_scale: float = 0.0,
-    recon_loss_type: str = "l1",
-    edge_weight: float = 0.0,
-    hz_map: Tensor | None = None,
-    embed_map: Tensor | None = None,
-    recon_map_scale: float = 0.0,
-    recon_blob_scale: float = 0.0,
-    recon_avatar_scale: float = 0.0,
-    recon_hud_scale: float = 0.0,
 ) -> WorldModelLossBreakdown:
-    """Assemble world-model terms.
+    """Assemble the four DreamerV3 world-model loss terms.
 
     Args:
-        obs / recon / recon_embed / recon_bottleneck: float images
-            `[B, T, 3, H, W]` in `[-1, 1]`
-        reward: `[B, T]`
-        reward_pred / cont_logit: `[B, T, 1]` or `[B, T]`
-        cont: `[B, T]` in `{0, 1}`
-        post_logits / prior_logits: `[B, T, stoch, classes]`
+        obs / recon: float images `[B, T, 3, H, W]`, same range (`[0, 1]` for
+            the M3 `output_activation="linear"` decoder).
+        reward: `[B, T]` real reward.
+        reward_pred: `[B, T, num_bins]` logits from `RewardHead`.
+        reward_bins: `RewardHead.bins`, `[num_bins]`.
+        cont_logit: `[B, T, 1]` or `[B, T]`.
+        cont: `[B, T]` in `{0, 1}`.
+        post_logits / prior_logits: `[B, T, stoch, classes]`.
         free_nats: floor on the rep KL (the information-rate budget).
-        free_nats_dyn: floor on the dyn KL, which only trains the prior. `0.0`
-            keeps the dynamics model learning past the budget; `None` reuses
-            `free_nats` (DreamerV3 default). See `kl_balance`.
-        grad_scale: weight on the edge-aware gradient term (see
-            `gradient_l1_loss`); `0.0` disables it entirely (default, for
-            backward compat with earlier checkpoints/configs).
-        edge_weight: weight on the content/edge reweighting of the pixel
-            loss terms (see `content_weight_map`); `0.0` keeps plain
-            uniform-weight L1/MSE (default, for backward compat).
-        recon_blob_scale: weight on 7px-tile blob L1 (`tile_blob_loss`) for
-            `[h,z]` and embed recon. `0.0` keeps it out of `total` (still
-            logged).
-        recon_avatar_scale: weight on the 3×3 player crop.
-        recon_hud_scale: weight on the inventory strip (composited HUD head).
+        free_nats_dyn: floor on the dyn KL; `None` reuses `free_nats`
+            (DreamerV3 default). See `kl_balance`.
     """
-    shared_embed = recon_embed is recon_bottleneck
-    recon_l1 = _pixel_loss(recon, obs, recon_loss_type)
-    recon_embed_l1 = _pixel_loss(recon_embed, obs, recon_loss_type)
-    recon_loss = weighted_pixel_loss(recon, obs, recon_loss_type, edge_weight)
-    recon_embed_loss = weighted_pixel_loss(recon_embed, obs, recon_loss_type, edge_weight)
-    if shared_embed:
-        recon_bottleneck_l1 = recon_embed_l1
-        recon_bottleneck_loss = recon_embed_loss
-        # Same tensor as recon_embed — never add it twice into `total`.
-        recon_bottleneck_scale = 0.0
-    else:
-        recon_bottleneck_l1 = _pixel_loss(recon_bottleneck, obs, recon_loss_type)
-        recon_bottleneck_loss = weighted_pixel_loss(
-            recon_bottleneck, obs, recon_loss_type, edge_weight
-        )
-    if grad_scale > 0.0:
-        grad_loss = gradient_l1_loss(recon, obs) + gradient_l1_loss(recon_embed, obs)
-        if not shared_embed:
-            grad_loss = grad_loss + gradient_l1_loss(recon_bottleneck, obs)
-    else:
-        grad_loss = recon.new_zeros(())
+    recon_loss = image_mse_loss(recon, obs)
+    recon_l1 = F.l1_loss(recon, obs)
 
-    if hz_map is not None and embed_map is not None and recon_map_scale != 0.0:
-        recon_map = F.l1_loss(hz_map, embed_map.detach())
-    else:
-        recon_map = recon.new_zeros(())
-        recon_map_scale = 0.0
-
-    recon_blob = tile_blob_loss(recon, obs)
-    recon_embed_blob = tile_blob_loss(recon_embed, obs)
-    recon_avatar = avatar_recon_loss(recon, obs)
-    recon_embed_avatar = avatar_recon_loss(recon_embed, obs)
-    recon_hud = hud_recon_loss(recon, obs)
-    recon_embed_hud = hud_recon_loss(recon_embed, obs)
-
-    reward_pred = reward_pred.squeeze(-1)
-    reward_loss = F.mse_loss(reward_pred, reward)
+    reward_nll = symlog_twohot_loss(reward_pred, reward_bins, reward)
+    reward_loss = reward_nll.mean()
+    with torch.no_grad():
+        reward_decoded = symlog_twohot_mean(reward_pred, reward_bins)
+        reward_mae = F.l1_loss(reward_decoded, reward)
 
     cont_logit = cont_logit.squeeze(-1)
     continue_loss = F.binary_cross_entropy_with_logits(cont_logit, cont.float())
@@ -392,37 +212,16 @@ def world_model_loss(
 
     total = (
         recon_scale * recon_loss
-        + recon_embed_scale * recon_embed_loss
-        + recon_bottleneck_scale * recon_bottleneck_loss
         + reward_scale * reward_loss
         + continue_scale * continue_loss
         + kl_scale * kl_loss
-        + grad_scale * grad_loss
-        + recon_map_scale * recon_map
-        + recon_blob_scale * recon_blob
-        + recon_blob_scale * recon_embed_blob
-        + recon_avatar_scale * recon_avatar
-        + recon_avatar_scale * recon_embed_avatar
-        + recon_hud_scale * recon_hud
-        + recon_hud_scale * recon_embed_hud
     )
     return WorldModelLossBreakdown(
         total=total,
         recon=recon_loss,
-        recon_embed=recon_embed_loss,
-        recon_bottleneck=recon_bottleneck_loss,
         recon_l1=recon_l1,
-        recon_embed_l1=recon_embed_l1,
-        recon_bottleneck_l1=recon_bottleneck_l1,
-        recon_map=recon_map,
-        recon_blob=recon_blob,
-        recon_embed_blob=recon_embed_blob,
-        recon_avatar=recon_avatar,
-        recon_embed_avatar=recon_embed_avatar,
-        recon_hud=recon_hud,
-        recon_embed_hud=recon_embed_hud,
-        grad=grad_loss,
         reward=reward_loss,
+        reward_mae=reward_mae,
         continue_loss=continue_loss,
         kl=kl_loss,
         kl_dyn=kl_dyn,

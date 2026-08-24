@@ -2,6 +2,131 @@
 
 Living log of approaches tried, including failures and why they failed.
 
+## DreamerV3 M3 reset (2026-08-23)
+
+Two weeks of tuning on `configs/m3_world_model.yaml` (the sub-pixel decoder,
+`HzToMap`, per-cell `z`, `free_nats_dyn: 0.0`, blob/avatar/HUD crop losses,
+etc. — every entry below this one) never reached M3's exit bar. Stepping back:
+none of those fixes were wrong given what they were diagnosing, but the graph
+they were diagnosing had drifted from DreamerV3 far enough that the optimizer
+was solving a different problem than "train a DreamerV3 world model". Rather
+than add another loss term, this reset the training graph to match
+`NM512/dreamerv3-torch`'s actual `WorldModel._train` step, and dropped
+everything that graph doesn't have.
+
+### What was actually wrong (the graph, not the weights)
+
+1. **A second decoder trained straight off the encoder embedding
+   (`recon_embed`), bypassing the RSSM entirely.** This is not in DreamerV3 —
+   the only decoder input in the paper is `feat = concat(h, z_posterior)`.
+   With a free bypass, the encoder+decoder pair can converge as a plain
+   autoencoder (embed recon looked fine) while `[h,z]` carries almost nothing,
+   because nothing forces the *information the RSSM sees* to be what gets
+   reconstructed. Every earlier "loss weight" tune was really fighting this:
+   `[h,z]` misplacing terrain while embed looked fine (the exact split this
+   bypass predicts) got diagnosed as "`HzToMap` needs more capacity" or
+   "posterior needs to be spatial" instead of "the decoder has an escape hatch
+   that doesn't require the RSSM to work at all."
+2. **`[h,z]` decoded through a `detach_weights=True` copy of the decoder.**
+   So even without the bypass, the one path that *did* go through the RSSM
+   could never learn to render — only `feat`, not the renderer, could move.
+   Combined with (1), the renderer trained exclusively on the bypass path.
+3. **Unweighted-mean pixel L1 vs. a KL summed over categoricals.** DreamerV3's
+   image loss is `-logprob` under an (effectively) MSE decoder, i.e. squared
+   error **summed over `C*H*W`** then averaged over batch/time — a few hundred
+   nats at typical error rates. A per-pixel *mean* (`recon_l1` here) is smaller
+   by a factor of `C*H*W` (~12k), so at `recon_scale=5` the actual reconstruction
+   pressure was on the order of 0.03-0.15, next to a KL sitting at 1-2 nats —
+   backwards from the paper, where reconstruction dominates and KL is
+   deliberately kept small by free bits. This is the root cause the "KL welded
+   above `free_nats`" entries below were really fighting.
+4. Smaller deviations in the same direction: `HzToMap` (no DreamerV3
+   equivalent — the paper's decoder reads `feat` through a plain dense layer,
+   not a hand-built spatial map from `h`), per-region crop losses
+   (`recon_blob`/`recon_avatar`/`recon_hud`/`edge_weight` — none exist in the
+   paper; DreamerV3 gets Crafter mobs/HUD from the *encoder's* residual blocks
+   and enough training, not per-region loss engineering), a scalar MSE reward
+   head (Crafter reward is ~always 0, so MSE learns to always predict 0 —
+   DreamerV3 uses symlog two-hot classification specifically to avoid this),
+   and `grad_clip=100` vs the paper's `1000`.
+
+### What changed
+
+- `src/models/world_model.py`: removed `HzToMap`, the auxiliary embed
+  decoder, and `recon_bottleneck`/`recon_embed`. One decoder, decoding live
+  from `feat = concat(h, z_posterior)`. Added `WorldModel.video_predict` (open
+  -loop rollout: posterior for a context window, then pure `z_prior`
+  imagination for the rest, decoded — DreamerV3's `video_pred` diagnostic).
+- `src/models/decoder.py`: dropped `detach_weights` entirely (no path needs
+  it now); added optional residual blocks (`blocks>0`, affordable with only
+  one decoder) and `output_activation="linear"` (`+0.5`, DreamerV3
+  `cnn_sigmoid=False`, pixels in `[0, 1]`) alongside the old `"tanh"`
+  (`[-1, 1]`, kept as the default so M1's autoencoder is unaffected).
+- `src/models/symlog.py` (new) + `RewardHead` (`src/models/heads.py`):
+  symlog two-hot discrete reward regression (255 bins over `symlog([-20,
+  20])`), matching DreamerV3's reward/critic head.
+- `src/training/losses.py`: dropped every per-region loss
+  (`content_weight_map`/`blob_recon_loss`/`tile_blob_loss`/
+  `avatar_recon_loss`/`hud_recon_loss`/`weighted_pixel_loss`/
+  `gradient_l1_loss`) and the embed/bottleneck recon terms. `world_model_loss`
+  is now exactly the paper's four terms: `image_mse_loss` (sum over pixels,
+  mean over batch/time), symlog two-hot reward NLL, continue BCE, and
+  `kl_balance` (unchanged mechanism — see the KL entries below, still valid).
+  `recon_l1` / `reward_mae` kept as unweighted, log-only human-readable
+  metrics (never multiplied into `total`).
+- `src/training/wm_step.py`: grad-clip norm 100 -> 1000 (paper default; a
+  ceiling for genuine blowups, not a routine clamp — it only mattered because
+  gradients used to be artificially small).
+- `configs/m3_dreamer_s.yaml` (new): DreamerV3 "size S" recipe — encoder/
+  decoder depth 32 (channels 32/64/128/256, `blocks=1`), `deter=512`,
+  `stoch=32 x classes=32`, `hidden=512`, `prior_layers=1`, `lr=1e-4`,
+  `dyn_scale=0.5`/`rep_scale=0.1`/`free_nats=1.0` on **both** KL terms
+  (`free_nats_dyn: null` reuses `free_nats`, the paper default — opening
+  `free_nats_dyn` is deliberately not the starting point this time, since the
+  frozen-decoder bug that motivated it is gone). `configs/m3_world_model.yaml`
+  is left on disk for history but is no longer the default anywhere.
+- `scripts/collect_replay.py` default config now points at
+  `configs/m3_dreamer_s.yaml`, and the new config collects 600 random
+  episodes (was 80) — more unique frames per gradient step.
+- `scripts/train_world_model.py`, `scripts/smoke_cuda_step.py`,
+  `tests/test_world_model_m3.py`, `notebooks/05_train_world_model.ipynb`:
+  rewritten for the new API/metrics (`recon`/`recon_l1`/`reward`/
+  `reward_mae`/`continue`/`kl`/`kl_dyn_raw`/`kl_rep_raw` — no more
+  `recon_embed*`/`recon_blob`/`recon_avatar`/`recon_hud`/`grad`), plus an
+  open-loop video-prediction panel/gate alongside the posterior-recon panel.
+
+### Do-not-revive list (each failed for a documented reason above or below)
+
+- A second decoder / any path that can reconstruct without going through
+  `z_posterior` (the actual root cause of two weeks of "embed looks fine,
+  `[h,z]` doesn't").
+- `detach_weights` / a frozen decoder on any path that's supposed to learn to
+  render.
+- Per-region crop or blob losses (`recon_blob`/`recon_avatar`/`recon_hud`/
+  `edge_weight`/`content_weight_map`/`gradient_l1_loss`) — not in DreamerV3;
+  they were treating a scale bug (item 3 above) as a missing-detail problem.
+- Per-pixel-*mean* reconstruction loss — always use the paper's
+  sum-over-pixels reduction (`image_mse_loss`), or KL will dominate again.
+- Chasing pixel-perfect / sharp reconstructions as the M3 bar. DreamerV3's own
+  Crafter reconstructions are recognizable and blurry; `milestones.md`'s exit
+  criterion is reward correlation and healthy losses, not sprite sharpness.
+
+### Honest limitations of this reset
+
+- `is_first` is not threaded into `RSSM.observe`. DreamerV3's real replay is a
+  continuous stream where a sampled window can cross an episode boundary
+  mid-sequence; `ReplayBuffer.sample` here only ever samples a window fully
+  inside one episode (`start + seq_len <= episode_len`), so there is no
+  boundary to reset across yet. This becomes necessary once M4/M5 introduce a
+  growing/streaming buffer.
+- Still supervised world-model training on a frozen random-policy replay
+  buffer, not the online collect/train loop — that's M4/M5, per
+  `milestones.md`.
+- `prior_layers=1` and the exact `dyn_scale`/`rep_scale` split follow
+  `NM512/dreamerv3-torch`'s `configs.yaml` rather than the paper's Table 4
+  (which lists `dyn_scale=1.0`); the two published sources disagree slightly
+  and this picked the runnable reference.
+
 ## Sub-pixel decoder + spatial `h` (2026-08-23)
 
 The 12k run finished with `recon_l1` 0.037 / `recon_embed_l1` 0.027 and still

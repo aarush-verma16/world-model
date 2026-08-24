@@ -1,11 +1,13 @@
 """Train the full world model (encoder + RSSM + decoder + heads) on replay.
 
-Logs each loss term separately (recon / reward / continue / KL) to TensorBoard.
+Logs each loss term separately (recon / reward / continue / KL) to
+TensorBoard, and periodically writes a posterior-recon grid plus an
+open-loop (DreamerV3 `video_pred`-style) strip to `results/`.
 
 Usage (Windows / CUDA):
     conda activate worldmodel
-    python scripts/collect_replay.py
-    python scripts/train_world_model.py
+    python scripts/collect_replay.py --config configs/m3_dreamer_s.yaml
+    python scripts/train_world_model.py --config configs/m3_dreamer_s.yaml
     tensorboard --logdir runs
 
 Prefer `notebooks/05_train_world_model.ipynb` for a live run you can watch
@@ -25,7 +27,8 @@ import torch
 import yaml
 from torch.utils.tensorboard import SummaryWriter
 
-from models.preprocess import nchw_float_to_nhwc_uint8, nhwc_uint8_to_nchw_float
+from models.preprocess import nchw_unit_to_nhwc_uint8, nhwc_uint8_to_nchw_unit
+from models.symlog import symlog_twohot_mean
 from models.world_model import WorldModel
 from training.device import (
     autocast_context,
@@ -48,25 +51,82 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def save_recon_grid(obs_u8: torch.Tensor, preds: list[torch.Tensor], path: Path) -> None:
-    """obs `[B,T,H,W,C]` uint8, preds each `[B,T,3,H,W]` float → side-by-side PNG.
+def build_model(cfg: dict) -> WorldModel:
+    enc = cfg["encoder"]
+    rssm = cfg["rssm"]
+    dec = cfg.get("decoder", {})
+    heads = cfg.get("heads", {})
+    return WorldModel.from_config_dims(
+        embed_dim=int(enc["embed_dim"]),
+        encoder_channels=tuple(int(c) for c in enc["channels"]),
+        action_dim=int(cfg["env"]["action_dim"]),
+        deter_dim=int(rssm["deter_dim"]),
+        stoch=int(rssm["stoch"]),
+        classes=int(rssm["classes"]),
+        hidden=int(rssm["hidden"]),
+        unimix=float(rssm.get("unimix", 0.01)),
+        act=str(rssm.get("act", "silu")),
+        initial=str(rssm.get("initial", "learned")),
+        rec_depth=int(rssm.get("rec_depth", 1)),
+        prior_layers=int(rssm.get("prior_layers", 1)),
+        decoder_channels=tuple(int(c) for c in dec.get("channels", [256, 128, 64, 32])),
+        head_hidden=int(heads.get("hidden", 512)),
+        head_layers=int(heads.get("layers", 2)),
+        encoder_blocks=int(enc.get("blocks", 1)),
+        decoder_blocks=int(dec.get("blocks", 1)),
+        output_activation=str(dec.get("output_activation", "linear")),
+        reward_num_bins=int(heads.get("reward_bins", 255)),
+        reward_low=float(heads.get("reward_low", -20.0)),
+        reward_high=float(heads.get("reward_high", 20.0)),
+    )
 
-    Column order: real, then each entry of `preds` in order. Callers pass
-    `[recon, recon_embed]` (`[h,z]` and skip-free embed — what RSSM sees).
-    """
+
+def save_recon_grid(obs_u8: torch.Tensor, recon: torch.Tensor, path: Path) -> None:
+    """obs `[B,T,H,W,C]` uint8, recon `[B,T,3,H,W]` float in `[0,1]` → real|recon PNG."""
     from PIL import Image
 
-    # Mid-sequence: t=0 has a near-init `h`, so [h,z] looks like a generic
-    # spawn even when later steps have the right layout.
+    # Mid-sequence: t=0 has a near-init `h`, so early steps look like a
+    # generic spawn even once the model is learning fine.
     t_vis = obs_u8.shape[1] // 2
     real = obs_u8[:, t_vis].cpu()
-    pred_imgs = [nchw_float_to_nhwc_uint8(p[:, t_vis].detach().cpu()) for p in preds]
+    pred = nchw_unit_to_nhwc_uint8(recon[:, t_vis].detach().cpu())
     strips = [
-        np.concatenate([real[i].numpy()] + [p[i].numpy() for p in pred_imgs], axis=1)
-        for i in range(real.shape[0])
+        np.concatenate([real[i].numpy(), pred[i].numpy()], axis=1) for i in range(real.shape[0])
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(np.concatenate(strips, axis=0), mode="RGB").save(path)
+
+
+def save_video_pred_strip(
+    obs_u8: torch.Tensor,
+    context_recon: torch.Tensor,
+    imagined_recon: torch.Tensor,
+    context_len: int,
+    path: Path,
+) -> None:
+    """DreamerV3 `video_pred` panel: truth / model (context+imagined) / error, one row.
+
+    Uses the first sequence in the batch. Columns are timesteps; a vertical
+    line would fall at `context_len` if drawn (context left of it is real
+    frames the model conditioned on, right of it is pure imagination).
+    """
+    from PIL import Image
+
+    truth = obs_u8[0].float() / 255.0  # [T, H, W, C]
+    model = torch.cat([context_recon[0], imagined_recon[0]], dim=0)  # [T, 3, H, W]
+    model = model.permute(0, 2, 3, 1).clamp(0.0, 1.0).cpu()  # [T, H, W, C]
+    error = (model - truth + 1.0) / 2.0
+
+    def to_uint8(x: torch.Tensor) -> np.ndarray:
+        return (x.clamp(0.0, 1.0) * 255.0).round().to(torch.uint8).numpy()
+
+    rows = [
+        np.concatenate([to_uint8(truth[t]) for t in range(truth.shape[0])], axis=1),
+        np.concatenate([to_uint8(model[t]) for t in range(model.shape[0])], axis=1),
+        np.concatenate([to_uint8(error[t]) for t in range(error.shape[0])], axis=1),
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(np.concatenate(rows, axis=0), mode="RGB").save(path)
 
 
 def print_exit_criteria(
@@ -74,81 +134,79 @@ def print_exit_criteria(
     *,
     obs_std: float,
     recon_std: float,
-    embed_std: float,
-    bottleneck_std: float,
     reward_true: np.ndarray | None = None,
     reward_pred: np.ndarray | None = None,
+    imagined_recon_std: float | None = None,
 ) -> bool:
-    """Print PASS/FAIL against M3's exit criteria. Returns overall pass/fail."""
+    """Print PASS/FAIL against M3's faithful-DreamerV3 exit criteria."""
     if len(history) < 2:
         print("[SKIP] not enough logged steps to judge a trend")
         return False
 
     first, last = history[0], history[-1]
 
-    def pct_drop(key: str) -> float:
-        return 1.0 - (last[key] / max(first[key], 1e-8))
-
     checks: list[tuple[str, bool, str]] = []
-    for key, min_drop in [("recon_l1", 0.5), ("recon_embed_l1", 0.5)]:
-        # Fall back to the training-term key on old metrics dumps that predate *_l1.
-        a = first.get(key, first.get(key.replace("_l1", ""), 0.0))
-        b = last.get(key, last.get(key.replace("_l1", ""), 0.0))
-        drop = 1.0 - (b / max(a, 1e-8))
+
+    def pct_drop(key: str) -> float:
+        a, b = first[key], last[key]
+        return 1.0 - (b / max(a, 1e-8))
+
+    for key, min_drop in [("recon_l1", 0.3), ("reward", 0.1), ("continue", 0.3)]:
+        drop = pct_drop(key)
         checks.append(
             (
                 f"{key} loss dropped >= {min_drop:.0%} "
-                f"(first={a:.4f} -> last={b:.4f}, actual={drop:.0%})",
+                f"(first={first[key]:.4f} -> last={last[key]:.4f}, actual={drop:.0%})",
                 drop >= min_drop,
-                "recon isn't improving -- check lr, recon_scale, or a decoder/data bug",
+                f"{key} isn't improving -- check lr/scale or a graph bug",
             )
         )
 
-    # kl_dyn_raw is the TOTAL KL of the latent (summed over stoch groups).
-    # free_nats is a floor on the *loss* (max(KL, 1)), not a ceiling on the
-    # value. Sitting a bit above 1 (this box's 8k-step run lived at 1.07-1.16
-    # for thousands of steps) means the regularizer is on, which is healthy.
-    # Real failure modes are collapse toward ~0 (dead latent) or blowing up
-    # toward tens of nats (posterior ignoring the prior).
-    kl_dyn_last = last["kl_dyn_raw"]
+    # kl_dyn_raw / kl_rep_raw are the TOTAL KL of the latent (summed over
+    # stoch groups). free_nats is a floor on the *loss*, not a ceiling on the
+    # value -- DreamerV3 runs commonly sit at 0.3-5 nats. Real failure modes
+    # are collapse toward ~0 (dead latent) or blowing up toward tens of nats.
+    kl_rep_last = last["kl_rep_raw"]
     checks.append(
         (
-            f"kl_dyn_raw isn't dead (last={kl_dyn_last:.3f} > 0.02)",
-            kl_dyn_last > 0.02,
+            f"kl_rep_raw isn't dead (last={kl_rep_last:.3f} > 0.02)",
+            kl_rep_last > 0.02,
             "posterior has collapsed onto the prior -- latent carries ~no information",
         )
     )
     checks.append(
         (
-            f"kl_dyn_raw hasn't exploded (last={kl_dyn_last:.3f} < 30.0)",
-            kl_dyn_last < 30.0,
+            f"kl_rep_raw hasn't exploded (last={kl_rep_last:.3f} < 30.0)",
+            kl_rep_last < 30.0,
             "posterior is ignoring the prior entirely -- imagination rollouts will drift badly",
         )
     )
 
-    for name, std in [
-        ("recon", recon_std),
-        ("recon_embed", embed_std),
-    ]:
-        ratio = std / max(obs_std, 1e-8)
+    ratio = recon_std / max(obs_std, 1e-8)
+    checks.append(
+        (
+            f"recon pixel std is close to real (recon_std={recon_std:.4f} "
+            f"vs obs_std={obs_std:.4f}, ratio={ratio:.2f})",
+            ratio > 0.4,
+            "recon has collapsed toward a constant (solid-color) output",
+        )
+    )
+
+    if imagined_recon_std is not None:
+        ratio_img = imagined_recon_std / max(obs_std, 1e-8)
         checks.append(
             (
-                f"{name} pixel std is close to real "
-                f"({name}_std={std:.4f} vs obs_std={obs_std:.4f}, ratio={ratio:.2f})",
-                ratio > 0.4,
-                f"{name} has collapsed toward a constant (solid-color) output -- "
-                "note: this only checks AGGREGATE pixel variance, not WHETHER that "
-                "variance is in the right place. A model that nails big-block "
-                "background color while dropping every small object (HUD digits, "
-                "mobs, precise player pose) can still pass this check -- eyeball "
-                "recon_final.png, don't rely on this alone.",
+                f"open-loop imagined recon std isn't collapsed "
+                f"(imagined_std={imagined_recon_std:.4f} vs obs_std={obs_std:.4f}, "
+                f"ratio={ratio_img:.2f})",
+                ratio_img > 0.15,
+                "prior rollouts collapse to a constant frame -- dynamics model, not just "
+                "the decoder, is broken; inspect the video_pred_*.png strip",
             )
         )
 
-    # M3's actual documented exit criterion (milestones.md) is reward prediction
-    # CORRELATION with real reward, not pixel fidelity -- this is the check that
-    # matters for whether the latent is control-useful, independent of how the
-    # `[h,z]` panel looks.
+    # M3's actual documented exit criterion (milestones.md) is reward
+    # prediction correlating with real reward, not pixel fidelity.
     if reward_true is not None and reward_pred is not None:
         if reward_true.std() > 1e-8 and reward_pred.std() > 1e-8:
             corr = float(np.corrcoef(reward_true, reward_pred)[0, 1])
@@ -183,7 +241,7 @@ def print_exit_criteria(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, default=Path("configs/m3_world_model.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("configs/m3_dreamer_s.yaml"))
     parser.add_argument("--resume", type=Path, default=None)
     args = parser.parse_args()
     with args.config.open() as f:
@@ -201,39 +259,15 @@ def main() -> None:
     replay_path = Path(cfg["collect"]["out_path"])
     if not replay_path.exists():
         raise SystemExit(
-            f"Missing {replay_path}. Run: python scripts/collect_replay.py"
+            f"Missing {replay_path}. Run: python scripts/collect_replay.py --config {args.config}"
         )
     buffer = ReplayBuffer(seed=int(cfg["seed"]))
     buffer.load_state_dict(torch.load(replay_path, weights_only=False))
     print(f"replay: episodes={len(buffer)} steps={buffer.num_steps}")
 
-    enc = cfg["encoder"]
-    rssm = cfg["rssm"]
-    dec = cfg.get("decoder", {})
-    heads = cfg.get("heads", {})
     train = cfg["train"]
-
-    model = WorldModel.from_config_dims(
-        embed_dim=int(enc["embed_dim"]),
-        encoder_channels=tuple(int(c) for c in enc["channels"]),
-        action_dim=int(cfg["env"]["action_dim"]),
-        deter_dim=int(rssm["deter_dim"]),
-        stoch=int(rssm["stoch"]),
-        classes=int(rssm["classes"]),
-        hidden=int(rssm["hidden"]),
-        unimix=float(rssm.get("unimix", 0.01)),
-        act=str(rssm.get("act", "silu")),
-        initial=str(rssm.get("initial", "learned")),
-        rec_depth=int(rssm.get("rec_depth", 1)),
-        prior_layers=int(rssm.get("prior_layers", 2)),
-        decoder_channels=tuple(int(c) for c in dec.get("channels", [256, 128, 64, 32])),
-        head_hidden=int(heads.get("hidden", 512)),
-        head_layers=int(heads.get("layers", 2)),
-        encoder_blocks=int(enc.get("blocks", 2)),
-        decoder_blocks=int(dec.get("blocks", 0)),
-        stem_channels=int(enc.get("stem_channels", 64)),
-        spatial=int(enc.get("spatial", 4)),
-    ).to(device)
+    model = build_model(cfg).to(device)
+    print(f"params: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M")
 
     optim = torch.optim.Adam(model.parameters(), lr=float(train["lr"]))
     start_step = 0
@@ -258,6 +292,7 @@ def main() -> None:
     log_every = int(train["log_every"])
     image_every = int(train["image_every"])
     ckpt_every = int(train["checkpoint_every"])
+    context_len = max(1, seq_len // 4)
     amp_dtype = parse_amp(train.get("amp", "bf16"), device)
     scaler = make_grad_scaler(device, amp_dtype)
     print(f"amp: {train.get('amp', 'bf16')}  batch={batch_size}  seq_len={seq_len}")
@@ -289,12 +324,9 @@ def main() -> None:
             vram_s = f"  vram {vram[0]:.1f}/{vram[1]:.1f} GiB" if vram else ""
             print(
                 f"step {step:5d}  total={metrics['total']:.4f}  "
-                f"recon_l1={metrics['recon_l1']:.4f}  "
-                f"emb_l1={metrics['recon_embed_l1']:.4f}  "
-                f"blob={metrics['recon_blob']:.4f}  "
-                f"bneck_l1={metrics['recon_bottleneck_l1']:.4f}  "
-                f"grad={metrics['grad']:.4f}  "
-                f"rew={metrics['reward']:.4f}  cont={metrics['continue']:.4f}  "
+                f"recon={metrics['recon']:.2f} recon_l1={metrics['recon_l1']:.4f}  "
+                f"rew={metrics['reward']:.4f} rew_mae={metrics['reward_mae']:.4f}  "
+                f"cont={metrics['continue']:.4f}  "
                 f"kl={metrics['kl']:.4f} "
                 f"(dyn_raw={metrics['kl_dyn_raw']:.3f} rep_raw={metrics['kl_rep_raw']:.3f})  "
                 f"{steps_per_sec:.2f} steps/s{vram_s}"
@@ -307,9 +339,15 @@ def main() -> None:
                 vis_g = to_device(vis, device)
                 v_out = model(vis_g["obs"], vis_g["actions"])
                 save_recon_grid(
+                    vis["obs"], v_out.recon, results_dir / f"recon_step_{step:05d}.png"
+                )
+                vp = model.video_predict(vis_g["obs"], vis_g["actions"], context_len=context_len)
+                save_video_pred_strip(
                     vis["obs"],
-                    [v_out.recon, v_out.recon_embed],
-                    results_dir / f"recon_step_{step:05d}.png",
+                    vp.context_recon,
+                    vp.imagined_recon,
+                    context_len,
+                    results_dir / f"video_pred_step_{step:05d}.png",
                 )
             model.train()
 
@@ -323,11 +361,7 @@ def main() -> None:
 
     final = ckpt_dir / "ckpt_final.pt"
     torch.save(
-        {
-            "step": steps,
-            "model": model.state_dict(),
-            "optim": optim.state_dict(),
-        },
+        {"step": steps, "model": model.state_dict(), "optim": optim.state_dict()},
         final,
     )
     metrics_path = results_dir / "train_metrics.json"
@@ -340,17 +374,15 @@ def main() -> None:
         vis = buffer.sample(8, seq_len)
         vis_g = to_device(vis, device)
         v_out = model(vis_g["obs"], vis_g["actions"])
-        save_recon_grid(
-            vis["obs"],
-            [v_out.recon, v_out.recon_embed],
-            results_dir / "recon_final.png",
+        save_recon_grid(vis["obs"], v_out.recon, results_dir / "recon_final.png")
+        vp = model.video_predict(vis_g["obs"], vis_g["actions"], context_len=context_len)
+        save_video_pred_strip(
+            vis["obs"], vp.context_recon, vp.imagined_recon, context_len,
+            results_dir / "video_pred_final.png",
         )
-        obs_std = float(
-            nhwc_uint8_to_nchw_float(vis_g["obs"]).std()
-        )
+        obs_std = float(nhwc_uint8_to_nchw_unit(vis_g["obs"]).std())
         recon_std = float(v_out.recon.float().std())
-        embed_std = float(v_out.recon_embed.float().std())
-        bottleneck_std = float(v_out.recon_bottleneck.float().std())
+        imagined_recon_std = float(vp.imagined_recon.float().std())
 
         # Held-out-ish reward correlation check (M3's actual documented exit
         # criterion): sample several fresh sequences the loss wasn't just
@@ -361,7 +393,8 @@ def main() -> None:
             rb_g = to_device(rb, device)
             r_out = model(rb_g["obs"], rb_g["actions"])
             true_chunks.append(rb["rewards"].numpy().reshape(-1))
-            pred_chunks.append(r_out.reward_pred.squeeze(-1).float().cpu().numpy().reshape(-1))
+            decoded = symlog_twohot_mean(r_out.reward_pred, model.reward_head.bins)
+            pred_chunks.append(decoded.float().cpu().numpy().reshape(-1))
         reward_true = np.concatenate(true_chunks)
         reward_pred = np.concatenate(pred_chunks)
 
@@ -370,10 +403,9 @@ def main() -> None:
         history,
         obs_std=obs_std,
         recon_std=recon_std,
-        embed_std=embed_std,
-        bottleneck_std=bottleneck_std,
         reward_true=reward_true,
         reward_pred=reward_pred,
+        imagined_recon_std=imagined_recon_std,
     )
 
 
