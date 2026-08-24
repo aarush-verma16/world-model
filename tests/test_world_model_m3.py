@@ -406,9 +406,10 @@ def test_world_model_step_updates_weights() -> None:
     assert not torch.equal(before, wm.encoder.conv[0].weight.detach())
 
 
-def test_m3_dreamer_s_config_matches_paper_recipe() -> None:
-    """The new config must not reintroduce the pre-reset bypass/frozen-decoder
-    graph or its loss knobs."""
+def test_m3_dreamer_s_config_has_no_bypass_and_holds_kl() -> None:
+    """Reset config: no embed-bypass/frozen-decoder knobs; KL scales match the
+    12k-run fix for a posterior that outruns the prior (not the paper's
+    0.5/0.1, which climbed through 6 nats at 2k on this graph)."""
     import sys
     from pathlib import Path
 
@@ -433,10 +434,11 @@ def test_m3_dreamer_s_config_matches_paper_recipe() -> None:
     assert "recon_hud_scale" not in train
     assert "edge_weight" not in train
     assert float(train["free_nats"]) == 1.0
-    assert train.get("free_nats_dyn") is None
-    assert float(train["dyn_scale"]) == 0.5
-    assert float(train["rep_scale"]) == 0.1
+    assert float(train["free_nats_dyn"]) == 0.0
+    assert float(train["dyn_scale"]) == 1.0
+    assert float(train["rep_scale"]) == 0.5
     assert float(train["recon_scale"]) == 1.0
+    assert int(cfg["rssm"].get("prior_layers", 1)) == 2
 
     from train_world_model import build_model
 

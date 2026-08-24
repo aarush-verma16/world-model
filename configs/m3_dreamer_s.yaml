@@ -45,11 +45,13 @@ rssm:
   act: silu
   initial: learned
   rec_depth: 1
-  # Paper's dynamics predictor is one hidden layer on `h` (img_out_layers is
-  # a single Linear+norm+act before the stats head) — not the 2-layer prior
-  # the old config used to compensate for a frozen decoder that no longer
-  # exists in this graph.
-  prior_layers: 1
+  # One hidden layer on `h` is the paper default, but that 512→1024 waist
+  # cannot track a 32×32 posterior that is encoding a 4096-d embed. The
+  # 1950-step M3 reset run had kl_dyn_raw = kl_rep_raw climbing through 6
+  # nats (still rising) because the prior could not catch the posterior.
+  # Two layers is the same prior used after the 12k-run KL climb; it does
+  # not change the latent size.
+  prior_layers: 2
 
 decoder:
   # Mirrors the encoder (256-128-64-32). blocks=1 residual decoder is
@@ -108,15 +110,16 @@ train:
   # forward pass; every 200 steps is enough to watch the trend without
   # slowing training down noticeably.
   image_every: 200
-  # DreamerV3 defaults (configs.yaml): dyn_scale=0.5, rep_scale=0.1,
-  # free_nats=1.0 on BOTH kl_dyn and kl_rep (free_nats_dyn: null reuses
-  # free_nats). Start here; only reopen kl_dyn (free_nats_dyn: 0.0) if a run
-  # shows kl_dyn_raw welded to exactly 1.0 for thousands of steps AND
-  # open-loop video is still broken once this whole recipe is running.
-  dyn_scale: 0.5
-  rep_scale: 0.1
+  # Paper lists dyn_scale=0.5 / rep_scale=0.1. At those weights the 1950-step
+  # reset run had recon≈57 vs kl_loss≈3.7, so the posterior kept buying bits
+  # (kl_raw 3.5 → 6.2 and still climbing). Same failure the 12k run hit:
+  # raise dyn (train the prior harder) and rep (penalize posterior drift).
+  # free_nats stays 1.0 on the *rep* term. free_nats_dyn=0.0 so the prior
+  # does not freeze once KL later falls near 1 nat (docs/experiments.md).
+  dyn_scale: 1.0
+  rep_scale: 0.5
   free_nats: 1.0
-  free_nats_dyn: null
+  free_nats_dyn: 0.0
   # Paper scale (rec=1, rew=1, con=1, kl folds dyn/rep above). Reconstruction
   # is `image_mse_loss` (sum over C,H,W, mean over B,T) — see
   # src/training/losses.py — which is what makes it the dominant term against
