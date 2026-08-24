@@ -37,6 +37,17 @@ class WorldModelOutput:
     reward_pred: Tensor
     cont_logit: Tensor
 
+    def __getattr__(self, name: str):
+        if name in {"recon_embed", "recon_bottleneck", "recon_map"}:
+            raise AttributeError(
+                "WorldModelOutput has no 'recon_embed' — the aux embed decoder "
+                "was removed. Reload notebooks/05_train_world_model.ipynb from "
+                "disk (do not keep an unsaved old buffer), then "
+                "Kernel → Restart → Run All. The training cell must call "
+                "v_out.recon and model.video_predict, never recon_embed."
+            )
+        raise AttributeError(f"WorldModelOutput has no attribute {name!r}")
+
 
 @dataclass
 class VideoPrediction:
