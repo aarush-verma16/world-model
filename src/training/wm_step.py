@@ -34,6 +34,20 @@ def loss_to_metrics(loss: WorldModelLossBreakdown) -> dict[str, float]:
     }
 
 
+def _train_float(train_cfg: dict[str, Any], *keys: str) -> float:
+    for key in keys:
+        if key in train_cfg and train_cfg[key] is not None:
+            return float(train_cfg[key])
+    raise KeyError(keys[0])
+
+
+def _train_optional_float(train_cfg: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        if key in train_cfg:
+            return None if train_cfg[key] is None else float(train_cfg[key])
+    return None
+
+
 def world_model_step(
     model: WorldModel,
     optim: torch.optim.Optimizer,
@@ -78,18 +92,14 @@ def world_model_step(
             post_logits=out.rssm.posterior_logits,
             prior_logits=out.rssm.prior_logits,
             unimix=model.rssm.unimix,
-            dyn_scale=float(train_cfg["dyn_scale"]),
-            rep_scale=float(train_cfg["rep_scale"]),
-            free_nats=float(train_cfg["free_nats"]),
-            free_nats_dyn=(
-                None
-                if train_cfg.get("free_nats_dyn") is None
-                else float(train_cfg["free_nats_dyn"])
-            ),
-            recon_scale=float(train_cfg["recon_scale"]),
-            reward_scale=float(train_cfg["reward_scale"]),
-            continue_scale=float(train_cfg["continue_scale"]),
-            kl_scale=float(train_cfg["kl_scale"]),
+            dyn_scale=_train_float(train_cfg, "dyn_scale", "dyn_scale"),
+            rep_scale=_train_float(train_cfg, "rep_scale", "rep_scale"),
+            free_nats=_train_float(train_cfg, "free_nats", "free_nats"),
+            free_nats_dyn=_train_optional_float(train_cfg, "free_nats_dyn", "free_nats_dyn"),
+            recon_scale=_train_float(train_cfg, "recon_scale", "recon_scale"),
+            reward_scale=_train_float(train_cfg, "reward_scale", "reward_scale"),
+            continue_scale=_train_float(train_cfg, "continue_scale", "continue_scale"),
+            kl_scale=_train_float(train_cfg, "kl_scale", "kl_scale"),
         )
         total = loss.total
 
