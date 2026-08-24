@@ -7,6 +7,7 @@ continuity; shuffling independent timesteps breaks the recurrence signal.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 
 import numpy as np
 import torch
@@ -131,6 +132,17 @@ class ReplayBuffer:
         self._total_steps = int(state.get("total_steps", sum(ep.obs.shape[0] for ep in self._episodes)))
 
 
+def _fmt_duration(seconds: float) -> str:
+    seconds = max(0.0, float(seconds))
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    minutes, sec = divmod(int(round(seconds)), 60)
+    if minutes < 60:
+        return f"{minutes}m{sec:02d}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h{minutes:02d}m"
+
+
 def collect_random_episodes(
     *,
     env_id: str,
@@ -138,11 +150,20 @@ def collect_random_episodes(
     max_episode_steps: int,
     action_dim: int,
     seed: int = 0,
+    progress: bool = True,
 ) -> ReplayBuffer:
-    """Fill a buffer with random-policy Crafter episodes (obs/action/reward/cont)."""
+    """Fill a buffer with random-policy Crafter episodes (obs/action/reward/cont).
+
+    When `progress=True` (default), prints one flushed line per episode so a
+    notebook/CLI run does not look hung during a long collect.
+    """
     import gymnasium as gym
 
     from envs.crafter_env import register_crafter_envs
+
+    def log(msg: str) -> None:
+        if progress:
+            print(msg, flush=True)
 
     register_crafter_envs()
     env = gym.make(env_id)
@@ -152,6 +173,14 @@ def collect_random_episodes(
         raise ValueError(f"config action_dim={action_dim} != env.action_space.n={n}")
 
     buffer = ReplayBuffer(seed=seed)
+    lengths: list[int] = []
+    returns: list[float] = []
+    nonzero_reward_steps = 0
+    t0 = time.perf_counter()
+    log(
+        f"collecting {num_episodes} random episodes from {env_id} "
+        f"(max {max_episode_steps} steps/ep, seed={seed})"
+    )
     try:
         for ep in range(num_episodes):
             obs, _ = env.reset(seed=seed + ep)
@@ -175,6 +204,37 @@ def collect_random_episodes(
             if len(obs_buf) == 0:
                 continue
             buffer.add_episode(obs_buf, act_buf, rew_buf, cont_buf)
+            ep_len = len(obs_buf)
+            ep_ret = float(sum(rew_buf))
+            lengths.append(ep_len)
+            returns.append(ep_ret)
+            nonzero_reward_steps += sum(1 for r in rew_buf if r != 0.0)
+            done_n = len(buffer)
+            elapsed = time.perf_counter() - t0
+            rate = done_n / max(elapsed, 1e-6)
+            remaining = (num_episodes - done_n) / max(rate, 1e-6)
+            pct = 100.0 * done_n / num_episodes
+            log(
+                f"  [{done_n:4d}/{num_episodes}] {pct:5.1f}%  "
+                f"len={ep_len:3d}  ret={ep_ret:+6.2f}  "
+                f"steps={buffer.num_steps:<7d}  "
+                f"{rate:.2f} ep/s  elapsed {_fmt_duration(elapsed)}  "
+                f"eta {_fmt_duration(remaining)}"
+            )
+            if done_n % 25 == 0 or done_n == num_episodes:
+                mean_len = sum(lengths) / len(lengths)
+                mean_ret = sum(returns) / len(returns)
+                log(
+                    f"  -- {done_n}/{num_episodes} checkpoint: "
+                    f"mean_len={mean_len:.1f}  mean_ret={mean_ret:+.3f}  "
+                    f"nonzero_reward_steps={nonzero_reward_steps}  "
+                    f"total_steps={buffer.num_steps}"
+                )
     finally:
         env.close()
+    elapsed = time.perf_counter() - t0
+    log(
+        f"done: {len(buffer)} episodes, {buffer.num_steps} steps "
+        f"in {_fmt_duration(elapsed)} ({len(buffer) / max(elapsed, 1e-6):.2f} ep/s)"
+    )
     return buffer

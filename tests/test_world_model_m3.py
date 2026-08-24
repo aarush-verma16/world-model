@@ -344,6 +344,14 @@ def test_icnr_init_starts_as_nearest_upsample() -> None:
         assert torch.equal(sub_filters[:, 0], sub_filters[:, sub])
 
 
+def test_fmt_duration_buckets() -> None:
+    from training.replay_buffer import _fmt_duration
+
+    assert _fmt_duration(8.2) == "8s"
+    assert _fmt_duration(65) == "1m05s"
+    assert _fmt_duration(3600) == "1h00m"
+
+
 def test_replay_buffer_samples_contiguous_windows() -> None:
     buf = ReplayBuffer(seed=0)
     T = 20
