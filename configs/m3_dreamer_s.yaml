@@ -103,12 +103,12 @@ train:
   # frozen decoder and a much weaker recon term; 1000 is a ceiling for
   # genuine blowups, not a routine clamp, and matches the paper.
   lr: 1.0e-4
-  # 50k was enough to pass M3 gates (recon_l1 ~0.01, reward r~0.9). Rare
-  # movers (sapling/cow/zombie) stay as MSE ghosts until the posterior is
-  # sure — that takes more steps on the same frozen random replay, not a
-  # new loss. 300k is ~8–10h at ~8 steps/s from scratch; resume from the
-  # 50k `ckpt_final.pt` / `ckpt_latest.pt` to skip the first 50k.
-  steps: 300000
+  # 50k passed M3 gates (recon_l1 ~0.01, reward r~0.9). 300k finished
+  # 2026-08-25: recon_l1 0.326 -> 0.005, kl_rep_raw 4.5 -> 2.18 (still
+  # declining, never under free_nats=1), reward 5.63 -> 0.017. DreamerV3
+  # trains the WM for 1M env steps; continue the same run to 500k (resume
+  # from ckpt_latest / ckpt_step_300000). Do not restart from scratch.
+  steps: 500000
   log_every: 50
   checkpoint_every: 10000
   # Video-pred every 500 steps on a long run (~600 strips) instead of every
