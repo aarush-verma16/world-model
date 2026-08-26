@@ -23,6 +23,17 @@ from training.returns import PercentileReturnNorm
 from training.wm_step import world_model_step
 
 
+def crossed_interval(prev: int, now: int, every: int) -> bool:
+    """True when `now` crossed a multiple of `every` that `prev` had not.
+
+    Env steps advance by `collect_every` (16), so `now % every == 0` never
+    hits 5000. Compare integer buckets instead.
+    """
+    if every <= 0:
+        return False
+    return max(0, int(now)) // int(every) > max(0, int(prev)) // int(every)
+
+
 @dataclass
 class OuterCycleResult:
     """Metrics from one collect / WM / AC cycle."""

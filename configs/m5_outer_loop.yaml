@@ -62,7 +62,11 @@ train:
   discount: 0.997
   wm_max_grad_norm: 1000.0
   ac_max_grad_norm: 100.0
-  log_every: 16
+  # Status line every 256 env steps; matplotlib dashboard every 1000.
+  # log_every=16 + gc.collect() every cycle decayed a live notebook
+  # 18 env/s → 1.4 env/s by 50k (finding 08).
+  log_every: 256
+  dashboard_every: 1000
   image_every: 5000
   checkpoint_every: 10000
   log_dir: runs/m5_outer_loop

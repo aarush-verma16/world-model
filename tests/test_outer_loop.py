@@ -15,6 +15,7 @@ from training.device import make_grad_scaler, parse_amp
 from training.evaluate import evaluate_policy
 from training.imagine import freeze_world_model, unfreeze_world_model
 from training.outer_loop import (
+    crossed_interval,
     joint_payload,
     load_checkpoint,
     outer_cycle,
@@ -23,6 +24,18 @@ from training.outer_loop import (
 from training.replay_buffer import ReplayBuffer
 from training.returns import PercentileReturnNorm
 from training.wm_step import world_model_step
+
+
+def test_crossed_interval_skips_non_multiples_of_collect() -> None:
+    """collect_every=16 never lands on 5000, so modulo scheduling missed eval."""
+    assert not crossed_interval(0, 16, 5000)
+    assert not crossed_interval(16, 32, 5000)
+    assert crossed_interval(4992, 5008, 5000)
+    assert crossed_interval(9984, 10000, 10000)
+    assert crossed_interval(9984, 10000, 5000)
+    assert not crossed_interval(50000, 50016, 10000)
+    assert crossed_interval(0, 16, 16)
+    assert not crossed_interval(16, 32, 0)
 
 
 def _tiny_wm(action_dim: int = 5) -> WorldModel:

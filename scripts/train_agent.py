@@ -41,6 +41,7 @@ from training.device import (
 from training.evaluate import evaluate_policy, save_eval_gif
 from training.imagine import decode_imagination
 from training.outer_loop import (
+    crossed_interval,
     joint_payload,
     load_checkpoint,
     outer_cycle,
@@ -316,6 +317,7 @@ def main() -> None:
                 wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
                 ac_max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
             )
+            prev_steps = env_steps
             env_steps += collect_every
             if cycle.wm_metrics is not None:
                 wm_steps += int(train["wm_updates"])
@@ -334,7 +336,7 @@ def main() -> None:
                 row["collect_ep_return"] = float(np.mean([e["return"] for e in finished]))
                 row["collect_ep_len"] = float(np.mean([e["length"] for e in finished]))
 
-            if env_steps % log_every == 0 or env_steps <= collect_every:
+            if crossed_interval(prev_steps, env_steps, log_every) or env_steps <= collect_every:
                 now = time.time()
                 dt = max(now - last_log_time, 1e-6)
                 sps = (env_steps - last_log_env) / dt
@@ -359,17 +361,17 @@ def main() -> None:
                     flush=True,
                 )
 
-            if env_steps % eval_every == 0:
+            if crossed_interval(prev_steps, env_steps, eval_every):
                 run_eval(env_steps)
 
             if cycle.rollout is not None and (
-                env_steps % image_every == 0 or env_steps <= collect_every
+                crossed_interval(prev_steps, env_steps, image_every) or env_steps <= collect_every
             ):
                 vis = decode_imagination(world_model, cycle.rollout.feat, max_starts=1)
                 save_imagination_strip(vis, results_dir / f"imagine_step_{env_steps:06d}.png")
                 save_imagination_gif(vis, results_dir / f"imagine_step_{env_steps:06d}.gif")
 
-            if env_steps % ckpt_every == 0:
+            if crossed_interval(prev_steps, env_steps, ckpt_every):
                 payload = joint_payload(
                     env_steps=env_steps,
                     wm_steps=wm_steps,

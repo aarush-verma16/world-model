@@ -59,6 +59,28 @@ Fix that is now in the M3 notebook (and required for M4 dashboards): thin the lo
 
 This is not a DreamerV3 result. It is why a “live matplotlib dashboard of 2048-px strips” is a workstation hazard.
 
+## M5: the same dashboard class ate outer-loop throughput
+
+The 100k env-step outer loop (`configs/m5_outer_loop.yaml`, notebook `08`) started at **~18 env/s** (peak 27) and decayed to **~1.1–1.4 env/s** by 50–58k. Wall clock: 10k at 01:32, 20k +41 min, 50k at 06:38, interrupt at **58624** env steps ~08:33. Halfway in 6–7 hours was the host, not CUDA.
+
+`log_every` was **16** — every collect cycle. Each tick called `show_progress` (matplotlib `display`) **and** `gc.collect()` while IPython retained figure outputs and the online replay grew from the 1.26 GB seed toward **~1.98 GB**. Same class as the 628150 host OOM: the dashboard walks the replay-sized process every step. Saving the 1.98 GB dump every 10k is a pause, not the 18→1.1 slope.
+
+| env_steps | mean env/s (`train_metrics.json`) |
+|---|---|
+| 16–2k | **18.4** (peak 27) |
+| ~10k | 5.7 |
+| ~20k | 3.1 |
+| ~30k | 2.2 |
+| ~40k | 1.7 |
+| 49–50k | 1.4 |
+| last logs ~58.6k | **1.12** |
+
+Fix: status line every 256 env steps, matplotlib every 1000, `gc.collect()` only on checkpoint. `env_steps % eval_every == 0` with `collect_every=16` never hits 5000 (or 5000-image dumps) — evals in this run are 0/10k/20k/… only. `crossed_interval` compares integer buckets so 4992→5008 fires. Resume from `ckpt_latest.pt` (`env_steps=58624`); remaining ~41k at 10–18 env/s is about an hour, not another 7.
+
+The noisy recon-L1 uptick on the dashboard is **not** the slowdown (online coverage vs a frozen buffer). 4-episode eval return bouncing −0.65 / 0.1 / −0.4 is M5 noise, not a Crafter score.
+
+![M5 notebook dashboard at ~50k](../figures/m5_notebook_dashboard_50k.png)
+
 ## `is_first` is not threaded yet — and that is consistent with our sampler
 
 DreamerV3 replay is a stream; a sampled window can **cross an episode boundary**, so `is_first` resets GRU state mid-sequence. `ReplayBuffer.sample` here only returns windows with `start + seq_len <= episode_len`. There is no boundary to reset across.
@@ -67,4 +89,4 @@ M5 keeps that sampler on purpose. Online collect still stores **full episodes** 
 
 ## Paper spin
 
-Hardware appendix: 16 GiB, seq 32, bf16, 600-episode frozen buffer, ~19M size-S, 700k steps, ~5.6–8 it/s, 32 GiB host that can OOM on a dashboard before the GPU does. Limitations: single seed, single env, episode-bounded replay (`is_first` unused), seq 32. That is an honest small-scale study, which is the project’s stated research goal — not a competing DreamerV3 number.
+Hardware appendix: 16 GiB, seq 32, bf16, 600-episode frozen buffer, ~19M size-S, 700k steps, ~5.6–8 it/s, 32 GiB host that can OOM on a dashboard before the GPU does — and the same dashboard cadence turned an 18 env/s outer loop into 1.1 env/s by 58k. Limitations: single seed, single env, episode-bounded replay (`is_first` unused), seq 32. That is an honest small-scale study, which is the project’s stated research goal — not a competing DreamerV3 number.

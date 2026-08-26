@@ -153,8 +153,8 @@
         </tbody>
       </table>
 
-      <h2 id="m5stub">M5 outer loop (stub)</h2>
-      <p class="muted">Wired 2026-08-26. Numbers after the user 100k env-step run. Skill plot is real eval return, not imagined λ-return. Episode-bounded replay; no <code>is_first</code>.</p>
+      <h2 id="m5stub">M5 outer loop</h2>
+      <p class="muted">Interrupted 2026-08-26 at <strong>58624</strong> env steps (<code>ckpt_latest.pt</code>). Skill plot is real eval return, not imagined λ-return. 100k numbers after the resumed run. Episode-bounded replay; no <code>is_first</code>.</p>
       <table>
         <thead><tr><th>Knob</th><th>Value</th><th>Read as</th></tr></thead>
         <tbody>
@@ -162,8 +162,14 @@
           <tr><td>ratio</td><td>16 env / 1 WM / 1 AC</td><td>batch 16 × seq 32 → train_ratio 32</td></tr>
           <tr><td>episode cap</td><td>400 collect and eval</td><td>10k + geo-mean is M6</td></tr>
           <tr><td>actions</td><td>STE sample, not greedy</td><td>Greedy collect is the documented M5 fail</td></tr>
+          <tr><td>notebook dashboard</td><td>was every 16 env steps + <code>gc.collect</code></td><td>18 env/s → 1.1 env/s by 58k (finding 08). Now log 256 / dash 1000</td></tr>
+          <tr><td>eval cadence</td><td><code>env_steps % 5000</code> never hits</td><td>collect stride 16; evals were 0/10k/20k/… <code>crossed_interval</code> fixes it</td></tr>
         </tbody>
       </table>
+      <figure>
+        <img src="figures/m5_notebook_dashboard_50k.png" alt="M5 notebook dashboard around 50k env steps" />
+        <figcaption>Live matplotlib every collect cycle. Throughput, not the noisy recon-L1, is why 50k took ~6.5 h.</figcaption>
+      </figure>
 
       <h2 id="graphs">Why two weeks of extra losses could not work</h2>
       <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
@@ -299,7 +305,7 @@ flowchart LR
         body:"Empty resume history autoscales a 0.006 wiggle into an explosion. Log-y continue spikes from one terminal. Embed-vs-[h,z] panels diagnose the bypass, not decoder capacity. bf16 open-loop .numpy() went gray. kl_dyn_raw == kl_rep_raw is the forward KL, not broken balancing." },
       { id:"08", tags:["compute"], title:"16 GiB constraints that changed the recipe",
         file:"findings/08-workstation-recipe.md",
-        body:"seq 64: 15.8 GiB and 33 s/step vs 0.29 s at seq 32 — thrash, not OOM. Dual XL residual decoders used 19 GiB. Size-S one decoder is 18.7M params / 2.6 GiB. At step 628150 the host OOMed on a 192×2048 matplotlib strip while the GPU sat at 2.6/2.8 GiB. is_first is unused because windows never cross episode bounds." },
+        body:"seq 64: 15.8 GiB and 33 s/step vs 0.29 s at seq 32 — thrash, not OOM. Dual XL residual decoders used 19 GiB. Size-S one decoder is 18.7M params / 2.6 GiB. At step 628150 the host OOMed on a 192×2048 matplotlib strip while the GPU sat at 2.6/2.8 GiB. M5 notebook dashboard every 16 env steps decayed 18→1.1 env/s by 58k (replay ~2 GB + gc.collect every cycle). is_first is unused because windows never cross episode bounds." },
       { id:"09", tags:["compute","negative-result"], title:"Frozen-replay WM steps plateau after ~500k",
         file:"findings/09-frozen-replay-plateau.md",
         body:"500k→700k moved recon L1 0.00468→0.00452 and KL 2.03→1.96. Last-50k KL slope is −0.001 nats per 10k. DreamerV3’s 1M is online env interaction, not 1M decoder epochs on 600 random episodes. Stop this buffer; start actor-critic." },
@@ -317,6 +323,7 @@ flowchart LR
       "Treating free_nats=1 as a KL setpoint",
       "Shrinking the 32×32 categorical latent to save VRAM",
       "Raising stoch/classes to fix a rate-floor bug",
+      "Matplotlib dashboard + gc.collect every outer-loop cycle",
       "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
       "Reading imagined λ-return on a frozen random-policy WM as a Crafter score",
       "Stream sampler / is_first as an M5 prerequisite",

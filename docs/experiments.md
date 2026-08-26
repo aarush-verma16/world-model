@@ -20,6 +20,12 @@ Config: `configs/m5_outer_loop.yaml`. Live run: `notebooks/08_train_outer_loop.i
   (does not overwrite the M3 seed).
 - Skill plot is **real eval return**. Imagined λ-return stays an AC diagnostic
   (finding 10).
+- Live notebook run interrupted at **58624** env steps (`ckpt_latest.pt`).
+  `log_every: 16` plus matplotlib `display` and `gc.collect()` every cycle
+  decayed **18 env/s → 1.1 env/s** by 58k (finding 08). Now `log_every: 256`,
+  `dashboard_every: 1000`. `env_steps % 5000` never fired; `crossed_interval`
+  is required because collect stride is 16. Resume with `RESUME = "auto"` —
+  do not reseed from M3/M4.
 
 Smoke: `python scripts/smoke_outer_loop.py` (dozens of env steps). Tag
 `v0.5-full-loop-integrated` only after a user run that is crash-free and whose

@@ -39,7 +39,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 5. [MSE ghosts vs crop losses](findings/05-mse-ghosts.md) — residue is not a missing head; 700k still coverage-limited.
 6. [Paper vs reference KL scales](findings/06-kl-scale-mismatch.md) — Table 4 vs size-S YAML; 50k peak, 700k plateau ~2 nats.
 7. [Diagnostics that lie](findings/07-lying-diagnostics.md) — resume plots, log-continue, embed-vs-`[h,z]`.
-8. [Workstation recipe](findings/08-workstation-recipe.md) — seq 64, replay size, VRAM, Jupyter kernels, host-RAM strip OOM.
+8. [Workstation recipe](findings/08-workstation-recipe.md) — seq 64, replay size, VRAM, Jupyter kernels, host-RAM strip OOM, M5 dashboard 18→1.1 env/s.
 9. [Frozen-replay plateau](findings/09-frozen-replay-plateau.md) — 500k→700k is noise; DreamerV3’s 1M is env steps.
 10. [Imagined λ-return is not skill](findings/10-imagined-return-not-skill.md) — M4 return ~2.6 is critic bootstrap; reward stays ~0.017/step.
 
@@ -52,7 +52,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
   - **50k steps, 2026-08-24.** `recon_l1` 0.326 → 0.0095; `kl_rep_raw` peaked 6.14 at step 16650, finished 3.49; reward correlation **r = 0.91**.
   - **700k steps, 2026-08-25.** Last-10k mean `recon_l1` **0.0045**, `kl_rep_raw` **1.96**; reward **r = 0.98**; open-loop std ratio **0.98**. Host RAM OOM at 628150 (matplotlib strip); resumed from 620k. Plateau after ~500k — do not push this buffer to 1M gradient steps (finding 09).
 - **M4 actor-critic** (`configs/m4_actor_critic.yaml`): 20k steps on the frozen 700k WM, 2026-08-26. Notebook exit **PASS**. Last-2k imagined reward **0.017**/step vs λ-return **2.61** (finding 10). GIF: `results/m4_actor_critic/imagine_final.gif`.
-- **M5 outer loop** (`configs/m5_outer_loop.yaml`): stub 2026-08-26. 16 env / 1 WM / 1 AC, 400-step cap, eval = return. Fill numbers after the user 100k run. Live: `notebooks/08_train_outer_loop.ipynb`.
+- **M5 outer loop** (`configs/m5_outer_loop.yaml`): interrupted 2026-08-26 at **58624** env steps. Per-cycle matplotlib dashboard decayed 18→1.1 env/s (finding 08). Resume `ckpt_latest.pt`; 100k eval numbers after that run. Live: `notebooks/08_train_outer_loop.ipynb`.
 
 ## Conventions
 

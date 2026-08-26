@@ -44,7 +44,7 @@
     "m5_outer_loop": {
       "config": "configs/m5_outer_loop.yaml",
       "env_steps": 100000,
-      "note": "Stub: online collect 16/1/1, 400-step cap, eval=return not geo-mean. Fill numbers after the user 100k run. Seeds M3 700k + M4 20k."
+      "note": "Interrupted at 58624 env steps. Notebook dashboard every cycle: 18 env/s → 1.1 env/s. Resume ckpt_latest; 100k skill numbers TBD. Eval is 4-ep return, not geo-mean."
     }
   },
   "findings": [
@@ -109,7 +109,7 @@
       "file": "findings/08-workstation-recipe.md",
       "title": "16 GiB constraints that changed the recipe",
       "tags": ["compute"],
-      "one_liner": "seq 64 fits and thrashes. Dual XL decoders OOM. Host RAM OOMed at 628k on a 192×2048 matplotlib strip while GPU sat at 2.6 GiB.",
+      "one_liner": "seq 64 fits and thrashes. Host RAM OOMed at 628k on a matplotlib strip. M5 notebook dashboard every 16 env steps decayed 18→1.1 env/s by 58k.",
       "paper_spin": "Hardware / limitations appendix — honest small-scale study, not a DreamerV3 score."
     },
     {
