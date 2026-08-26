@@ -440,7 +440,7 @@ def test_m3_dreamer_s_config_has_no_bypass_and_holds_kl() -> None:
     assert float(train["dyn_scale"]) == 1.0
     assert float(train["rep_scale"]) == 0.5
     assert float(train["recon_scale"]) == 1.0
-    assert int(train["steps"]) == 300000
+    assert int(train["steps"]) == 700000
     assert int(cfg["rssm"].get("prior_layers", 1)) == 2
 
     from train_world_model import build_model

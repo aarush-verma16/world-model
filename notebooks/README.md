@@ -15,6 +15,7 @@ Do this continuously as features land; do not wait for a milestone tag.
 | `04_inspect_replay.ipynb` | Load `data/m3_replay.pt`, browse frames, reward histograms, sample training windows |
 | `05_train_world_model.ipynb` | Full world-model training with inline loss curves + recon grids (no CLI) |
 | `06_decoder_probe.ipynb` | Probe-decodability test: is blurry recon a starved decoder or a blind latent? |
+| `07_train_actor_critic.ipynb` | Frozen-WM actor-critic: 15-step `z_prior` imagination, loss/entropy curves, GIF |
 
 ## Conventions
 

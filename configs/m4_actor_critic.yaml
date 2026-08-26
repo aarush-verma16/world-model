@@ -1,0 +1,51 @@
+# Milestone 4 — actor-critic on a frozen size-S world model.
+#
+# The world model is the 700k M3 checkpoint. It does not receive gradients.
+# The actor chooses STE actions; RSSM.img_step rolls z_prior only. Reward and
+# continue come from the frozen heads. No env.step in this loop (that is M5).
+#
+# Exit bar (milestones.md M4): finite imagined rewards, AC losses trend down,
+# decoded imagination plausible for a handful of steps. Not a Crafter score.
+# Sparse random-policy replay means the actor may not "get good at Crafter";
+# entropy staying alive + critic loss falling is the pass.
+#
+# Prefer notebooks/07_train_actor_critic.ipynb for a live run.
+
+seed: 0
+
+world_model_config: configs/m3_dreamer_s.yaml
+world_model_ckpt: checkpoints/m3_dreamer_s/ckpt_step_700000.pt
+
+actor:
+  hidden: 512
+  layers: 2
+  unimix: 0.01
+
+critic:
+  hidden: 512
+  layers: 2
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  steps: 20000
+  horizon: 15
+  # "all" = B*T start states (DreamerV3). Fall back to "last" if a CUDA
+  # smoke OOMs — do not shrink the 32×32 latent.
+  start_mode: all
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  max_grad_norm: 100.0
+  log_every: 20
+  image_every: 200
+  checkpoint_every: 2000
+  log_dir: runs/m4_actor_critic
+  checkpoint_dir: checkpoints/m4_actor_critic
+  results_dir: results/m4_actor_critic

@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-24",
+  "updated": "2026-08-25",
   "runs": {
     "pre_reset_12k": {
       "config": "configs/m3_world_model.yaml",
@@ -18,7 +18,18 @@
       "kl_end": 3.493,
       "reward_r": 0.91,
       "params_m": 18.72,
-      "note": "One live decoder, sum-MSE, dyn=1.0, rep=0.5, free_nats_dyn=0. Continuation to 300k in progress."
+      "note": "One live decoder, sum-MSE, dyn=1.0, rep=0.5, free_nats_dyn=0."
+    },
+    "reset_700k": {
+      "config": "configs/m3_dreamer_s.yaml",
+      "steps": 700000,
+      "recon_l1_last_log": 0.0062,
+      "recon_l1_last_10k_mean": 0.00452,
+      "kl_last_10k_mean": 1.957,
+      "reward_r": 0.98,
+      "imag_std_ratio": 0.98,
+      "params_m": 18.72,
+      "note": "Same frozen 600-episode replay. Plateau after ~500k. Host RAM OOM at 628150; resumed from 620k."
     }
   },
   "findings": [
@@ -59,7 +70,7 @@
       "file": "findings/05-mse-ghosts.md",
       "title": "Ghost movers are MSE + coverage, not a missing head",
       "tags": ["qualitative", "negative-result"],
-      "one_liner": "Sapling/cow/zombie residue at 50k means bits without commitment. Crop losses are how we fought the RSSM for two weeks.",
+      "one_liner": "Sapling/cow/zombie residue at 50k–700k means bits without commitment. Crop losses are how we fought the RSSM for two weeks.",
       "paper_spin": "Limitations: reconstructions are not sprite sheets; residue vs absence distinguishes this from finding 01."
     },
     {
@@ -67,8 +78,8 @@
       "file": "findings/06-kl-scale-mismatch.md",
       "title": "Table 4 vs size-S YAML KL scales",
       "tags": ["kl"],
-      "one_liner": "With honest sum-MSE, dyn=0.5/rep=0.1 lets the posterior buy bits (KL 6.2 at 1950). 50k at dyn=1/rep=0.5 peaks then falls to 3.5 nats.",
-      "paper_spin": "Reimplementation note; promote to ablation if we re-run 0.5/0.1 vs 1.0/0.5 on the reset graph."
+      "one_liner": "With honest sum-MSE, dyn=0.5/rep=0.1 lets the posterior buy bits (KL 6.2 at 1950). 700k at dyn=1/rep=0.5 plateaus near 2 nats, never the floor.",
+      "paper_spin": "Reimplementation note; 700k curve is the floor≠setpoint figure."
     },
     {
       "id": "07",
@@ -83,8 +94,16 @@
       "file": "findings/08-workstation-recipe.md",
       "title": "16 GiB constraints that changed the recipe",
       "tags": ["compute"],
-      "one_liner": "seq 64 fits and thrashes (33 s/step). Dual XL decoders OOM. 80-episode replay memorizes grass. Jupyter holds 11 GiB after the loop stops.",
+      "one_liner": "seq 64 fits and thrashes. Dual XL decoders OOM. Host RAM OOMed at 628k on a 192×2048 matplotlib strip while GPU sat at 2.6 GiB.",
       "paper_spin": "Hardware / limitations appendix — honest small-scale study, not a DreamerV3 score."
+    },
+    {
+      "id": "09",
+      "file": "findings/09-frozen-replay-plateau.md",
+      "title": "Frozen-replay WM steps plateau after ~500k",
+      "tags": ["compute", "negative-result"],
+      "one_liner": "500k→700k moved recon L1 0.00468→0.00452 and KL 2.03→1.96. DreamerV3’s 1M is online env steps, not decoder epochs on 600 random episodes.",
+      "paper_spin": "Limitations / compute: stop the frozen-buffer run at the plateau; do not treat 1M gradient steps as the paper budget."
     }
   ],
   "do_not_revive": [
@@ -95,6 +114,7 @@
     "Pasted HUD head over rows 49–63",
     "Treating free_nats=1 as a KL setpoint",
     "Shrinking the 32×32 categorical latent to save VRAM (drop batch/seq instead)",
-    "Raising stoch/classes to fix a rate-floor bug"
+    "Raising stoch/classes to fix a rate-floor bug",
+    "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps"
   ]
 }

@@ -7,6 +7,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <script src="data/metrics.js"></script>
+  <script src="data/metrics_700k.js"></script>
   <style>
     :root {
       --bg: #f7f5f0;
@@ -81,11 +82,12 @@
 <body>
   <header>
     <h1>Findings archive</h1>
-    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-24.</p>
+    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-25.</p>
   </header>
   <div class="wrap">
     <nav>
       <a href="#charts">50k curves</a>
+      <a href="#charts700k">700k plateau</a>
       <a href="#graphs">Two training graphs</a>
       <a href="#findings">Findings</a>
       <a href="#stills">Recon stills</a>
@@ -114,6 +116,22 @@
           <tr><td>kl_rep_raw</td><td>3.59 nats</td><td>3.49 nats (peak 6.14 @ 16.7k)</td><td>Floor is 1.0 — not a setpoint</td></tr>
           <tr><td>reward NLL</td><td>5.63</td><td>0.077</td><td>Held-out correlation r = 0.91</td></tr>
           <tr><td>continue BCE</td><td>0.84</td><td>4e-4</td><td>Log-y spikes are one terminal / batch</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="charts700k">M3 reset, 700k steps (same frozen replay)</h2>
+      <p class="muted">Source: <code>results/m3_dreamer_s/train_metrics.json</code> (14,006 logs, every-5k downsample in <code>data/metrics_700k.js</code>). After ~500k the curve is a plateau, not a climb toward DreamerV3’s 1M env-step budget.</p>
+      <div class="grid">
+        <div class="chart-box"><canvas id="chartKl700"></canvas></div>
+        <div class="chart-box"><canvas id="chartLoss700"></canvas></div>
+      </div>
+      <table style="margin-top:16px">
+        <thead><tr><th>Gate</th><th>50k</th><th>700k</th><th>Read as</th></tr></thead>
+        <tbody>
+          <tr><td>recon_l1 (window)</td><td>0.0095</td><td>0.0045 last-10k mean</td><td>Most of the drop was by 300k; 500k→700k is 3%</td></tr>
+          <tr><td>kl_rep_raw</td><td>3.49 (peak 6.14 @ 16.7k)</td><td>~1.96 last-10k mean</td><td>0% of last 100k logs under the 1.0 floor</td></tr>
+          <tr><td>reward correlation r</td><td>0.91</td><td>0.98</td><td>M3 bar is 0.3</td></tr>
+          <tr><td>open-loop imag std / obs</td><td>0.99</td><td>0.98</td><td>Prior is not a constant frame</td></tr>
         </tbody>
       </table>
 
@@ -162,7 +180,7 @@ flowchart LR
       <div id="list"></div>
 
       <h2 id="stills">Reconstructions</h2>
-      <p class="muted">Left: pre-reset 12k on the bypass graph. Right: reset 50k, one live decoder. Then early vs late on the reset run, and the 50k open-loop strip.</p>
+      <p class="muted">Left: pre-reset 12k on the bypass graph. Right: reset 50k, one live decoder. Then 700k posterior / open-loop. Bottom row of video-pred is <strong>error</strong> (gray = good), not a dead prior.</p>
       <div class="compare">
         <figure>
           <img src="figures/pre_reset_recon_step_12000.png" alt="Pre-reset step 12000" />
@@ -187,6 +205,16 @@ flowchart LR
         <img src="figures/reset_video_pred_step_50000.png" alt="Open-loop video prediction at 50k" />
         <figcaption>Open-loop video-pred at 50k (context then z_prior). Use this — not posterior sharpness — to judge dynamics.</figcaption>
       </figure>
+      <div class="compare">
+        <figure>
+          <img src="figures/reset_recon_final_700k.png" alt="Reset 700k posterior recon" />
+          <figcaption>Reset 700k posterior — HUD/player/trees firm. Rare movers still coverage (finding 05, 09).</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/reset_video_pred_final_700k.png" alt="Open-loop video prediction at 700k" />
+          <figcaption>Open-loop at 700k. Middle row is 8 posterior + 24 prior frames; bottom is error.</figcaption>
+        </figure>
+      </div>
       <div class="compare">
         <figure>
           <img src="figures/decoder_capacity_4k.png" alt="Nearest vs sub-pixel capacity overfit" />
@@ -222,16 +250,19 @@ flowchart LR
         body:"One 4-stride cell is 16×16 px — larger than a tree, the player, and the 14px HUD. Nearest upsample discards sub-cell phase (inventory L1 0.0487 vs 0.0076 sub-pixel). Tile-mean blob L1 paints solid colors. A pasted HUD head leaves a black bar. Geometry, not a missing loss term." },
       { id:"05", tags:["qualitative","negative-result"], title:"Ghost movers are MSE + coverage, not a missing head",
         file:"findings/05-mse-ghosts.md",
-        body:"At 50k, trees/player/HUD reconstruct; saplings/cows/zombies are same-color smudges. Residue means bits without commitment. 600 random episodes barely contain those objects. Do not add sapling losses. 300k continuation tests how far MSE gets; leftover ghosts after that are coverage, not step count." },
+        body:"At 50k, trees/player/HUD reconstruct; saplings/cows/zombies are same-color smudges. 700k firmed HUD and player; rare movers remain because 600 random episodes barely contain them. Residue means bits without commitment. Do not add sapling losses." },
       { id:"06", tags:["kl"], title:"Table 4 vs size-S YAML KL scales",
         file:"findings/06-kl-scale-mismatch.md",
-        body:"DreamerV3 Table 4 lists dyn_scale=1.0; the torch size-S YAML uses 0.5/0.1. With honest sum-MSE, 0.5/0.1 lets the posterior buy bits (KL 6.2 at 1950). Restart at dyn=1.0, rep=0.5, prior_layers=2: KL peaks 6.14 at step 16650 then falls to 3.49 at 50k while recon_l1 hits 0.0095." },
+        body:"DreamerV3 Table 4 lists dyn_scale=1.0; the torch size-S YAML uses 0.5/0.1. With honest sum-MSE, 0.5/0.1 lets the posterior buy bits (KL 6.2 at 1950). Restart at dyn=1.0, rep=0.5: KL peaks 6.14 at 16650, 3.49 at 50k, then plateaus ~1.96 at 700k — never the 1.0 floor." },
       { id:"07", tags:["eval"], title:"Dashboard signals that are not in the weights",
         file:"findings/07-lying-diagnostics.md",
         body:"Empty resume history autoscales a 0.006 wiggle into an explosion. Log-y continue spikes from one terminal. Embed-vs-[h,z] panels diagnose the bypass, not decoder capacity. bf16 open-loop .numpy() went gray. kl_dyn_raw == kl_rep_raw is the forward KL, not broken balancing." },
       { id:"08", tags:["compute"], title:"16 GiB constraints that changed the recipe",
         file:"findings/08-workstation-recipe.md",
-        body:"seq 64: 15.8 GiB and 33 s/step vs 0.29 s at seq 32 — thrash, not OOM. Dual XL residual decoders used 19 GiB. Size-S one decoder is 18.7M params / 2.4 GiB. 80-episode replay memorizes grass; 600 is still sparse on mobs. Jupyter kernels hold ~11 GiB after the loop stops. is_first is unused because windows never cross episode bounds." }
+        body:"seq 64: 15.8 GiB and 33 s/step vs 0.29 s at seq 32 — thrash, not OOM. Dual XL residual decoders used 19 GiB. Size-S one decoder is 18.7M params / 2.6 GiB. At step 628150 the host OOMed on a 192×2048 matplotlib strip while the GPU sat at 2.6/2.8 GiB. is_first is unused because windows never cross episode bounds." },
+      { id:"09", tags:["compute","negative-result"], title:"Frozen-replay WM steps plateau after ~500k",
+        file:"findings/09-frozen-replay-plateau.md",
+        body:"500k→700k moved recon L1 0.00468→0.00452 and KL 2.03→1.96. Last-50k KL slope is −0.001 nats per 10k. DreamerV3’s 1M is online env interaction, not 1M decoder epochs on 600 random episodes. Stop this buffer; start actor-critic." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -242,7 +273,8 @@ flowchart LR
       "Pasted HUD head over rows 49–63",
       "Treating free_nats=1 as a KL setpoint",
       "Shrinking the 32×32 categorical latent to save VRAM",
-      "Raising stoch/classes to fix a rate-floor bug"
+      "Raising stoch/classes to fix a rate-floor bug",
+      "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps"
     ];
 
     let tag = "all";
@@ -326,6 +358,53 @@ flowchart LR
             y: { title: { display: true, text: "contribution to total" }, min: 0 }
           },
           plugins: { ...common.plugins, title: { display: true, text: "After the reduction fix, recon dominates total" } }
+        }
+      });
+    }
+    function series700(key) {
+      const pts = (window.M3_700K && window.M3_700K.points) || [];
+      return { labels: pts.map(p => p.step), data: pts.map(p => p[key]) };
+    }
+    if (window.M3_700K && window.Chart) {
+      const kl = series700("kl_rep_raw");
+      const l1 = series700("recon_l1");
+      new Chart(document.getElementById("chartKl700"), {
+        type: "line",
+        data: {
+          labels: kl.labels,
+          datasets: [
+            { label: "kl_rep_raw (nats)", data: kl.data, borderColor: "#c45c26", pointRadius: 0, yAxisID: "y" },
+            { label: "recon_l1", data: l1.data, borderColor: "#1f4e79", pointRadius: 0, yAxisID: "y1" }
+          ]
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { title: { display: true, text: "training step" }, ticks },
+            y: { title: { display: true, text: "KL nats" }, min: 0, max: 7, position: "left" },
+            y1: { title: { display: true, text: "recon_l1" }, min: 0, max: 0.04, position: "right", grid: { drawOnChartArea: false } }
+          },
+          plugins: { ...common.plugins, title: { display: true, text: "700k: KL plateaus near 2 nats (hover)" } }
+        }
+      });
+      const rec = series700("recon");
+      const kll = series700("kl");
+      new Chart(document.getElementById("chartLoss700"), {
+        type: "line",
+        data: {
+          labels: rec.labels,
+          datasets: [
+            { label: "recon sum-MSE (trained)", data: rec.data, borderColor: "#1f4e79", pointRadius: 0 },
+            { label: "weighted KL (trained)", data: kll.data, borderColor: "#c45c26", pointRadius: 0 }
+          ]
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { title: { display: true, text: "training step" }, ticks },
+            y: { title: { display: true, text: "contribution to total" }, min: 0 }
+          },
+          plugins: { ...common.plugins, title: { display: true, text: "700k: recon still dominates; both flat after 500k" } }
         }
       });
     }

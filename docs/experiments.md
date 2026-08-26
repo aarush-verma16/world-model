@@ -2,6 +2,25 @@
 
 Living log of approaches tried, including failures and why they failed.
 
+## M4 actor-critic on frozen 700k world model (2026-08-25)
+
+M3 size-S (`configs/m3_dreamer_s.yaml`) finished **700k** gradient steps on the
+frozen 600-episode random-policy replay. Gates passed (`r=0.98`, open-loop std
+ratio 0.98, last-10k `kl_rep_raw≈1.96`). Extra WM steps after ~500k were a
+plateau — see `research paper/findings/09-frozen-replay-plateau.md`. Do **not**
+push this buffer to 1M.
+
+M4 trains actor + critic only, on 15-step `z_prior` imagination from that
+checkpoint. Code: `src/agents/actor_critic.py`, `src/training/imagine.py`,
+`src/training/returns.py`, `src/training/ac_step.py`. Config:
+`configs/m4_actor_critic.yaml`. Live run: `notebooks/07_train_actor_critic.ipynb`
+(user-run; do not launch 20k steps from the agent). Dashboard is thinned so a
+matplotlib strip cannot host-OOM training again (finding 08, step 628150).
+
+No `env.step` in this loop. Real Crafter score is M5. Tag
+`v0.4-imagination-actor-critic-working` only after a passing notebook run and a
+GIF in `results/m4_actor_critic/`.
+
 ## DreamerV3 M3 reset (2026-08-23)
 
 Two weeks of tuning on `configs/m3_world_model.yaml` (the sub-pixel decoder,
@@ -117,11 +136,11 @@ everything that graph doesn't have.
   continuous stream where a sampled window can cross an episode boundary
   mid-sequence; `ReplayBuffer.sample` here only ever samples a window fully
   inside one episode (`start + seq_len <= episode_len`), so there is no
-  boundary to reset across yet. This becomes necessary once M4/M5 introduce a
+  boundary to reset across yet. This becomes necessary once M5 introduces a
   growing/streaming buffer.
 - Still supervised world-model training on a frozen random-policy replay
-  buffer, not the online collect/train loop — that's M4/M5, per
-  `milestones.md`.
+  buffer, not the online collect/train loop — that's M5, per
+  `milestones.md`. M4 is actor-critic on the frozen M3 checkpoint only.
 - `prior_layers=1` and the exact `dyn_scale`/`rep_scale` split follow
   `NM512/dreamerv3-torch`'s `configs.yaml` rather than the paper's Table 4
   (which lists `dyn_scale=1.0`); the two published sources disagree slightly

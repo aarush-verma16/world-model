@@ -1,6 +1,7 @@
 """WorldModel: encoder + RSSM + decoder + reward/continue heads (DreamerV3 M3).
 
-Trains on real replay sequences. Imagination / actor-critic is M4.
+Trains on real replay sequences. Imagination / actor-critic is M4
+(`agents.actor_critic`, `training.imagine`, `training.ac_step`).
 
 One decoder, live weights, decoding from `feat = concat(h, flatten(z))` —
 this is the paper's actual graph (`decoder(get_feat(post))` in
