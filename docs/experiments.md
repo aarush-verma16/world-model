@@ -2,6 +2,27 @@
 
 Living log of approaches tried, including failures and why they failed.
 
+## M6 Crafter baseline (2026-08-26, harness)
+
+Continue the M5 **100k** agent to **1M** env steps. Config:
+`configs/m6_baseline.yaml`. Live run: `notebooks/09_train_baseline.ipynb`
+(user-run; do not launch 1M env steps from the agent). CLI:
+`python scripts/train_agent.py --config configs/m6_baseline.yaml`.
+
+- Seed: `checkpoints/m5_outer_loop/ckpt_latest.pt` +
+  `data/m5_outer_loop_replay.pt` (`seed_joint_ckpt`). Later resumes use
+  `checkpoints/m6_baseline/ckpt_latest.pt`.
+- Same 16/1/1, batch 16 × seq 32, 32×32 latent. Collect/eval cap **10000**
+  (finding 12). Replay FIFO still **500000**.
+- Cited metrics: official gmean on `results/m6_baseline/collect_episodes.jsonl`
+  (from resume onward — first 100k has no per-achievement log) and held-out
+  **10 × 10k** STE eval every 100k (first snapshot is the M5 policy).
+- Weights every 50k; replay dump every 100k + interrupt. Dashboard every 1000.
+- Do not caption the number as DreamerV3 14.5. Fill the score after the user
+  1M run. Tag `v1.0-baseline-result` only then.
+
+Smoke: `python scripts/smoke_crafter_score.py`.
+
 ## M5 outer loop (2026-08-26)
 
 Online Dreamer cycle on top of the **700k** world model and **20k** actor-critic.

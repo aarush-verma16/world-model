@@ -30,3 +30,26 @@ def resolve_resume(spec: str | Path | None, ckpt_dir: Path) -> Path | None:
     if not path.is_file():
         raise FileNotFoundError(f"resume checkpoint not found: {path}")
     return path
+
+
+def resolve_outer_resume(
+    spec: str | Path | None,
+    ckpt_dir: Path,
+    seed_joint: str | Path | None = None,
+) -> Path | None:
+    """Resume an outer-loop run.
+
+    If `seed_joint` is set (M6), `spec=None` behaves like `"auto"` in
+    `ckpt_dir`, then falls back to the M5 joint checkpoint. M5 configs omit
+    `seed_joint`, so `spec=None` still means start from M3/M4.
+    """
+    lookup: str | Path | None = spec
+    if spec is None and seed_joint:
+        lookup = "auto"
+    path = resolve_resume(lookup, ckpt_dir)
+    if path is not None:
+        return path
+    if seed_joint is None:
+        return None
+    joint = Path(seed_joint)
+    return joint if joint.is_file() else None

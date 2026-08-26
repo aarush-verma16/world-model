@@ -193,6 +193,7 @@ def test_collector_adds_episode() -> None:
     assert len(buf) == 1
     assert out["episodes"][0]["length"] == 8
     assert out["episodes"][0]["return"] == 1.0
+    assert "achievement_counts" in out["episodes"][0]
     env.close()
 
 
@@ -209,6 +210,7 @@ def test_evaluate_policy_finite_return() -> None:
     assert result.mean_length == 6
     assert result.frames is not None
     assert result.frames.shape[1:] == (64, 64, 3)
+    assert np.isfinite(result.crafter_score)
     env.close()
 
 

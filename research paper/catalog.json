@@ -52,6 +52,11 @@
       "kl_rep_raw_last10k_mean": 6.12,
       "env_steps_per_sec_post_fix": 38.3,
       "note": "Plumbing PASS. Last train log 99840; ckpt at 100000. Eval 0.10 = 1 achievement then die (finding 11). Dashboard 18→1.1 env/s then 38 after log_every 256."
+    },
+    "m6_baseline": {
+      "config": "configs/m6_baseline.yaml",
+      "env_steps": 1000000,
+      "note": "Stub: continue M5 100k → 1M. Official gmean + 10×10k held-out. Cap 10000 (finding 12). Fill score after the user run. Do not quote DreamerV3 14.5 beside this without size-S/seq32/FIFO-500k/continued-from-100k."
     }
   },
   "findings": [
@@ -142,6 +147,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M5 100k eval return is mean_achievements − 0.9 (Crafter +1 unlock, −0.1 damage). Last 0.10 with length ~180–220. Not a geo-mean Crafter score.",
       "paper_spin": "Evaluation: plot achievements and episode length next to 4-episode return, or it will be read as DreamerV3’s Crafter curve. Geo-mean is M6."
+    },
+    {
+      "id": "12",
+      "file": "findings/12-episode-cap-is-not-crafter.md",
+      "title": "A 400-step collect cap is a second Crafter time-limit",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M5 lengths 180–220 so the 400 cap was idle. Crafter is 10k. Mapping gym done to terminated would store continue=0 on timeout. M6 cap 10000; continue follows info.discount.",
+      "paper_spin": "Eval protocol: state episode length 10000. Do not train at 400 and score at 10k."
     }
   ],
   "do_not_revive": [
@@ -156,6 +169,7 @@
     "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
     "Reading imagined λ-return on a frozen random-policy WM as a Crafter score or a reason to grind M4 past 20k",
     "Reading M5 4-episode 400-step eval return as a DreamerV3 Crafter score",
+    "Training M6 at a 400-step collect cap and quoting a 10k-step Crafter score",
     "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
     "Greedy logits.argmax collect during the outer loop"
   ]

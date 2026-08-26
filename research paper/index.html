@@ -90,6 +90,7 @@
       <a href="#charts700k">700k plateau</a>
       <a href="#m4">M4 imagined return</a>
       <a href="#m5stub">M5 outer loop</a>
+      <a href="#m6stub">M6 baseline</a>
       <a href="#graphs">Two training graphs</a>
       <a href="#findings">Findings</a>
       <a href="#stills">Recon stills</a>
@@ -177,6 +178,18 @@
           <figcaption>Eval return overlays mean achievements − 0.9 (nine −0.1 damage ticks). Last 0.10 is one unlock then death.</figcaption>
         </figure>
       </div>
+
+      <h2 id="m6stub">M6 Crafter baseline (harness)</h2>
+      <p class="muted">Wired 2026-08-26. Continue M5 100k → 1M. <strong>No 1M score yet.</strong> Official gmean on collect jsonl (from resume onward) plus held-out 10 × 10k STE. Size-S, seq 32, FIFO 500k. Do not put a blank next to DreamerV3 14.5.</p>
+      <table>
+        <thead><tr><th>Knob</th><th>Value</th><th>Read as</th></tr></thead>
+        <tbody>
+          <tr><td>seed</td><td>M5 <code>ckpt_latest</code> + m5 replay</td><td>First eval at 100k is the M5 policy</td></tr>
+          <tr><td>episode cap</td><td>10000 collect and eval</td><td>M5’s 400 cap was idle (finding 12)</td></tr>
+          <tr><td>continue</td><td><code>info.discount</code></td><td>Timeout is truncated, not death</td></tr>
+          <tr><td>score</td><td>exp(mean(log(1+p%)))−1</td><td>danijar/crafter; p in 0–100</td></tr>
+        </tbody>
+      </table>
 
       <h2 id="graphs">Why two weeks of extra losses could not work</h2>
       <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
@@ -321,7 +334,10 @@ flowchart LR
         body:"M4 20k PASS: critic 5.59→1.47, entropy 0.81, decode looks like Crafter then smears. Last-2k reward is 0.017/step while λ-return is 2.61 — the critic bootstrapping itself under γ=0.997. Plot reward next to return or it will be read as a Crafter curve. M5 real eval is still not geo-mean (finding 11)." },
       { id:"11", tags:["eval","negative-result"], title:"4×400-step eval return is one achievement then die",
         file:"findings/11-eval-return-is-not-crafter-score.md",
-        body:"M5 100k plumbing PASS, last eval 0.10. CrafterReward is +1 per unlock and −0.1 per damage. Every eval in the run is mean_achievements − 0.9. Length ~180–220 vs a 400-step cap: they die. 75k’s 0.35 is one extra achievement in four episodes. Geo-mean 10k-step score is M6." }
+        body:"M5 100k plumbing PASS, last eval 0.10. CrafterReward is +1 per unlock and −0.1 per damage. Every eval in the run is mean_achievements − 0.9. Length ~180–220 vs a 400-step cap: they die. 75k’s 0.35 is one extra achievement in four episodes. Geo-mean 10k-step score is M6." },
+      { id:"12", tags:["eval","negative-result"], title:"A 400-step collect cap is a second Crafter time-limit",
+        file:"findings/12-episode-cap-is-not-crafter.md",
+        body:"M5 eval lengths 174–257, so the 400 cap never truncated. Crafter is 10k. Mapping gym done to terminated would store continue=0 on timeout. M6 cap 10000; continue follows info.discount. Do not train at 400 and quote a 10k score." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -337,6 +353,7 @@ flowchart LR
       "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
       "Reading imagined λ-return on a frozen random-policy WM as a Crafter score",
       "Reading M5 4-episode 400-step eval return as a DreamerV3 Crafter score",
+      "Training M6 at a 400-step collect cap and quoting a 10k-step Crafter score",
       "Stream sampler / is_first as an M5 prerequisite",
       "Greedy logits.argmax collect in the outer loop"
     ];

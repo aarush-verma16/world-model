@@ -1,10 +1,11 @@
 """CUDA smoke for one outer-loop cycle (collect + WM + AC + eval + ckpt).
 
-Dozens of env steps only — not a real M5 run. Loads M3/M4 checkpoints when
-present; does not load the 1.3 GB seed replay (collects one short episode).
+Dozens of env steps only — not a real training run. Loads M3/M4 checkpoints
+when present; does not load the seed replay (collects one short episode).
 
     conda activate worldmodel
     python scripts/smoke_outer_loop.py
+    python scripts/smoke_outer_loop.py --config configs/m6_baseline.yaml --env-steps 32
 """
 
 from __future__ import annotations
@@ -162,7 +163,10 @@ def main() -> None:
             amp_dtype=amp_dtype,
             seed=100_000,
         )
-        print(f"eval return={ev.mean_return:.3f}  len={ev.mean_length:.1f}")
+        print(
+            f"eval return={ev.mean_return:.3f}  len={ev.mean_length:.1f}  "
+            f"score={ev.crafter_score:.4f}"
+        )
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "ckpt.pt"
             save_checkpoint(

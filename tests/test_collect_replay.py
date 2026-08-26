@@ -124,3 +124,17 @@ def test_resolve_resume_missing_path_raises(tmp_path: Path) -> None:
         pass
     else:
         raise AssertionError("expected FileNotFoundError")
+
+
+def test_resolve_outer_resume_prefers_run_dir_then_seed_joint(tmp_path: Path) -> None:
+    from training.ckpt import resolve_outer_resume
+
+    ckpt_dir = tmp_path / "m6"
+    ckpt_dir.mkdir()
+    seed = tmp_path / "m5.pt"
+    seed.write_bytes(b"a")
+    assert resolve_outer_resume(None, ckpt_dir, seed_joint=seed) == seed
+    latest = ckpt_dir / "ckpt_latest.pt"
+    latest.write_bytes(b"b")
+    assert resolve_outer_resume(None, ckpt_dir, seed_joint=seed) == latest
+    assert resolve_outer_resume(None, ckpt_dir, seed_joint=None) is None

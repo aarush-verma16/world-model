@@ -1,18 +1,19 @@
-"""Train the full Dreamer outer loop (M5): collect → WM → actor-critic.
+"""Train the Dreamer outer loop: collect → WM → actor-critic.
 
-Seeds the 700k world model and 20k actor-critic. Real-env eval return is the
-skill curve (imagined λ-return is not). No geometric-mean Crafter score here.
+M5 (`configs/m5_outer_loop.yaml`): 100k env steps, eval return.
+M6 (`configs/m6_baseline.yaml`): continue M5 to 1M with official Crafter gmean.
 
-Prefer `notebooks/08_train_outer_loop.ipynb` for a live run you can stop.
-This CLI is the canonical loop the notebook imports.
+Prefer the matching notebook (`08` / `09`) for a live run you can stop.
+This CLI is the canonical loop the notebooks import.
 
     conda activate worldmodel
-    python scripts/train_agent.py --config configs/m5_outer_loop.yaml
+    python scripts/train_agent.py --config configs/m6_baseline.yaml --resume auto
 """
 
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import time
 from pathlib import Path
@@ -27,7 +28,7 @@ from torch.utils.tensorboard import SummaryWriter
 from agents.actor_critic import Actor, Critic
 from envs.crafter_env import register_crafter_envs
 from models.world_model import WorldModel
-from training.ckpt import resolve_resume
+from training.ckpt import resolve_outer_resume
 from training.collect import Collector
 from training.device import (
     configure_runtime,
@@ -37,6 +38,12 @@ from training.device import (
     parse_amp,
     vram_peak_gb,
     warn_if_not_cuda,
+)
+from training.crafter_score import (
+    append_jsonl,
+    episode_jsonl_row,
+    load_jsonl,
+    score_from_episodes,
 )
 from training.evaluate import evaluate_policy, save_eval_gif
 from training.imagine import decode_imagination
@@ -151,6 +158,26 @@ def make_envs(m5_cfg: dict[str, Any]) -> tuple[gym.Env, gym.Env]:
     return collect_env, eval_env
 
 
+def record_finished_episodes(
+    finished: list[dict[str, Any]],
+    env_steps: int,
+    episodes_path: Path,
+    collect_log: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Append finished collect episodes to jsonl and the in-memory log."""
+    for ep in finished:
+        counts = ep.get("achievement_counts") or {}
+        jl = episode_jsonl_row(
+            env_steps=env_steps,
+            length=int(ep["length"]),
+            ep_return=float(ep["return"]),
+            counts=counts,
+        )
+        append_jsonl(episodes_path, jl)
+        collect_log.append(jl)
+    return collect_log
+
+
 def log_eval(
     result,
     env_steps: int,
@@ -165,7 +192,7 @@ def log_eval(
     print(
         f"eval @ {env_steps}  return={result.mean_return:.3f}±{result.std_return:.3f}  "
         f"len={result.mean_length:.1f}  ach={result.mean_achievements:.2f}  "
-        f"episodes={result.returns}",
+        f"score={result.crafter_score:.3f}  episodes={result.returns}",
         flush=True,
     )
     return row
@@ -209,7 +236,9 @@ def main() -> None:
     for p in (ckpt_dir, results_dir, log_dir, replay_out.parent):
         p.mkdir(parents=True, exist_ok=True)
 
-    resume_path = resolve_resume(args.resume, ckpt_dir)
+    resume_path = resolve_outer_resume(
+        args.resume, ckpt_dir, seed_joint=cfg.get("seed_joint_ckpt")
+    )
     env_steps = 0
     wm_steps = 0
     ac_steps = 0
@@ -225,6 +254,12 @@ def main() -> None:
         print(f"resumed {resume_path} at env_steps={env_steps}")
     else:
         load_seed_actor_critic(cfg, actor, critic, ac_optim, retnorm, device)
+
+    if cfg.get("seed_joint_ckpt") and env_steps < 100_000:
+        raise RuntimeError(
+            f"expected M5 100k joint ckpt, got env_steps={env_steps} from {resume_path}. "
+            "Do not start M6 from M3/M4 alone."
+        )
 
     buffer = load_replay(cfg, train, resume=resume_path is not None)
 
@@ -245,6 +280,10 @@ def main() -> None:
     eval_history: list[dict[str, float]] = []
     metrics_path = results_dir / "train_metrics.json"
     eval_path = results_dir / "eval_metrics.json"
+    episodes_path = results_dir / "collect_episodes.jsonl"
+    collect_log = load_jsonl(episodes_path)
+    if env_steps > 0:
+        collect_log = [r for r in collect_log if int(r.get("env_steps", 0)) <= env_steps]
     if env_steps > 0 and metrics_path.is_file():
         prev = json.loads(metrics_path.read_text(encoding="utf-8"))
         history = [h for h in prev if int(h.get("env_steps", 0)) <= env_steps]
@@ -258,6 +297,7 @@ def main() -> None:
     log_every = int(train["log_every"])
     image_every = int(train["image_every"])
     ckpt_every = int(train["checkpoint_every"])
+    replay_every = int(train.get("replay_every", ckpt_every))
     start_mode = str(train.get("start_mode", "all"))
 
     print(
@@ -335,6 +375,9 @@ def main() -> None:
             if finished:
                 row["collect_ep_return"] = float(np.mean([e["return"] for e in finished]))
                 row["collect_ep_len"] = float(np.mean([e["length"] for e in finished]))
+                collect_log = record_finished_episodes(
+                    finished, env_steps, episodes_path, collect_log
+                )
 
             if (
                 crossed_interval(prev_steps, env_steps, log_every)
@@ -347,6 +390,11 @@ def main() -> None:
                 last_log_time = now
                 last_log_env = env_steps
                 row["env_steps_per_sec"] = sps
+                if collect_log:
+                    online_score, _ = score_from_episodes(
+                        collect_log, budget=int(train["env_steps"])
+                    )
+                    row["online_crafter_score"] = online_score
                 history.append(row)
                 if writer is not None:
                     for k, v in row.items():
@@ -361,6 +409,7 @@ def main() -> None:
                 print(
                     f"env {env_steps}/{target}  wm_l1={wm_l1:.4f}  ac_H={ac_h:.3f}  "
                     f"collect_r={row['collect_reward']:.4f}  "
+                    f"score={row.get('online_crafter_score', float('nan')):.3f}  "
                     f"({sps:.2f} env/s){vram_s}",
                     flush=True,
                 )
@@ -390,11 +439,16 @@ def main() -> None:
                 )
                 save_checkpoint(ckpt_dir / f"ckpt_step_{env_steps}.pt", payload)
                 save_checkpoint(ckpt_dir / "ckpt_latest.pt", payload)
-                save_replay(buffer, replay_out)
                 metrics_path.write_text(json.dumps(history), encoding="utf-8")
                 eval_path.write_text(json.dumps(eval_history), encoding="utf-8")
                 print(f"wrote {ckpt_dir / f'ckpt_step_{env_steps}.pt'}", flush=True)
+                gc.collect()
 
+            if crossed_interval(prev_steps, env_steps, replay_every):
+                save_replay(buffer, replay_out)
+                print(f"wrote replay {replay_out}", flush=True)
+
+    finally:
         payload = joint_payload(
             env_steps=env_steps,
             wm_steps=wm_steps,
@@ -412,12 +466,11 @@ def main() -> None:
         save_replay(buffer, replay_out)
         metrics_path.write_text(json.dumps(history), encoding="utf-8")
         eval_path.write_text(json.dumps(eval_history), encoding="utf-8")
-        print("done", ckpt_dir / "ckpt_final.pt")
-    finally:
         collect_env.close()
         eval_env.close()
         writer.flush()
         writer.close()
+        print("done", ckpt_dir / "ckpt_final.pt")
 
 
 if __name__ == "__main__":

@@ -108,7 +108,18 @@ jupyter notebook notebooks/08_train_outer_loop.ipynb
 python scripts/smoke_outer_loop.py
 ```
 
-Default budget is 100k env steps (hours, stoppable). Geometric-mean Crafter score is a later milestone.
+Default budget is 100k env steps (hours, stoppable). Geometric-mean Crafter score is M6.
+
+**Crafter baseline (M6)** — continue the 100k agent to 1M with the official geo-mean:
+
+```powershell
+jupyter notebook notebooks/09_train_baseline.ipynb
+# CLI:
+# python scripts/train_agent.py --config configs/m6_baseline.yaml
+python scripts/smoke_crafter_score.py
+```
+
+Do not quote the M5 0.10 return as this score. The 1M number is a user-run.
 
 **RSSM diagnostics**
 

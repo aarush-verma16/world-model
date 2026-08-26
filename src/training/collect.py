@@ -19,6 +19,7 @@ from agents.actor_critic import Actor
 from models.heads import rssm_features
 from models.rssm import RSSMState
 from models.world_model import WorldModel
+from training.crafter_score import achievement_counts_from_info
 from training.device import autocast_context
 from training.replay_buffer import ReplayBuffer
 
@@ -169,12 +170,20 @@ class Collector:
                 self.buffer.add_episode(
                     self._obs_buf, self._act_buf, self._rew_buf, self._cont_buf
                 )
+            ach_counts = achievement_counts_from_info(
+                info if isinstance(info, dict) else None
+            )
+            raw = {}
+            if isinstance(info, dict) and isinstance(info.get("achievements"), dict):
+                raw = {str(k): int(float(v)) for k, v in info["achievements"].items()}
             finished = {
                 "return": ep_ret,
                 "length": ep_len,
                 "achievements": count_unlocked_achievements(
                     info if isinstance(info, dict) else None
                 ),
+                "achievement_counts": ach_counts,
+                "achievement_counts_raw": raw,
             }
             self._need_reset = True
             self._obs = None

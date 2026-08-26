@@ -29,6 +29,12 @@ def test_crafter_reward_obs_and_action_space() -> None:
             assert np.isfinite(reward)
             assert isinstance(terminated, (bool, np.bool_))
             assert isinstance(truncated, (bool, np.bool_))
+            assert "achievements" in info
+            assert "discount" in info
+            assert float(info["discount"]) in (0.0, 1.0)
+            if terminated:
+                assert float(info["discount"]) == 0.0
+                assert not bool(truncated)
             if terminated or truncated:
                 obs, info = env.reset()
     finally:

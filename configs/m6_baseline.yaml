@@ -1,0 +1,72 @@
+# Milestone 6 — Crafter baseline (continue M5 100k → 1M env steps).
+#
+# Same 16/1/1 outer loop, 32×32 latent, seq 32, batch 16. Not a sweep.
+# Cited metric is the official Crafter geometric-mean score (train-episode
+# unlock rates, 1% offset) plus a held-out 10 × 10k STE snapshot.
+# Do not quote M5's 0.10 return as this number (finding 11).
+#
+# First launch loads M5 joint ckpt + online replay. Later launches use
+# checkpoints/m6_baseline/ckpt_latest.pt via RESUME=auto.
+#
+# Prefer notebooks/09_train_baseline.ipynb (user-run). Do not launch 1M
+# from the agent.
+
+seed: 0
+
+world_model_config: configs/m3_dreamer_s.yaml
+world_model_ckpt: checkpoints/m3_dreamer_s/ckpt_step_700000.pt
+actor_critic_ckpt: checkpoints/m4_actor_critic/ckpt_final.pt
+seed_joint_ckpt: checkpoints/m5_outer_loop/ckpt_latest.pt
+seed_replay: data/m5_outer_loop_replay.pt
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 512
+  layers: 2
+  unimix: 0.01
+
+critic:
+  hidden: 512
+  layers: 2
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 10000
+  replay_max_steps: 500000
+  eval_every: 100000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  # "all" = B*T start states (DreamerV3). Fall back to "last" only if the
+  # CUDA smoke OOMs — do not shrink the 32×32 latent.
+  start_mode: all
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 100000
+  checkpoint_every: 50000
+  replay_every: 100000
+  log_dir: runs/m6_baseline
+  checkpoint_dir: checkpoints/m6_baseline
+  results_dir: results/m6_baseline
+  replay_out: data/m6_baseline_replay.pt

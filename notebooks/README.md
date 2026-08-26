@@ -17,6 +17,7 @@ Do this continuously as features land; do not wait for a milestone tag.
 | `06_decoder_probe.ipynb` | Probe-decodability test: is blurry recon a starved decoder or a blind latent? |
 | `07_train_actor_critic.ipynb` | Frozen-WM actor-critic: 15-step `z_prior` imagination, loss/entropy curves, GIF |
 | `08_train_outer_loop.ipynb` | M5 outer loop: policy collect, WM + AC updates, real-env eval return (user-run) |
+| `09_train_baseline.ipynb` | M6 baseline: continue 100k → 1M, official Crafter gmean + 10×10k eval (user-run) |
 
 ## Conventions
 
@@ -26,8 +27,8 @@ Do this continuously as features land; do not wait for a milestone tag.
   (e.g. `training.rssm_diagnostics`) so both paths stay in sync.
 - **One concern per notebook.** Add a new file when you start a new interactive
   workflow — don't bolt unrelated cells onto an old notebook forever.
-- **Long training runs** (world model, actor-critic, outer loop) live in
-  notebooks `05` / `07` / `08` so you can watch and stop them. CLIs in
+- **Long training runs** (world model, actor-critic, outer loop, baseline) live in
+  notebooks `05` / `07` / `08` / `09` so you can watch and stop them. CLIs in
   `scripts/` are the same loops without live plots.
 - **Kernel:** `Python (worldmodel)` after `pip install -e ".[dev]"` and
   `python -m ipykernel install --user --name worldmodel --display-name "Python (worldmodel)"`.

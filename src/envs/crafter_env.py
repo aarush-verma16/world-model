@@ -15,6 +15,24 @@ import numpy as np
 from gymnasium import spaces
 
 
+def split_crafter_done(
+    done: bool, info: dict[str, Any] | None
+) -> tuple[bool, bool]:
+    """Map crafter `done` to Gymnasium `(terminated, truncated)`.
+
+    `crafter.Env` sets `done = dead or timeout` and `info['discount'] =
+    1 - float(dead)`. Treating every `done` as `terminated` stores
+    `continue=0` on a 10k timeout (finding 12). Death is terminated;
+    time-limit is truncated so the collector can bootstrap.
+    """
+    if not info or "discount" not in info:
+        return bool(done), False
+    dead = float(info["discount"]) < 0.5
+    terminated = bool(dead)
+    truncated = bool(done) and not terminated
+    return terminated, truncated
+
+
 class CrafterEnv(gym.Env):
     """Thin Gymnasium adapter around `crafter.Env`.
 
@@ -51,8 +69,7 @@ class CrafterEnv(gym.Env):
         self, action: int
     ) -> tuple[np.ndarray, SupportsFloat, bool, bool, dict[str, Any]]:
         obs, reward, done, info = self._env.step(action)
-        terminated = bool(done)
-        truncated = False
+        terminated, truncated = split_crafter_done(bool(done), info if isinstance(info, dict) else None)
         return np.asarray(obs, dtype=np.uint8), float(reward), terminated, truncated, info
 
     def close(self) -> None:
