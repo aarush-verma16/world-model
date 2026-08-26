@@ -464,3 +464,58 @@ def test_resolve_resume_picks_highest_step_not_lexicographic(tmp_path: Path) -> 
     (tmp_path / "ckpt_latest.pt").write_bytes(b"d")
     picked = resolve_resume("auto", tmp_path)
     assert picked is not None and picked.name == "ckpt_latest.pt"
+
+
+def test_free_nats_floor_is_on_joint_kl_not_each_categorical() -> None:
+    """Clamping each of `stoch` categoricals at 1 nat would pin the floor at
+    `stoch` nats. Dreamer applies free_nats to the per-timestep *sum*."""
+    stoch = 8
+    post = torch.zeros(2, 3, stoch, 5)
+    prior = torch.zeros(2, 3, stoch, 5)
+    _kl, _dyn, rep, _dyn_raw, rep_raw = kl_balance(
+        post, prior, unimix=0.0, dyn_scale=0.5, rep_scale=0.1, free_nats=1.0
+    )
+    assert float(rep_raw) < 1e-5
+    assert abs(float(rep) - 1.0) < 1e-5
+
+
+def test_categorical_kl_is_nonnegative() -> None:
+    a = torch.randn(2, 3, 4, 5)
+    b = torch.randn(2, 3, 4, 5)
+    kl = categorical_kl(a, b, unimix=0.01)
+    assert bool((kl >= -1e-5).all())
+
+
+def test_world_model_encode_keeps_batch_time() -> None:
+    wm = _tiny_wm()
+    obs_bt = torch.randint(0, 256, (2, 5, 64, 64, 3), dtype=torch.uint8)
+    embeds_bt = wm.encode(obs_bt)
+    embeds_b = wm.encode(obs_bt[:, 0])
+    assert embeds_bt.shape == (2, 5, 64)
+    assert embeds_b.shape == (2, 64)
+
+
+def test_video_predict_rejects_bad_context_len() -> None:
+    wm = _tiny_wm()
+    obs = torch.randint(0, 256, (1, 6, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.zeros(1, 6, dtype=torch.int64)
+    for bad in (0, 6):
+        try:
+            wm.video_predict(obs, actions, context_len=bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for context_len={bad}")
+
+
+def test_removed_recon_embed_attribute_raises() -> None:
+    wm = _tiny_wm()
+    obs = torch.randint(0, 256, (1, 4, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.zeros(1, 4, dtype=torch.int64)
+    out = wm(obs, actions)
+    try:
+        _ = out.recon_embed
+    except AttributeError as exc:
+        assert "recon_embed" in str(exc)
+    else:
+        raise AssertionError("recon_embed must not exist on WorldModelOutput")

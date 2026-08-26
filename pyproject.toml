@@ -28,5 +28,10 @@ dev = ["pytest", "jupyter", "ipykernel", "ipywidgets"]
 where = ["src"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
+addopts = ["-v", "--tb=short", "-ra", "--strict-markers", "--color=yes"]
+markers = [
+  "cuda: needs NVIDIA CUDA (skipped when torch.cuda.is_available() is False)",
+  "env: instantiates CrafterReward-v1 (skip with -m \"not env\")",
+]

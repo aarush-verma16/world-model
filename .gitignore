@@ -11,6 +11,7 @@ build/
 .venv/
 venv/
 src/*.egg-info/
+.pytest_cache/
 
 # Jupyter
 .ipynb_checkpoints/

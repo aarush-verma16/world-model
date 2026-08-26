@@ -41,3 +41,31 @@ def test_get_device_returns_torch_device() -> None:
     assert isinstance(device, torch.device)
     if torch.cuda.is_available():
         assert device.type == "cuda"
+
+
+def test_parse_amp_unknown_raises_on_cuda_device() -> None:
+    try:
+        parse_amp("fp8", torch.device("cuda"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for unknown amp")
+
+
+def test_make_grad_scaler_disabled_except_cuda_fp16() -> None:
+    from training.device import make_grad_scaler
+
+    cuda = torch.device("cuda")
+    assert make_grad_scaler(cuda, torch.bfloat16).is_enabled() is False
+    assert make_grad_scaler(cuda, None).is_enabled() is False
+    assert make_grad_scaler(torch.device("cpu"), torch.float16).is_enabled() is False
+
+
+def test_configure_runtime_and_describe_cpu() -> None:
+    from training.device import configure_runtime, describe_device
+
+    cpu = torch.device("cpu")
+    configure_runtime(cpu)
+    text = describe_device(cpu)
+    assert "cpu" in text
+    assert "torch" in text

@@ -68,8 +68,10 @@ Smoke-check the stack:
 ```powershell
 python scripts/verify_m0.py
 python scripts/smoke_cuda_step.py
-pytest -q
+python scripts/run_tests.py
 ```
+
+`run_tests.py` is the ML unit suite (shapes, gradient flow, invariants). It prints each test plus a grouped pass/fail table. Skip the Crafter env smoke with `--fast`. Same suite via `pytest -v`. These tests do **not** train the model or assert Crafter score — that lives in the notebooks and TensorBoard.
 
 `smoke_cuda_step.py` prints steps/sec and peak VRAM for the current `m3` batch/seq. If it OOMs, drop `train.batch_size` 16 → 8 in `configs/m3_world_model.yaml` and re-run the smoke.
 

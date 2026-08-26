@@ -9,6 +9,7 @@ from models.rssm import (
     RSSM,
     GRUCellLayerNorm,
     get_activation,
+    one_hot_action,
     sample_onehot_ste,
     unimix_probs,
 )
@@ -270,3 +271,21 @@ def test_imagine_shapes() -> None:
     assert z_prior.shape == (3, 10, 4, 4)
     assert prior_logits.shape == (3, 10, 4, 4)
     assert torch.isfinite(h).all()
+
+
+def test_one_hot_action_layout_is_batch_time_classes() -> None:
+    actions = torch.tensor([[0, 1], [2, 0]])
+    oh = one_hot_action(actions, 3)
+    assert oh.shape == (2, 2, 3)
+    assert torch.equal(oh[1, 0], torch.tensor([0.0, 0.0, 1.0]))
+
+
+def test_observe_outputs_are_batch_time_leading() -> None:
+    """Project tensor convention: every RSSM sequence tensor is [B, T, ...]."""
+    batch, time = 3, 7
+    rssm = RSSM(embed_dim=16, action_dim=4, deter_dim=8, stoch=4, classes=4, hidden=16)
+    out = rssm.observe(torch.randn(batch, time, 16), one_hot_action(torch.zeros(batch, time, dtype=torch.int64), 4))
+    for name in ("h", "z_prior", "z_posterior", "prior_logits", "posterior_logits"):
+        tensor = getattr(out, name)
+        assert tensor.shape[0] == batch, name
+        assert tensor.shape[1] == time, name
