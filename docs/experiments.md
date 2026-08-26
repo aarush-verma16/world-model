@@ -17,9 +17,13 @@ checkpoint. Code: `src/agents/actor_critic.py`, `src/training/imagine.py`,
 (user-run; do not launch 20k steps from the agent). Dashboard is thinned so a
 matplotlib strip cannot host-OOM training again (finding 08, step 628150).
 
-No `env.step` in this loop. Real Crafter score is M5. Tag
-`v0.4-imagination-actor-critic-working` only after a passing notebook run and a
-GIF in `results/m4_actor_critic/`.
+Finished **20k** steps on 2026-08-26. Notebook exit **PASS** (reward finite
+0.023, entropy 0.814 > 0.1, critic 5.59 → 1.47, decode std 0.21). Last-2k
+window: imagined reward **0.017**/step vs λ-return **2.61** — critic bootstrap,
+not Crafter skill (`research paper/findings/10-imagined-return-not-skill.md`).
+GIF: `results/m4_actor_critic/imagine_final.gif`. Next is M5 (online collect +
+real env eval). Tag `v0.4-imagination-actor-critic-working` when you want the
+milestone artifact; do not grind this frozen-WM loop further.
 
 ## DreamerV3 M3 reset (2026-08-23)
 

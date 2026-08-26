@@ -28,6 +28,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | MSE ghosts of rare movers | Limitations + why we did not add sprite losses |
 | 50k KL peak then 700k plateau | Results figure; “floor ≠ setpoint”; frozen-replay compute |
 | seq 64 thrash / host-RAM dashboard OOM | Compute / hardware appendix |
+| Imagined λ-return vs reward on frozen WM | Evaluation: do not plot M4 return as Crafter skill |
 
 ## Index of findings
 
@@ -40,6 +41,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 7. [Diagnostics that lie](findings/07-lying-diagnostics.md) — resume plots, log-continue, embed-vs-`[h,z]`.
 8. [Workstation recipe](findings/08-workstation-recipe.md) — seq 64, replay size, VRAM, Jupyter kernels, host-RAM strip OOM.
 9. [Frozen-replay plateau](findings/09-frozen-replay-plateau.md) — 500k→700k is noise; DreamerV3’s 1M is env steps.
+10. [Imagined λ-return is not skill](findings/10-imagined-return-not-skill.md) — M4 return ~2.6 is critic bootstrap; reward stays ~0.017/step.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -49,6 +51,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M3 reset** (`configs/m3_dreamer_s.yaml`): size-S, one live decoder, paper four-term loss.
   - **50k steps, 2026-08-24.** `recon_l1` 0.326 → 0.0095; `kl_rep_raw` peaked 6.14 at step 16650, finished 3.49; reward correlation **r = 0.91**.
   - **700k steps, 2026-08-25.** Last-10k mean `recon_l1` **0.0045**, `kl_rep_raw` **1.96**; reward **r = 0.98**; open-loop std ratio **0.98**. Host RAM OOM at 628150 (matplotlib strip); resumed from 620k. Plateau after ~500k — do not push this buffer to 1M gradient steps (finding 09).
+- **M4 actor-critic** (`configs/m4_actor_critic.yaml`): 20k steps on the frozen 700k WM, 2026-08-26. Notebook exit **PASS**. Last-2k imagined reward **0.017**/step vs λ-return **2.61** (finding 10). GIF: `results/m4_actor_critic/imagine_final.gif`.
 
 ## Conventions
 

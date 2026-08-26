@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-25",
+  "updated": "2026-08-26",
   "runs": {
     "pre_reset_12k": {
       "config": "configs/m3_world_model.yaml",
@@ -30,6 +30,16 @@
       "imag_std_ratio": 0.98,
       "params_m": 18.72,
       "note": "Same frozen 600-episode replay. Plateau after ~500k. Host RAM OOM at 628150; resumed from 620k."
+    },
+    "m4_ac_20k": {
+      "config": "configs/m4_actor_critic.yaml",
+      "steps": 20000,
+      "entropy_last": 0.814,
+      "critic_first": 5.589,
+      "critic_last": 1.468,
+      "reward_last": 0.0235,
+      "return_last2k_mean": 2.61,
+      "note": "Frozen 700k WM. Imagined reward ~0.017/step; λ-return ~2.6 is critic bootstrap. Notebook exit PASS."
     }
   },
   "findings": [
@@ -104,6 +114,14 @@
       "tags": ["compute", "negative-result"],
       "one_liner": "500k→700k moved recon L1 0.00468→0.00452 and KL 2.03→1.96. DreamerV3’s 1M is online env steps, not decoder epochs on 600 random episodes.",
       "paper_spin": "Limitations / compute: stop the frozen-buffer run at the plateau; do not treat 1M gradient steps as the paper budget."
+    },
+    {
+      "id": "10",
+      "file": "findings/10-imagined-return-not-skill.md",
+      "title": "Imagined λ-return is not Crafter skill on a frozen random-policy WM",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M4 last-2k: reward 0.017/step vs λ-return 2.61. The return curve is critic bootstrap under γ=0.997, not achievements. M4 passed; skill is M5 env eval.",
+      "paper_spin": "Evaluation: any imagined-return figure must show per-step reward beside λ-return or it will be read as a Crafter curve."
     }
   ],
   "do_not_revive": [
@@ -115,6 +133,7 @@
     "Treating free_nats=1 as a KL setpoint",
     "Shrinking the 32×32 categorical latent to save VRAM (drop batch/seq instead)",
     "Raising stoch/classes to fix a rate-floor bug",
-    "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps"
+    "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
+    "Reading imagined λ-return on a frozen random-policy WM as a Crafter score or a reason to grind M4 past 20k"
   ]
 }
