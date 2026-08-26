@@ -95,6 +95,19 @@ tensorboard --logdir runs
 
 The CLI (`python scripts/train_world_model.py`) is the same loop without live plots.
 
+**Actor-critic (frozen world model)** — `notebooks/07_train_actor_critic.ipynb`
+
+**Outer loop (M5)** — collect in Crafter, train WM + actor-critic, log real eval return:
+
+```powershell
+jupyter notebook notebooks/08_train_outer_loop.ipynb
+# CLI (same loop, no live plots):
+# python scripts/train_agent.py --config configs/m5_outer_loop.yaml
+python scripts/smoke_outer_loop.py
+```
+
+Default budget is 100k env steps (hours, stoppable). Geometric-mean Crafter score is a later milestone.
+
 **RSSM diagnostics**
 
 ```powershell

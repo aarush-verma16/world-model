@@ -2,6 +2,29 @@
 
 Living log of approaches tried, including failures and why they failed.
 
+## M5 outer loop (2026-08-26)
+
+Online Dreamer cycle on top of the **700k** world model and **20k** actor-critic.
+Config: `configs/m5_outer_loop.yaml`. Live run: `notebooks/08_train_outer_loop.ipynb`
+(user-run; do not launch 100k env steps from the agent). CLI:
+`scripts/train_agent.py`.
+
+- Seed: `checkpoints/m3_dreamer_s/ckpt_step_700000.pt`,
+  `checkpoints/m4_actor_critic/ckpt_final.pt`, `data/m3_dreamer_s_replay.pt`.
+- Ratio: **16** env steps → **1** WM step → **1** AC step (batch 16 × seq 32).
+- Collect and eval cap **400** steps (same as the frozen dump). 10k-step
+  protocol + geometric-mean Crafter score are **M6**.
+- Collect/eval actions are **STE samples**, not greedy `logits.argmax`.
+- Replay stays **episode-bounded** (no `is_first` / stream sampler). FIFO
+  `replay_max_steps: 500000`. Online dump is `data/m5_outer_loop_replay.pt`
+  (does not overwrite the M3 seed).
+- Skill plot is **real eval return**. Imagined λ-return stays an AC diagnostic
+  (finding 10).
+
+Smoke: `python scripts/smoke_outer_loop.py` (dozens of env steps). Tag
+`v0.5-full-loop-integrated` only after a user run that is crash-free and whose
+eval return is not obviously dead-flat.
+
 ## M4 actor-critic on frozen 700k world model (2026-08-25)
 
 M3 size-S (`configs/m3_dreamer_s.yaml`) finished **700k** gradient steps on the
@@ -139,9 +162,8 @@ everything that graph doesn't have.
 - `is_first` is not threaded into `RSSM.observe`. DreamerV3's real replay is a
   continuous stream where a sampled window can cross an episode boundary
   mid-sequence; `ReplayBuffer.sample` here only ever samples a window fully
-  inside one episode (`start + seq_len <= episode_len`), so there is no
-  boundary to reset across yet. This becomes necessary once M5 introduces a
-  growing/streaming buffer.
+  inside one episode (`start + seq_len <= episode_len`). M5 kept that sampler
+  (FIFO episode list, not a stream); `is_first` is not an outer-loop prerequisite.
 - Still supervised world-model training on a frozen random-policy replay
   buffer, not the online collect/train loop — that's M5, per
   `milestones.md`. M4 is actor-critic on the frozen M3 checkpoint only.

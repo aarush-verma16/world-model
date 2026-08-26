@@ -25,12 +25,17 @@ class EpisodeBatch:
 
 
 class ReplayBuffer:
-    """Stores full episodes and samples fixed-length contiguous windows."""
+    """Stores full episodes and samples fixed-length contiguous windows.
 
-    def __init__(self, seed: int = 0) -> None:
+    Windows never cross episode boundaries (no `is_first`). Optional FIFO
+    `max_steps` drops the oldest episodes so host RAM cannot grow forever.
+    """
+
+    def __init__(self, seed: int = 0, max_steps: int | None = None) -> None:
         self._episodes: list[EpisodeBatch] = []
         self._rng = np.random.default_rng(seed)
         self._total_steps = 0
+        self.max_steps = None if max_steps is None else int(max_steps)
 
     def __len__(self) -> int:
         return len(self._episodes)
@@ -38,6 +43,17 @@ class ReplayBuffer:
     @property
     def num_steps(self) -> int:
         return self._total_steps
+
+    def _evict(self) -> None:
+        """Drop oldest episodes until `num_steps <= max_steps`.
+
+        A single episode longer than `max_steps` is kept (we do not split).
+        """
+        if self.max_steps is None:
+            return
+        while len(self._episodes) > 1 and self._total_steps > self.max_steps:
+            old = self._episodes.pop(0)
+            self._total_steps -= int(old.obs.shape[0])
 
     def add_episode(
         self,
@@ -63,6 +79,7 @@ class ReplayBuffer:
             EpisodeBatch(obs=obs_t, actions=act_t, rewards=rew_t, cont=cont_t)
         )
         self._total_steps += t
+        self._evict()
 
     def sample(self, batch_size: int, seq_len: int) -> dict[str, Tensor]:
         """Sample contiguous windows.
@@ -129,7 +146,10 @@ class ReplayBuffer:
             )
             for item in state["episodes"]
         ]
-        self._total_steps = int(state.get("total_steps", sum(ep.obs.shape[0] for ep in self._episodes)))
+        self._total_steps = int(
+            state.get("total_steps", sum(ep.obs.shape[0] for ep in self._episodes))
+        )
+        self._evict()
 
 
 def _fmt_duration(seconds: float) -> str:

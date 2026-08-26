@@ -61,8 +61,10 @@ This is not a DreamerV3 result. It is why a “live matplotlib dashboard of 2048
 
 ## `is_first` is not threaded yet — and that is consistent with our sampler
 
-DreamerV3 replay is a stream; a sampled window can **cross an episode boundary**, so `is_first` resets GRU state mid-sequence. `ReplayBuffer.sample` here only returns windows with `start + seq_len <= episode_len`. There is no boundary to reset across **yet**. This becomes mandatory at M5 if the buffer becomes a stream. Until then, claiming “we match DreamerV3 replay” is false.
+DreamerV3 replay is a stream; a sampled window can **cross an episode boundary**, so `is_first` resets GRU state mid-sequence. `ReplayBuffer.sample` here only returns windows with `start + seq_len <= episode_len`. There is no boundary to reset across.
+
+M5 keeps that sampler on purpose. Online collect still stores **full episodes** and FIFO-drops the oldest when `max_steps` is hit. `is_first` is **not** an M5 prerequisite — adding a stream just to look more like the paper would be a new identifiability surface (mid-window GRU reset vs our current truncated-BPTT-from-zero, which Dreamer also does on windows that do not contain a boundary). Until we sample across concatenations, claiming “we match DreamerV3 replay” is still false.
 
 ## Paper spin
 
-Hardware appendix: 16 GiB, seq 32, bf16, 600-episode frozen buffer, ~19M size-S, 700k steps, ~5.6–8 it/s, 32 GiB host that can OOM on a dashboard before the GPU does. Limitations: single seed, single env, no online collect, `is_first` unused. That is an honest small-scale study, which is the project’s stated research goal — not a competing DreamerV3 number.
+Hardware appendix: 16 GiB, seq 32, bf16, 600-episode frozen buffer, ~19M size-S, 700k steps, ~5.6–8 it/s, 32 GiB host that can OOM on a dashboard before the GPU does. Limitations: single seed, single env, episode-bounded replay (`is_first` unused), seq 32. That is an honest small-scale study, which is the project’s stated research goal — not a competing DreamerV3 number.

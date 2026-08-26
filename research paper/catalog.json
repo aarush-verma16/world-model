@@ -40,6 +40,11 @@
       "reward_last": 0.0235,
       "return_last2k_mean": 2.61,
       "note": "Frozen 700k WM. Imagined reward ~0.017/step; λ-return ~2.6 is critic bootstrap. Notebook exit PASS."
+    },
+    "m5_outer_loop": {
+      "config": "configs/m5_outer_loop.yaml",
+      "env_steps": 100000,
+      "note": "Stub: online collect 16/1/1, 400-step cap, eval=return not geo-mean. Fill numbers after the user 100k run. Seeds M3 700k + M4 20k."
     }
   },
   "findings": [
@@ -134,6 +139,8 @@
     "Shrinking the 32×32 categorical latent to save VRAM (drop batch/seq instead)",
     "Raising stoch/classes to fix a rate-floor bug",
     "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
-    "Reading imagined λ-return on a frozen random-policy WM as a Crafter score or a reason to grind M4 past 20k"
+    "Reading imagined λ-return on a frozen random-policy WM as a Crafter score or a reason to grind M4 past 20k",
+    "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
+    "Greedy logits.argmax collect during the outer loop"
   ]
 }

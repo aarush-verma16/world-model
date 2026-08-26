@@ -89,6 +89,7 @@
       <a href="#charts">50k curves</a>
       <a href="#charts700k">700k plateau</a>
       <a href="#m4">M4 imagined return</a>
+      <a href="#m5stub">M5 outer loop</a>
       <a href="#graphs">Two training graphs</a>
       <a href="#findings">Findings</a>
       <a href="#stills">Recon stills</a>
@@ -149,6 +150,18 @@
           <tr><td>policy entropy</td><td>2.78 nats</td><td>0.81 (last-5k min 0.58)</td><td>Peaked, not collapsed; 0/1001 logs under 0.1</td></tr>
           <tr><td>imagined reward / step</td><td>0.008</td><td>0.017 last-2k</td><td>Sparse frozen reward head; finite, not exploding</td></tr>
           <tr><td>λ-return</td><td>0.24</td><td>2.61 last-2k</td><td>Tracks value, not reward — do not cite as skill</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="m5stub">M5 outer loop (stub)</h2>
+      <p class="muted">Wired 2026-08-26. Numbers after the user 100k env-step run. Skill plot is real eval return, not imagined λ-return. Episode-bounded replay; no <code>is_first</code>.</p>
+      <table>
+        <thead><tr><th>Knob</th><th>Value</th><th>Read as</th></tr></thead>
+        <tbody>
+          <tr><td>seeds</td><td>M3 700k WM + M4 20k AC + 600-ep dump</td><td>Do not retrain from scratch</td></tr>
+          <tr><td>ratio</td><td>16 env / 1 WM / 1 AC</td><td>batch 16 × seq 32 → train_ratio 32</td></tr>
+          <tr><td>episode cap</td><td>400 collect and eval</td><td>10k + geo-mean is M6</td></tr>
+          <tr><td>actions</td><td>STE sample, not greedy</td><td>Greedy collect is the documented M5 fail</td></tr>
         </tbody>
       </table>
 
@@ -305,7 +318,9 @@ flowchart LR
       "Shrinking the 32×32 categorical latent to save VRAM",
       "Raising stoch/classes to fix a rate-floor bug",
       "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
-      "Reading imagined λ-return on a frozen random-policy WM as a Crafter score"
+      "Reading imagined λ-return on a frozen random-policy WM as a Crafter score",
+      "Stream sampler / is_first as an M5 prerequisite",
+      "Greedy logits.argmax collect in the outer loop"
     ];
 
     let tag = "all";

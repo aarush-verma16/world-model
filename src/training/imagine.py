@@ -48,6 +48,17 @@ def freeze_world_model(model: WorldModel) -> None:
         p.requires_grad_(False)
 
 
+def unfreeze_world_model(model: WorldModel) -> None:
+    """Train + unfreeze every world-model parameter after an actor-critic phase.
+
+    `actor_critic_step` calls `freeze_world_model` every time. The outer loop
+    must call this before `world_model_step` or the WM silently stops learning.
+    """
+    model.train()
+    for p in model.parameters():
+        p.requires_grad_(True)
+
+
 def _start_states(
     world_model: WorldModel,
     obs_u8: Tensor,

@@ -1,0 +1,71 @@
+# Milestone 5 — Dreamer outer loop (online collect + WM + actor-critic).
+#
+# Seeds the 700k size-S world model and the 20k frozen-WM actor-critic.
+# One Crafter env collects with the stochastic STE actor; a second env is
+# used only for eval. World-model windows stay episode-bounded (no is_first).
+#
+# Exit bar (milestones.md M5): hours without crash/OOM/NaN; real-env eval
+# return trends up (slowly is fine); joint checkpoint reloads. Not the
+# paper Crafter geometric-mean score — that is M6.
+#
+# Skill plot is eval return. Imagined λ-return is an AC diagnostic only
+# (research paper/findings/10-imagined-return-not-skill.md).
+#
+# Prefer notebooks/08_train_outer_loop.ipynb for a live run you can stop.
+
+seed: 0
+
+world_model_config: configs/m3_dreamer_s.yaml
+world_model_ckpt: checkpoints/m3_dreamer_s/ckpt_step_700000.pt
+actor_critic_ckpt: checkpoints/m4_actor_critic/ckpt_final.pt
+seed_replay: data/m3_dreamer_s_replay.pt
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 512
+  layers: 2
+  unimix: 0.01
+
+critic:
+  hidden: 512
+  layers: 2
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 100000
+  collect_every: 16
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 400
+  replay_max_steps: 500000
+  eval_every: 5000
+  eval_episodes: 4
+  eval_max_steps: 400
+  eval_seed: 100000
+  horizon: 15
+  # "all" = B*T start states (DreamerV3). Fall back to "last" only if the
+  # CUDA smoke OOMs — do not shrink the 32×32 latent.
+  start_mode: all
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 16
+  image_every: 5000
+  checkpoint_every: 10000
+  log_dir: runs/m5_outer_loop
+  checkpoint_dir: checkpoints/m5_outer_loop
+  results_dir: results/m5_outer_loop
+  replay_out: data/m5_outer_loop_replay.pt
