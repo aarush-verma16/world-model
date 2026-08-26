@@ -44,7 +44,14 @@
     "m5_outer_loop": {
       "config": "configs/m5_outer_loop.yaml",
       "env_steps": 100000,
-      "note": "Interrupted at 58624 env steps. Notebook dashboard every cycle: 18 env/s → 1.1 env/s. Resume ckpt_latest; 100k skill numbers TBD. Eval is 4-ep return, not geo-mean."
+      "eval_return_start": -0.65,
+      "eval_return_end": 0.10,
+      "eval_achievements_end": 1.0,
+      "entropy_last": 0.943,
+      "recon_l1_last10k_mean": 0.0132,
+      "kl_rep_raw_last10k_mean": 6.12,
+      "env_steps_per_sec_post_fix": 38.3,
+      "note": "Plumbing PASS. Last train log 99840; ckpt at 100000. Eval 0.10 = 1 achievement then die (finding 11). Dashboard 18→1.1 env/s then 38 after log_every 256."
     }
   },
   "findings": [
@@ -125,8 +132,16 @@
       "file": "findings/10-imagined-return-not-skill.md",
       "title": "Imagined λ-return is not Crafter skill on a frozen random-policy WM",
       "tags": ["eval", "negative-result"],
-      "one_liner": "M4 last-2k: reward 0.017/step vs λ-return 2.61. The return curve is critic bootstrap under γ=0.997, not achievements. M4 passed; skill is M5 env eval.",
+      "one_liner": "M4 last-2k: reward 0.017/step vs λ-return 2.61. The return curve is critic bootstrap under γ=0.997, not achievements. M4 passed; M5 real eval is still not geo-mean (finding 11).",
       "paper_spin": "Evaluation: any imagined-return figure must show per-step reward beside λ-return or it will be read as a Crafter curve."
+    },
+    {
+      "id": "11",
+      "file": "findings/11-eval-return-is-not-crafter-score.md",
+      "title": "4×400-step eval return is one achievement then die",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M5 100k eval return is mean_achievements − 0.9 (Crafter +1 unlock, −0.1 damage). Last 0.10 with length ~180–220. Not a geo-mean Crafter score.",
+      "paper_spin": "Evaluation: plot achievements and episode length next to 4-episode return, or it will be read as DreamerV3’s Crafter curve. Geo-mean is M6."
     }
   ],
   "do_not_revive": [
@@ -140,6 +155,7 @@
     "Raising stoch/classes to fix a rate-floor bug",
     "Pushing frozen-replay world-model training past the 500k plateau to 1M gradient steps",
     "Reading imagined λ-return on a frozen random-policy WM as a Crafter score or a reason to grind M4 past 20k",
+    "Reading M5 4-episode 400-step eval return as a DreamerV3 Crafter score",
     "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
     "Greedy logits.argmax collect during the outer loop"
   ]

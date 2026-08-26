@@ -29,6 +29,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | 50k KL peak then 700k plateau | Results figure; “floor ≠ setpoint”; frozen-replay compute |
 | seq 64 thrash / host-RAM dashboard OOM | Compute / hardware appendix |
 | Imagined λ-return vs reward on frozen WM | Evaluation: do not plot M4 return as Crafter skill |
+| 4×400 CrafterReward return vs achievements | Evaluation: M5 0.10 is one unlock then die; geo-mean is M6 |
 
 ## Index of findings
 
@@ -42,6 +43,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 8. [Workstation recipe](findings/08-workstation-recipe.md) — seq 64, replay size, VRAM, Jupyter kernels, host-RAM strip OOM, M5 dashboard 18→1.1 env/s.
 9. [Frozen-replay plateau](findings/09-frozen-replay-plateau.md) — 500k→700k is noise; DreamerV3’s 1M is env steps.
 10. [Imagined λ-return is not skill](findings/10-imagined-return-not-skill.md) — M4 return ~2.6 is critic bootstrap; reward stays ~0.017/step.
+11. [4×400 eval return is not a Crafter score](findings/11-eval-return-is-not-crafter-score.md) — M5 100k last 0.10 is one achievement then die.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -52,7 +54,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
   - **50k steps, 2026-08-24.** `recon_l1` 0.326 → 0.0095; `kl_rep_raw` peaked 6.14 at step 16650, finished 3.49; reward correlation **r = 0.91**.
   - **700k steps, 2026-08-25.** Last-10k mean `recon_l1` **0.0045**, `kl_rep_raw` **1.96**; reward **r = 0.98**; open-loop std ratio **0.98**. Host RAM OOM at 628150 (matplotlib strip); resumed from 620k. Plateau after ~500k — do not push this buffer to 1M gradient steps (finding 09).
 - **M4 actor-critic** (`configs/m4_actor_critic.yaml`): 20k steps on the frozen 700k WM, 2026-08-26. Notebook exit **PASS**. Last-2k imagined reward **0.017**/step vs λ-return **2.61** (finding 10). GIF: `results/m4_actor_critic/imagine_final.gif`.
-- **M5 outer loop** (`configs/m5_outer_loop.yaml`): interrupted 2026-08-26 at **58624** env steps. Per-cycle matplotlib dashboard decayed 18→1.1 env/s (finding 08). Resume `ckpt_latest.pt`; 100k eval numbers after that run. Live: `notebooks/08_train_outer_loop.ipynb`.
+- **M5 outer loop** (`configs/m5_outer_loop.yaml`): 100k env steps, 2026-08-26. Notebook plumbing **PASS**. Last eval return **0.10** = one achievement then death (finding 11), not geo-mean. Dashboard 18→1.1 env/s then **~38** after the log-cadence fix (finding 08). Live: `notebooks/08_train_outer_loop.ipynb`.
 
 ## Conventions
 

@@ -20,16 +20,19 @@ Config: `configs/m5_outer_loop.yaml`. Live run: `notebooks/08_train_outer_loop.i
   (does not overwrite the M3 seed).
 - Skill plot is **real eval return**. Imagined λ-return stays an AC diagnostic
   (finding 10).
-- Live notebook run interrupted at **58624** env steps (`ckpt_latest.pt`).
-  `log_every: 16` plus matplotlib `display` and `gc.collect()` every cycle
-  decayed **18 env/s → 1.1 env/s** by 58k (finding 08). Now `log_every: 256`,
-  `dashboard_every: 1000`. `env_steps % 5000` never fired; `crossed_interval`
-  is required because collect stride is 16. Resume with `RESUME = "auto"` —
-  do not reseed from M3/M4.
+- Finished **100k** env steps 2026-08-26. Notebook plumbing **PASS** (finite
+  losses, entropy 0.943, joint ckpt reloads). Last train-metric row is
+  **99840** (`log_every` 256); `ckpt_step_100000.pt` and eval @ 100000 are
+  the real end. Dashboard 18→1.1 env/s by 58k, then **~38 env/s** after
+  `log_every: 256` / `dashboard_every: 1000` (finding 08). 60k→100k ~18 min.
+- Last eval return **0.10** with mean achievements **1.0** and length
+  **~180–220**. That is `achievements − 0.9` (one unlock, then die), not a
+  Crafter score (finding 11). 75k’s 0.35 is 4-episode noise. Do not grind
+  this 100k run for a prettier return plot. Geo-mean is M6.
 
 Smoke: `python scripts/smoke_outer_loop.py` (dozens of env steps). Tag
-`v0.5-full-loop-integrated` only after a user run that is crash-free and whose
-eval return is not obviously dead-flat.
+`v0.5-full-loop-integrated` when you want the plumbing artifact; the eval
+curve is not a Crafter baseline.
 
 ## M4 actor-critic on frozen 700k world model (2026-08-25)
 

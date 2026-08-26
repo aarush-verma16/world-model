@@ -336,7 +336,11 @@ def main() -> None:
                 row["collect_ep_return"] = float(np.mean([e["return"] for e in finished]))
                 row["collect_ep_len"] = float(np.mean([e["length"] for e in finished]))
 
-            if crossed_interval(prev_steps, env_steps, log_every) or env_steps <= collect_every:
+            if (
+                crossed_interval(prev_steps, env_steps, log_every)
+                or env_steps <= collect_every
+                or env_steps >= target
+            ):
                 now = time.time()
                 dt = max(now - last_log_time, 1e-6)
                 sps = (env_steps - last_log_env) / dt

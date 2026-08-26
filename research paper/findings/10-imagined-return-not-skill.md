@@ -51,7 +51,7 @@ It did **not** certify a Crafter policy. The frozen reward head was trained on s
 
 ## Failed alternative we are not running
 
-Grind M4 past 20k, or retune entropy, because “return is only 2.6.” That number is bootstrap. More frozen-WM actor steps will not invent achievements that are absent from the 600-episode buffer (finding 09). Skill is an **M5** number: real `env.step` eval. The M5 notebook headlines **eval return**; imagined λ-return stays a small AC diagnostic.
+Grind M4 past 20k, or retune entropy, because “return is only 2.6.” That number is bootstrap. More frozen-WM actor steps will not invent achievements that are absent from the 600-episode buffer (finding 09). Skill is a **real** `env.step` number. M5’s 4×400-step eval return ended at **0.10** and is still not a Crafter score (finding 11).
 
 ## Paper spin
 
