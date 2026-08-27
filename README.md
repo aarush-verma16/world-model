@@ -126,10 +126,10 @@ Do not quote the M5 0.10 return as this score. The 1M number is a user-run.
 ```powershell
 python scripts/count_params.py --smoke --size xl
 jupyter notebook notebooks/10_train_paper_online.ipynb
-# fallback if XL OOMs: set CONFIG to configs/m7_s_reset_actor.yaml
+# new dirs: checkpoints/m7_xl_paper  (do not resume m7_paper_online)
 ```
 
-Do not launch this 1M run from the agent. Watch episode length, not the 10-eval orange line.
+Stop the collapsed kernel first. Watch entropy, not the orange 10-eval line.
 
 **RSSM diagnostics**
 

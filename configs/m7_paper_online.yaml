@@ -1,18 +1,22 @@
-# M7 — paper-style online 1M at ~200M params (DreamerV3 XL budget).
+# M7 — DreamerV3 XL online 1M (paper outer-loop recipe).
 #
-# Cannot load M6 weights (those are size-S ~19M). This is a new brain.
-# Fresh actor + critic. Empty replay, short random prefill, then the
-# normal collect → WM → AC loop with 10k-step lives.
+# Size XL (~198M WM / ~214M total). Cannot load M6 (size-S). Fresh actor.
+# Do NOT resume checkpoints/m7_paper_online — that run collapsed (finding 14).
 #
-# Watch mean episode length. If it stays ~190, score stays near random.
+# Matched to NM512/dreamerv3-torch Crafter:
+#   prefill 2500 uniform-random env steps (not one untrained-actor life)
+#   WM pretrain 100 steps on that buffer before any actor update
+#   train_ratio 512  →  16 WM + 16 AC updates per 16 env steps at seq 32
+#   imag_gradient reinforce (discrete Crafter; no STE dynamics actor term)
+#   entropy 3e-4, actor/critic lr 3e-5, WM lr 1e-4, horizon 15, unimix 0.01
+#   dyn/rep 0.5 / 0.1 (paper / torch defaults, not the frozen-replay M3 1.0/0.5)
+#
+# seq 64 is the paper batch_length; it filled 16 GiB on this card at size-S.
+# Stay at 32; train_ratio 512 keeps the same transitions-per-env-step.
+# Replay FIFO 500k not 1e6 — host RAM (finding 08).
+#
 # User-run: notebooks/10_train_paper_online.ipynb
-# Smoke first: python scripts/count_params.py --smoke --size xl
-#
-# If XL OOMs: set world_model_config to configs/sizes/dreamer_l.yaml
-# (and actor/critic hidden/layers to 768/4), or drop batch_size 16→8,
-# or start_mode all→last. Never shrink the 32×32 latent.
-#
-# Size-S keep-M6-WM alternative: configs/m7_s_reset_actor.yaml
+# Stop the collapsed kernel first. Watch ac_H — if it sits near 0.08, stop.
 
 seed: 0
 
@@ -44,10 +48,10 @@ train:
   amp: bf16
   env_steps: 1000000
   collect_every: 16
-  wm_updates: 1
-  ac_updates: 1
+  train_ratio: 512
   max_episode_steps: 10000
-  prefill_steps: 10000
+  prefill_steps: 2500
+  pretrain_wm_steps: 100
   replay_max_steps: 500000
   eval_every: 100000
   eval_episodes: 10
@@ -55,12 +59,15 @@ train:
   eval_seed: 100000
   horizon: 15
   start_mode: all
+  imag_gradient: reinforce
   wm_lr: 1.0e-4
   actor_lr: 3.0e-5
   critic_lr: 3.0e-5
   entropy_scale: 3.0e-4
   lam: 0.95
   discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
   wm_max_grad_norm: 1000.0
   ac_max_grad_norm: 100.0
   log_every: 256
@@ -68,7 +75,7 @@ train:
   image_every: 100000
   checkpoint_every: 50000
   replay_every: 100000
-  log_dir: runs/m7_paper_online
-  checkpoint_dir: checkpoints/m7_paper_online
-  results_dir: results/m7_paper_online
-  replay_out: data/m7_paper_online_replay.pt
+  log_dir: runs/m7_xl_paper
+  checkpoint_dir: checkpoints/m7_xl_paper
+  results_dir: results/m7_xl_paper
+  replay_out: data/m7_xl_paper_replay.pt

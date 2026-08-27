@@ -53,12 +53,14 @@ from training.outer_loop import (
     crossed_interval,
     joint_payload,
     load_checkpoint,
+    loop_updates,
     outer_cycle,
     save_checkpoint,
     save_replay,
 )
-from training.replay_buffer import ReplayBuffer
+from training.replay_buffer import ReplayBuffer, prefill_random_steps
 from training.returns import PercentileReturnNorm
+from training.wm_step import world_model_step
 
 from train_actor_critic import save_imagination_gif, save_imagination_strip
 from train_world_model import build_model, set_seed
@@ -175,20 +177,72 @@ def load_replay(m5_cfg: dict[str, Any], train: dict[str, Any], *, resume: bool) 
     return buffer
 
 
+def overlay_wm_train(wm_train_cfg: dict[str, Any], train: dict[str, Any]) -> dict[str, Any]:
+    """Copy KL / term scales from the outer-loop yaml when set (M7 paper 0.5/0.1)."""
+    out = dict(wm_train_cfg)
+    for key in (
+        "dyn_scale",
+        "rep_scale",
+        "free_nats",
+        "free_nats_dyn",
+        "recon_scale",
+        "reward_scale",
+        "continue_scale",
+        "kl_scale",
+    ):
+        if key in train and train[key] is not None:
+            out[key] = train[key]
+    return out
+
+
 def prefill_replay(collector: Collector, buffer: ReplayBuffer, seq_len: int, steps: int) -> None:
-    """Collect until at least one episode is long enough to sample `seq_len`."""
-    if any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+    """Backward-compatible wrapper. Prefer `prefill_random_steps` on the collect env."""
+    prefill_random_steps(
+        collector.env,
+        buffer,
+        steps=int(steps),
+        max_episode_steps=int(collector.max_episode_steps),
+        seq_len=int(seq_len),
+        seed=int(collector.next_seed),
+    )
+
+
+def pretrain_world_model(
+    world_model: WorldModel,
+    wm_optim: torch.optim.Optimizer,
+    buffer: ReplayBuffer,
+    *,
+    device: torch.device,
+    wm_train_cfg: dict[str, Any],
+    batch_size: int,
+    seq_len: int,
+    steps: int,
+    amp_dtype: torch.dtype | None,
+    scaler: torch.amp.GradScaler,
+    max_grad_norm: float,
+) -> None:
+    """WM-only updates on the random prefill (DreamerV3-torch `pretrain: 100`)."""
+    n = int(steps)
+    if n <= 0:
         return
-    got = 0
-    chunk = max(int(seq_len), 64)
-    while got < int(steps) and not any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
-        stats = collector.collect(chunk)
-        got += int(stats.get("steps", chunk))
-    if not any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
-        raise RuntimeError(
-            f"prefill {got} env steps produced no episode >= seq_len={seq_len}"
+    from training.imagine import unfreeze_world_model
+
+    unfreeze_world_model(world_model)
+    last: dict[str, float] | None = None
+    for _ in range(n):
+        batch = buffer.sample(int(batch_size), int(seq_len))
+        _loss, last = world_model_step(
+            world_model,
+            wm_optim,
+            batch,
+            device=device,
+            train_cfg=wm_train_cfg,
+            amp_dtype=amp_dtype,
+            scaler=scaler,
+            max_grad_norm=float(max_grad_norm),
         )
-    print(f"prefill {got} env steps  episodes={len(buffer)} steps={buffer.num_steps}")
+    recon = last.get("recon_l1", float("nan")) if last else float("nan")
+    print(f"WM pretrain {n} steps  recon_l1={recon:.4f}", flush=True)
 
 
 def make_envs(m5_cfg: dict[str, Any]) -> tuple[gym.Env, gym.Env]:
@@ -257,7 +311,7 @@ def main() -> None:
     print(f"device: {describe_device(device)}")
 
     world_model, wm_cfg = load_seed_world_model(cfg, device)
-    wm_train_cfg = dict(wm_cfg["train"])
+    wm_train_cfg = overlay_wm_train(dict(wm_cfg["train"]), train)
     actor, critic = make_actor_critic(cfg, world_model, device)
     wm_optim = torch.optim.Adam(world_model.parameters(), lr=float(train["wm_lr"]))
     ac_optim = torch.optim.Adam(
@@ -307,6 +361,28 @@ def main() -> None:
     buffer = load_replay(cfg, train, resume=resume_path is not None)
 
     collect_env, eval_env = make_envs(cfg)
+    if resume_path is None:
+        prefill_random_steps(
+            collect_env,
+            buffer,
+            steps=int(train.get("prefill_steps", 0)),
+            max_episode_steps=int(train["max_episode_steps"]),
+            seq_len=int(train["seq_len"]),
+            seed=int(cfg["seed"]),
+        )
+        pretrain_world_model(
+            world_model,
+            wm_optim,
+            buffer,
+            device=device,
+            wm_train_cfg=wm_train_cfg,
+            batch_size=int(train["batch_size"]),
+            seq_len=int(train["seq_len"]),
+            steps=int(train.get("pretrain_wm_steps", 0)),
+            amp_dtype=amp_dtype,
+            scaler=scaler,
+            max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
+        )
     collector = Collector(
         collect_env,
         world_model,
@@ -316,12 +392,6 @@ def main() -> None:
         max_episode_steps=int(train["max_episode_steps"]),
         amp_dtype=amp_dtype,
         seed=collect_seed,
-    )
-    prefill_replay(
-        collector,
-        buffer,
-        seq_len=int(train["seq_len"]),
-        steps=int(train.get("prefill_steps", 10_000)),
     )
 
     writer = SummaryWriter(log_dir=str(log_dir))
@@ -342,6 +412,8 @@ def main() -> None:
 
     target = int(train["env_steps"])
     collect_every = int(train["collect_every"])
+    wm_updates, ac_updates = loop_updates(train)
+    imag_gradient = str(train.get("imag_gradient", "both"))
     eval_every = int(train["eval_every"])
     log_every = int(train["log_every"])
     image_every = int(train["image_every"])
@@ -351,6 +423,7 @@ def main() -> None:
 
     print(
         f"outer loop to {target} env steps  collect_every={collect_every}  "
+        f"wm/ac_updates={wm_updates}/{ac_updates}  imag_gradient={imag_gradient}  "
         f"start_mode={start_mode}  (start={env_steps})",
         flush=True,
     )
@@ -391,8 +464,8 @@ def main() -> None:
                 device=device,
                 wm_train_cfg=wm_train_cfg,
                 collect_every=collect_every,
-                wm_updates=int(train["wm_updates"]),
-                ac_updates=int(train["ac_updates"]),
+                wm_updates=wm_updates,
+                ac_updates=ac_updates,
                 batch_size=int(train["batch_size"]),
                 seq_len=int(train["seq_len"]),
                 retnorm=retnorm,
@@ -401,6 +474,7 @@ def main() -> None:
                 lam=float(train.get("lam", 0.95)),
                 discount=float(train.get("discount", 0.997)),
                 entropy_scale=float(train.get("entropy_scale", 3.0e-4)),
+                imag_gradient=imag_gradient,
                 amp_dtype=amp_dtype,
                 scaler=scaler,
                 wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
@@ -409,9 +483,9 @@ def main() -> None:
             prev_steps = env_steps
             env_steps += collect_every
             if cycle.wm_metrics is not None:
-                wm_steps += int(train["wm_updates"])
+                wm_steps += wm_updates
             if cycle.ac_metrics is not None:
-                ac_steps += int(train["ac_updates"])
+                ac_steps += ac_updates
 
             row: dict[str, Any] = {"env_steps": env_steps, "wm_steps": wm_steps, "ac_steps": ac_steps}
             if cycle.wm_metrics:

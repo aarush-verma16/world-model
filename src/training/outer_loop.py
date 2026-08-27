@@ -23,6 +23,24 @@ from training.returns import PercentileReturnNorm
 from training.wm_step import world_model_step
 
 
+def loop_updates(train: dict[str, Any]) -> tuple[int, int]:
+    """World-model / actor-critic updates per collect cycle.
+
+    DreamerV3 `train_ratio` is replayed transitions trained per env step.
+    Crafter uses 512 (`NM512/dreamerv3-torch`). With batch 16 × seq 32 that
+    is 16 WM + 16 AC steps per 16 env steps. If `train_ratio` is omitted,
+    `wm_updates` / `ac_updates` are used (M5/M6 16/1/1).
+    """
+    collect_every = int(train["collect_every"])
+    batch = int(train["batch_size"])
+    seq = int(train["seq_len"])
+    raw_ratio = train.get("train_ratio")
+    if raw_ratio is not None:
+        n = max(1, int(round(float(raw_ratio) * collect_every / (batch * seq))))
+        return n, n
+    return int(train.get("wm_updates", 1)), int(train.get("ac_updates", 1))
+
+
 def crossed_interval(prev: int, now: int, every: int) -> bool:
     """True when `now` crossed a multiple of `every` that `prev` had not.
 
@@ -66,6 +84,7 @@ def outer_cycle(
     lam: float,
     discount: float,
     entropy_scale: float,
+    imag_gradient: str = "both",
     amp_dtype: torch.dtype | None,
     scaler: torch.amp.GradScaler,
     wm_max_grad_norm: float = 1000.0,
@@ -109,6 +128,7 @@ def outer_cycle(
             lam=float(lam),
             discount=float(discount),
             entropy_scale=float(entropy_scale),
+            imag_gradient=str(imag_gradient),
             amp_dtype=amp_dtype,
             scaler=scaler,
             max_grad_norm=float(ac_max_grad_norm),

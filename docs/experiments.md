@@ -2,23 +2,24 @@
 
 Living log of approaches tried, including failures and why they failed.
 
-## M7 paper-style online (2026-08-27, stop at ~100k)
+## M7 paper-style online (2026-08-27)
 
-XL ~198M from scratch, fresh actor, 10k cap. Live:
-`notebooks/10_train_paper_online.ipynb`. Smoke fitted: peak **8.41 / 8.49 GiB**.
+**v1 collapsed** at ~100k (`runs/m7_paper_online`, finding 14): unimix-floor
+entropy, wake_up only. Do not resume that checkpoint.
 
-- At **100k** this is a **collapse**, not a slow start (finding 14). Held-out
-  gmean **1.298 → 0.233**. Last eval: **wake_up 100%**, every other achievement
-  **0**. Collect mean length **163**, max **399**.
-- `ac_entropy` mean **0.08** from 20–80k — the 17-action unimix floor. M6
-  never logged below 0.223. `recon_l1` 0.34 → 0.011 is the WM fitting sleep
-  on grass, not a reason to continue.
-- Status `ep_len=nan` is a sparse log (length only written when a life ends
-  in that cycle). Eval length 164 is real.
-- `prefill_replay` stops after **one** finished episode ≥ 32 steps, not the
-  documented 10k random seed.
-- **Do not grind this to 1M.** Next run needs a real prefill and an actor
-  that is not a delta on unimix — not more XL steps.
+**v2 (wired, run pending):** `configs/m7_paper_online.yaml` →
+`checkpoints/m7_xl_paper`. Still **XL (~198M WM)**. Recipe now matches
+`NM512/dreamerv3-torch` Crafter:
+
+- 2500 uniform-random prefill steps (not one untrained-actor episode)
+- 100 WM-only pretrain steps before any actor update
+- `train_ratio: 512` → 16 WM + 16 AC updates / 16 env steps at seq 32
+- `imag_gradient: reinforce` (discrete Crafter)
+- `dyn_scale`/`rep_scale` 0.5 / 0.1
+- entropy 3e-4 (paper). seq 32 not 64 (VRAM). Replay FIFO 500k not 1e6 (RAM).
+
+Live: `notebooks/10_train_paper_online.ipynb` — **restart the kernel**, stop
+the old run first. Watch `ac_H`; 0.08 is the floor, stop.
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 

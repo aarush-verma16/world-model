@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import time
+from typing import Any
 
 import numpy as np
 import torch
@@ -258,3 +259,82 @@ def collect_random_episodes(
         f"in {_fmt_duration(elapsed)} ({len(buffer) / max(elapsed, 1e-6):.2f} ep/s)"
     )
     return buffer
+
+
+def _sample_action(env: Any) -> int:
+    space = env.action_space
+    if hasattr(space, "sample"):
+        return int(space.sample())
+    return int(np.random.randint(0, int(space.n)))
+
+
+def prefill_random_steps(
+    env: Any,
+    buffer: ReplayBuffer,
+    *,
+    steps: int,
+    max_episode_steps: int,
+    seq_len: int,
+    seed: int = 0,
+) -> int:
+    """Uniform-random actions until the buffer holds `steps` transitions.
+
+    DreamerV3-torch `prefill: 2500` (defaults). Stops on step count, not on
+    the first episode longer than `seq_len`. Flushes a trailing partial life
+    if it is at least `seq_len` frames. Returns env steps taken this call.
+    """
+    target = int(steps)
+    seq_len = int(seq_len)
+    cap = int(max_episode_steps)
+    if target <= 0:
+        return 0
+    if buffer.num_steps >= target and any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+        print(
+            f"prefill skip: replay already {buffer.num_steps} steps "
+            f"(need {target}, seq_len={seq_len})",
+            flush=True,
+        )
+        return 0
+
+    got = 0
+    ep_i = 0
+    while buffer.num_steps < target or not any(
+        ep.obs.shape[0] >= seq_len for ep in buffer._episodes
+    ):
+        obs, _ = env.reset(seed=int(seed) + ep_i)
+        ep_i += 1
+        obs_buf: list = []
+        act_buf: list[int] = []
+        rew_buf: list[float] = []
+        cont_buf: list[float] = []
+        for _ in range(cap):
+            action = _sample_action(env)
+            next_obs, reward, terminated, truncated, _info = env.step(action)
+            terminated = bool(terminated)
+            truncated = bool(truncated)
+            obs_buf.append(np.asarray(obs, dtype=np.uint8))
+            act_buf.append(action)
+            rew_buf.append(float(reward))
+            cont_buf.append(0.0 if terminated else 1.0)
+            obs = next_obs
+            got += 1
+            if terminated or truncated or len(obs_buf) >= cap:
+                break
+            if buffer.num_steps + len(obs_buf) >= target and len(obs_buf) >= seq_len:
+                break
+        if len(obs_buf) == 0:
+            continue
+        buffer.add_episode(obs_buf, act_buf, rew_buf, cont_buf)
+        if got >= target * 4:
+            break
+
+    if not any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+        raise RuntimeError(
+            f"prefill {got} env steps produced no episode >= seq_len={seq_len}"
+        )
+    print(
+        f"prefill {got} random env steps  episodes={len(buffer)} "
+        f"steps={buffer.num_steps} (target {target})",
+        flush=True,
+    )
+    return got

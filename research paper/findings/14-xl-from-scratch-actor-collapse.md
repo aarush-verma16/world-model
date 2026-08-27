@@ -43,7 +43,7 @@ Do not read the falling blue gmean as “online score.” It is a cumulative geo
 
 ## Failed alternative we are not running
 
-Let this 1M finish because XL is 200M and “needs more steps.” After 80k env steps at the unimix floor, more data is more of the same sleep policy. Do not caption 0.23 vs 14.5.
+Let this 1M finish because XL is 200M and “needs more steps.” After 80k env steps at the unimix floor, more data is more of the same sleep policy. Do not caption 0.23 vs 14.5. The follow-up recipe (`configs/m7_paper_online.yaml` → `m7_xl_paper`) keeps XL and matches the torch Crafter outer loop: 2500 random prefill, 100 WM pretrain, train_ratio 512, `imag_gradient=reinforce`. That is a new run, not a resume of these weights.
 
 ## Paper spin
 

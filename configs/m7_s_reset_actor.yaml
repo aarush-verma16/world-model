@@ -37,10 +37,10 @@ train:
   amp: bf16
   env_steps: 1000000
   collect_every: 16
-  wm_updates: 1
-  ac_updates: 1
+  train_ratio: 512
   max_episode_steps: 10000
-  prefill_steps: 10000
+  prefill_steps: 2500
+  pretrain_wm_steps: 100
   replay_max_steps: 500000
   eval_every: 100000
   eval_episodes: 10
@@ -48,6 +48,7 @@ train:
   eval_seed: 100000
   horizon: 15
   start_mode: all
+  imag_gradient: reinforce
   wm_lr: 1.0e-4
   actor_lr: 3.0e-5
   critic_lr: 3.0e-5

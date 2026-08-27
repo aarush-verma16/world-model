@@ -56,6 +56,7 @@ def actor_critic_step(
     lam: float = 0.95,
     discount: float = 0.997,
     entropy_scale: float = 3.0e-4,
+    imag_gradient: str = "both",
     amp_dtype: torch.dtype | None,
     scaler: torch.amp.GradScaler,
     max_grad_norm: float = 100.0,
@@ -100,7 +101,21 @@ def actor_critic_step(
         entropy = rollout.entropy.mean()
         entropy_loss = -entropy_scale * entropy
         backprop = -(returns / scale).mean()
-        actor_loss = reinforce + entropy_loss + backprop
+        # DreamerV3-torch Crafter uses imag_gradient=reinforce (discrete).
+        # `dynamics` is the STE path through the frozen RSSM; `both` is M4–M6.
+        mode = str(imag_gradient).lower()
+        if mode == "reinforce":
+            actor_loss = reinforce + entropy_loss
+            backprop = backprop.detach()
+        elif mode == "dynamics":
+            actor_loss = backprop + entropy_loss
+            reinforce = reinforce.detach()
+        elif mode == "both":
+            actor_loss = reinforce + entropy_loss + backprop
+        else:
+            raise ValueError(
+                f"imag_gradient must be 'reinforce', 'dynamics', or 'both', got {imag_gradient!r}"
+            )
         n_bins = critic.bins.shape[0]
         critic_loss = symlog_twohot_loss(
             rollout.value_logits.reshape(-1, n_bins),

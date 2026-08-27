@@ -123,6 +123,31 @@ def test_actor_critic_step_freezes_wm_and_updates_actor() -> None:
     assert rollout.log_prob.requires_grad
 
 
+def test_reinforce_imag_gradient_omits_dynamics_term() -> None:
+    device = torch.device("cpu")
+    wm = _tiny_wm()
+    actor = Actor(wm.feat_dim, wm.rssm.action_dim, hidden=32, layers=1)
+    critic = Critic(wm.feat_dim, hidden=32, layers=1, num_bins=21)
+    optim = torch.optim.Adam(list(actor.parameters()) + list(critic.parameters()), lr=1e-3)
+    amp = parse_amp("off", device)
+    scaler = make_grad_scaler(device, amp)
+    loss, _metrics, _rollout = actor_critic_step(
+        wm, actor, critic, optim, _batch(),
+        device=device,
+        retnorm=PercentileReturnNorm(),
+        horizon=3,
+        start_mode="last",
+        imag_gradient="reinforce",
+        amp_dtype=amp,
+        scaler=scaler,
+    )
+    assert torch.isfinite(loss.total)
+    assert torch.isfinite(loss.reinforce)
+    # Actor objective is reinforce + entropy; dynamics backprop is computed
+    # for logs but must not be added when imag_gradient=reinforce.
+    assert torch.allclose(loss.actor, loss.reinforce - 3.0e-4 * loss.entropy, atol=1e-5)
+
+
 def test_ste_action_reaches_actor() -> None:
     """Imagined return depends on STE actions, so actor logits get a dynamics grad."""
     wm = _tiny_wm()
