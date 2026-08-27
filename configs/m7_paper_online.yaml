@@ -49,6 +49,10 @@ train:
   env_steps: 1000000
   collect_every: 16
   train_ratio: 512
+  # Explicit copies of loop_updates(train_ratio=512, batch 16, seq 32).
+  # Keep these so a notebook that still does train["wm_updates"] does not crash.
+  wm_updates: 16
+  ac_updates: 16
   max_episode_steps: 10000
   prefill_steps: 2500
   pretrain_wm_steps: 100
