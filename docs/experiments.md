@@ -2,6 +2,27 @@
 
 Living log of approaches tried, including failures and why they failed.
 
+## M7 paper-style online (wired 2026-08-27, run pending)
+
+M6 died at mean length **190** on size-S (~19M) after a frozen-replay WM +
+frozen-AC curriculum. This run is the paper's *setup*, not a claim of 14.5.
+
+- Default: `configs/m7_paper_online.yaml` — DreamerV3 **XL ~200M**
+  (`configs/sizes/dreamer_xl.yaml`), **random WM**, **fresh actor**, empty
+  replay + 10k prefill, 10k-step lives, 1M env steps. Cannot load M6 weights
+  (different tensors).
+- Fallback if XL OOMs: `configs/m7_s_reset_actor.yaml` — keep M6 WM (19M),
+  still reset actor + empty replay.
+- Live: `notebooks/10_train_paper_online.ipynb` (user-run). Smoke:
+  `python scripts/count_params.py --smoke --size xl`.
+- Smoke on RTX 5080 (2026-08-27): XL batch 16 × seq 32 × `start_mode=all`
+  **PASS**, peak **8.41 / 8.49 GiB**. Fits; do not drop batch preemptively.
+- Watch **mean episode length**. Score stays near random (~1.6) until they
+  live long enough to eat/drink/mine.
+- Paper Table B.1 GRU 4096 on *this* RSSM (LN-GRU + 2-layer prior) counts
+  ~336M. `deter_dim: 2560` is the ~200M match. Never shrink 32×32 latent;
+  drop batch 16→8 or `start_mode` all→last on OOM.
+
 ## M6 Crafter baseline (2026-08-26, 1M done)
 
 Continue the M5 **100k** agent to **1M** env steps. Config:

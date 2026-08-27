@@ -1,0 +1,50 @@
+# DreamerV3 Table B.1 size L (~77M). CNN multiplier 64, GRU 2048, dense 768 × 4.
+
+seed: 0
+
+encoder:
+  embed_dim: 8192
+  channels: [64, 128, 256, 512]
+  blocks: 1
+
+rssm:
+  deter_dim: 2048
+  stoch: 32
+  classes: 32
+  hidden: 2048
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [512, 256, 128, 64]
+  blocks: 1
+  output_activation: linear
+
+heads:
+  hidden: 768
+  layers: 4
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  free_nats_dyn: 0.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0

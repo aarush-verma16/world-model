@@ -2,12 +2,14 @@
 
 M5 (`configs/m5_outer_loop.yaml`): 100k env steps, eval return.
 M6 (`configs/m6_baseline.yaml`): continue M5 to 1M with official Crafter gmean.
+M7 (`configs/m7_paper_online.yaml`): paper-style online 1M, fresh actor, size
+from `world_model_config` (S keeps M6 WM; XL is ~200M and cannot load M6).
 
-Prefer the matching notebook (`08` / `09`) for a live run you can stop.
+Prefer the matching notebook (`08` / `09` / `10`) for a live run you can stop.
 This CLI is the canonical loop the notebooks import.
 
     conda activate worldmodel
-    python scripts/train_agent.py --config configs/m6_baseline.yaml --resume auto
+    python scripts/train_agent.py --config configs/m7_paper_online.yaml --resume auto
 """
 
 from __future__ import annotations
@@ -89,17 +91,33 @@ def make_actor_critic(cfg: dict[str, Any], world_model: WorldModel, device: torc
 
 
 def load_seed_world_model(m5_cfg: dict[str, Any], device: torch.device) -> tuple[WorldModel, dict[str, Any]]:
-    """Build from the M3 yaml and load `world_model_ckpt` (trainable, not frozen)."""
+    """Build from `world_model_config` and optionally load a checkpoint.
+
+    `world_model_ckpt` may be an M3 payload (`model`) or a joint outer-loop
+    payload (`world_model`). Omit the ckpt (or set it null) to start from
+    random weights — required when changing size S→XL; you cannot copy M6.
+    """
     wm_cfg = load_yaml(Path(m5_cfg["world_model_config"]))
     model = build_model(wm_cfg).to(device)
-    ckpt_path = Path(m5_cfg["world_model_ckpt"])
+    raw = m5_cfg.get("world_model_ckpt")
+    if not raw:
+        n_m = sum(p.numel() for p in model.parameters()) / 1e6
+        print(f"world model random init ({n_m:.1f}M params) from {m5_cfg['world_model_config']}")
+        return model, wm_cfg
+    ckpt_path = Path(raw)
     if not ckpt_path.is_file():
         raise FileNotFoundError(
             f"world-model checkpoint not found: {ckpt_path}. Train M3 first."
         )
     payload = torch.load(ckpt_path, weights_only=False, map_location=device)
-    model.load_state_dict(payload["model"], strict=True)
-    print(f"world model from {ckpt_path} (wm step {payload.get('step', '?')})")
+    if "world_model" in payload:
+        model.load_state_dict(payload["world_model"], strict=True)
+        print(f"world model from joint {ckpt_path} (env_steps {payload.get('env_steps', '?')})")
+    elif "model" in payload:
+        model.load_state_dict(payload["model"], strict=True)
+        print(f"world model from {ckpt_path} (wm step {payload.get('step', '?')})")
+    else:
+        raise KeyError(f"{ckpt_path} has neither 'world_model' nor 'model'")
     return model, wm_cfg
 
 
@@ -111,7 +129,10 @@ def load_seed_actor_critic(
     retnorm: PercentileReturnNorm,
     device: torch.device,
 ) -> None:
-    ckpt_path = Path(m5_cfg["actor_critic_ckpt"])
+    raw = m5_cfg.get("actor_critic_ckpt")
+    if not raw:
+        raise FileNotFoundError("actor_critic_ckpt is empty")
+    ckpt_path = Path(raw)
     if not ckpt_path.is_file():
         raise FileNotFoundError(
             f"actor-critic checkpoint not found: {ckpt_path}. Train M4 first."
@@ -136,11 +157,15 @@ def load_replay(m5_cfg: dict[str, Any], train: dict[str, Any], *, resume: bool) 
         max_steps=None if max_steps is None else int(max_steps),
     )
     replay_out = Path(train["replay_out"])
-    seed_path = Path(m5_cfg["seed_replay"])
     if resume and replay_out.is_file():
         buffer.load_state_dict(torch.load(replay_out, weights_only=False))
         print(f"replay resumed {replay_out}: episodes={len(buffer)} steps={buffer.num_steps}")
         return buffer
+    seed_raw = m5_cfg.get("seed_replay")
+    if not seed_raw:
+        print("replay empty (no seed_replay) — will prefill from collect")
+        return buffer
+    seed_path = Path(seed_raw)
     if not seed_path.is_file():
         raise FileNotFoundError(
             f"seed replay not found: {seed_path}. Collect with the M3 config first."
@@ -148,6 +173,22 @@ def load_replay(m5_cfg: dict[str, Any], train: dict[str, Any], *, resume: bool) 
     buffer.load_state_dict(torch.load(seed_path, weights_only=False))
     print(f"seed replay {seed_path}: episodes={len(buffer)} steps={buffer.num_steps}")
     return buffer
+
+
+def prefill_replay(collector: Collector, buffer: ReplayBuffer, seq_len: int, steps: int) -> None:
+    """Collect until at least one episode is long enough to sample `seq_len`."""
+    if any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+        return
+    got = 0
+    chunk = max(int(seq_len), 64)
+    while got < int(steps) and not any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+        stats = collector.collect(chunk)
+        got += int(stats.get("steps", chunk))
+    if not any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+        raise RuntimeError(
+            f"prefill {got} env steps produced no episode >= seq_len={seq_len}"
+        )
+    print(f"prefill {got} env steps  episodes={len(buffer)} steps={buffer.num_steps}")
 
 
 def make_envs(m5_cfg: dict[str, Any]) -> tuple[gym.Env, gym.Env]:
@@ -252,8 +293,10 @@ def main() -> None:
         ac_steps = counters["ac_steps"]
         collect_seed = counters["collect_seed"]
         print(f"resumed {resume_path} at env_steps={env_steps}")
-    else:
+    elif not bool(cfg.get("reset_actor", False)) and cfg.get("actor_critic_ckpt"):
         load_seed_actor_critic(cfg, actor, critic, ac_optim, retnorm, device)
+    else:
+        print("actor-critic random init (reset_actor or no actor_critic_ckpt)")
 
     if cfg.get("seed_joint_ckpt") and env_steps < 100_000:
         raise RuntimeError(
@@ -273,6 +316,12 @@ def main() -> None:
         max_episode_steps=int(train["max_episode_steps"]),
         amp_dtype=amp_dtype,
         seed=collect_seed,
+    )
+    prefill_replay(
+        collector,
+        buffer,
+        seq_len=int(train["seq_len"]),
+        steps=int(train.get("prefill_steps", 10_000)),
     )
 
     writer = SummaryWriter(log_dir=str(log_dir))
@@ -408,6 +457,7 @@ def main() -> None:
                 wm_l1 = cycle.wm_metrics["recon_l1"] if cycle.wm_metrics else float("nan")
                 print(
                     f"env {env_steps}/{target}  wm_l1={wm_l1:.4f}  ac_H={ac_h:.3f}  "
+                    f"ep_len={row.get('collect_ep_len', float('nan')):.0f}  "
                     f"collect_r={row['collect_reward']:.4f}  "
                     f"score={row.get('online_crafter_score', float('nan')):.3f}  "
                     f"({sps:.2f} env/s){vram_s}",

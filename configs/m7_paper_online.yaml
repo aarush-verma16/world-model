@@ -1,0 +1,74 @@
+# M7 — paper-style online 1M at ~200M params (DreamerV3 XL budget).
+#
+# Cannot load M6 weights (those are size-S ~19M). This is a new brain.
+# Fresh actor + critic. Empty replay, short random prefill, then the
+# normal collect → WM → AC loop with 10k-step lives.
+#
+# Watch mean episode length. If it stays ~190, score stays near random.
+# User-run: notebooks/10_train_paper_online.ipynb
+# Smoke first: python scripts/count_params.py --smoke --size xl
+#
+# If XL OOMs: set world_model_config to configs/sizes/dreamer_l.yaml
+# (and actor/critic hidden/layers to 768/4), or drop batch_size 16→8,
+# or start_mode all→last. Never shrink the 32×32 latent.
+#
+# Size-S keep-M6-WM alternative: configs/m7_s_reset_actor.yaml
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 10000
+  prefill_steps: 10000
+  replay_max_steps: 500000
+  eval_every: 100000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 100000
+  checkpoint_every: 50000
+  replay_every: 100000
+  log_dir: runs/m7_paper_online
+  checkpoint_dir: checkpoints/m7_paper_online
+  results_dir: results/m7_paper_online
+  replay_out: data/m7_paper_online_replay.pt

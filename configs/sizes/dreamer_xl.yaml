@@ -1,0 +1,59 @@
+# DreamerV3 Table B.1 size XL (~200M). This is the Crafter 14.5 model.
+# CNN multiplier 96, GRU 4096, dense 1024 × 5. 32×32 latent unchanged.
+#
+# Weights are ~0.4 GiB in bf16. VRAM is activations (batch × seq × CNN/GRU),
+# especially actor-critic `start_mode: all` (B*T imagined starts). Smoke with
+# `python scripts/count_params.py --smoke` before a real run. If it OOMs,
+# drop batch 16→8 or start_mode all→last — never shrink the 32×32 latent.
+
+seed: 0
+
+encoder:
+  embed_dim: 12288
+  channels: [96, 192, 384, 768]
+  blocks: 1
+
+rssm:
+  # Paper Table B.1 lists GRU 4096 for XL. That counts as 200M in *their*
+  # modules. Our RSSM (layer-norm GRU + 2-layer prior) is heavier, so GRU
+  # 4096 here is ~336M. deter=2560 matches the ~200M budget on this graph.
+  deter_dim: 2560
+  stoch: 32
+  classes: 32
+  hidden: 2560
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [768, 384, 192, 96]
+  blocks: 1
+  output_activation: linear
+
+heads:
+  hidden: 1024
+  layers: 5
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  free_nats_dyn: 0.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0

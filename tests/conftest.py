@@ -23,6 +23,7 @@ AREA_LABELS = {
     "test_encoder_decoder_shapes": "perception",
     "test_env_crafter": "env (crafter)",
     "test_layout": "perception",
+    "test_m7_init": "m7 init",
     "test_outer_loop": "outer-loop",
     "test_preprocess": "preprocess",
     "test_returns": "returns",

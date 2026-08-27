@@ -121,6 +121,16 @@ python scripts/smoke_crafter_score.py
 
 Do not quote the M5 0.10 return as this score. The 1M number is a user-run.
 
+**Paper-style online (M7)** — fresh actor, 10k lives, optional XL ~200M:
+
+```powershell
+python scripts/count_params.py --smoke --size xl
+jupyter notebook notebooks/10_train_paper_online.ipynb
+# fallback if XL OOMs: set CONFIG to configs/m7_s_reset_actor.yaml
+```
+
+Do not launch this 1M run from the agent. Watch episode length, not the 10-eval orange line.
+
 **RSSM diagnostics**
 
 ```powershell
@@ -138,7 +148,7 @@ tensorboard --logdir runs
 ## Layout
 
 ```
-configs/       Experiment YAML
+configs/       Experiment YAML (sizes in configs/sizes/)
 src/envs/      Crafter / MiniGrid wrappers
 src/models/    Encoder, decoder, autoencoder, RSSM
 src/training/  Device helpers, rollouts, diagnostics, AMP train step

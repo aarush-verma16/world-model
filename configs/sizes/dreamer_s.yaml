@@ -1,0 +1,51 @@
+# DreamerV3 Table B.1 size S (~18M). Same graph as configs/m3_dreamer_s.yaml.
+# Used as `world_model_config` for outer-loop runs. Do not shrink 32×32 latent.
+
+seed: 0
+
+encoder:
+  embed_dim: 4096
+  channels: [32, 64, 128, 256]
+  blocks: 1
+
+rssm:
+  deter_dim: 512
+  stoch: 32
+  classes: 32
+  hidden: 512
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [256, 128, 64, 32]
+  blocks: 1
+  output_activation: linear
+
+heads:
+  hidden: 512
+  layers: 2
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  free_nats_dyn: 0.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0

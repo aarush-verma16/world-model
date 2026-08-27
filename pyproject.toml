@@ -28,7 +28,7 @@ dev = ["pytest", "jupyter", "ipykernel", "ipywidgets"]
 where = ["src"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "."]
+pythonpath = ["src", ".", "scripts"]
 testpaths = ["tests"]
 addopts = ["-v", "--tb=short", "-ra", "--strict-markers", "--color=yes"]
 markers = [
