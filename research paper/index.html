@@ -179,17 +179,38 @@
         </figure>
       </div>
 
-      <h2 id="m6stub">M6 Crafter baseline (harness)</h2>
-      <p class="muted">Wired 2026-08-26. Continue M5 100k → 1M. <strong>No 1M score yet.</strong> Official gmean on collect jsonl (from resume onward) plus held-out 10 × 10k STE. Size-S, seq 32, FIFO 500k. Do not put a blank next to DreamerV3 14.5.</p>
+      <h2 id="m6stub">M6 Crafter baseline (1M env steps)</h2>
+      <p class="muted">Finished 2026-08-26. Protocol PASS. Official gmean, not 4×400 return. Size-S, seq 32, FIFO 500k, continued from M5 100k. Do not put 1.64 next to DreamerV3 14.5 (finding 13).</p>
       <table>
         <thead><tr><th>Knob</th><th>Value</th><th>Read as</th></tr></thead>
         <tbody>
-          <tr><td>seed</td><td>M5 <code>ckpt_latest</code> + m5 replay</td><td>First eval at 100k is the M5 policy</td></tr>
-          <tr><td>episode cap</td><td>10000 collect and eval</td><td>M5’s 400 cap was idle (finding 12)</td></tr>
-          <tr><td>continue</td><td><code>info.discount</code></td><td>Timeout is truncated, not death</td></tr>
-          <tr><td>score</td><td>exp(mean(log(1+p%)))−1</td><td>danijar/crafter; p in 0–100</td></tr>
+          <tr><td>held-out gmean</td><td>0.627 → 1.639 (10 × 10k STE)</td><td>n=10 lottery; 900k’s 0.43 is a bad bag, not collapse</td></tr>
+          <tr><td>online gmean</td><td>1.941 (4746 collect eps from resume)</td><td>The actual learning curve; buckets 1.4–2.1</td></tr>
+          <tr><td>episode length</td><td>mean 190, max 441</td><td>10k cap never binds; they die (finding 12 idle again)</td></tr>
+          <tr><td>last eval unlocks</td><td>sapling 100, wood 60, plant 60, wake 40</td><td>Stone / pickaxe 0. Survival, not diamonds</td></tr>
+          <tr><td>entropy</td><td>0.533 last (min 0.22)</td><td>Above 0.1; protocol PASS is not a Crafter score</td></tr>
         </tbody>
       </table>
+      <div class="compare">
+        <figure>
+          <img src="figures/m6_gmean_online_vs_heldout.png" alt="M6 online vs held-out gmean" />
+          <figcaption>Online gmean is smooth ~2. Held-out 10×10k is a sawtooth. Last 1.64 is a draw from that sawtooth.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/m6_length_vs_10k_cap.png" alt="M6 episode length vs 10k cap" />
+          <figcaption>Held-out mean length ~190 vs Crafter 10000 and M5’s 400. Both caps idle.</figcaption>
+        </figure>
+      </div>
+      <div class="compare">
+        <figure>
+          <img src="figures/m6_notebook_dashboard_1m.png" alt="M6 notebook dashboard at 1M" />
+          <figcaption>Notebook at 1M. Bar chart is last 10-ep eval (sapling 100 / wood 60 / plant 60), not a tech-tree climb.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/m6_imagine_step_1000000.png" alt="M6 1M imagination strip" />
+          <figcaption>15-step z_prior at 1M: Crafter grass/HUD, day→night. World-model health, not a 14.5 score.</figcaption>
+        </figure>
+      </div>
 
       <h2 id="graphs">Why two weeks of extra losses could not work</h2>
       <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
@@ -337,7 +358,10 @@ flowchart LR
         body:"M5 100k plumbing PASS, last eval 0.10. CrafterReward is +1 per unlock and −0.1 per damage. Every eval in the run is mean_achievements − 0.9. Length ~180–220 vs a 400-step cap: they die. 75k’s 0.35 is one extra achievement in four episodes. Geo-mean 10k-step score is M6." },
       { id:"12", tags:["eval","negative-result"], title:"A 400-step collect cap is a second Crafter time-limit",
         file:"findings/12-episode-cap-is-not-crafter.md",
-        body:"M5 eval lengths 174–257, so the 400 cap never truncated. Crafter is 10k. Mapping gym done to terminated would store continue=0 on timeout. M6 cap 10000; continue follows info.discount. Do not train at 400 and quote a 10k score." }
+        body:"M5 eval lengths 174–257, so the 400 cap never truncated. Crafter is 10k. Mapping gym done to terminated would store continue=0 on timeout. M6 cap 10000; continue follows info.discount. Do not train at 400 and quote a 10k score." },
+      { id:"13", tags:["eval","negative-result"], title:"M6 1M gmean is 1.6; they still die at ~190 steps",
+        file:"findings/13-m6-1m-still-dies-at-190.md",
+        body:"Protocol PASS, held-out 0.627→1.639, online 1.941. Collect mean length 190, max 441 — the 10k cap never binds. n=10 eval is a lottery (900k 0.43 vs 1M 1.64). Last unlocks are sapling/wood/plant/wake; stone 0. Not DreamerV3 14.5." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -354,6 +378,9 @@ flowchart LR
       "Reading imagined λ-return on a frozen random-policy WM as a Crafter score",
       "Reading M5 4-episode 400-step eval return as a DreamerV3 Crafter score",
       "Training M6 at a 400-step collect cap and quoting a 10k-step Crafter score",
+      "Captioning M6 held-out 1.64 next to DreamerV3 14.5",
+      "Reading the M6 10-episode held-out sawtooth as policy collapse",
+      "Grinding the 1M checkpoint until the orange eval line is monotone",
       "Stream sampler / is_first as an M5 prerequisite",
       "Greedy logits.argmax collect in the outer loop"
     ];

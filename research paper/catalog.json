@@ -56,7 +56,16 @@
     "m6_baseline": {
       "config": "configs/m6_baseline.yaml",
       "env_steps": 1000000,
-      "note": "Stub: continue M5 100k → 1M. Official gmean + 10×10k held-out. Cap 10000 (finding 12). Fill score after the user run. Do not quote DreamerV3 14.5 beside this without size-S/seq32/FIFO-500k/continued-from-100k."
+      "heldout_gmean_start": 0.627,
+      "heldout_gmean_end": 1.639,
+      "online_gmean_end": 1.941,
+      "eval_length_end": 205.2,
+      "collect_length_mean": 189.6,
+      "collect_length_max": 441,
+      "entropy_last": 0.533,
+      "recon_l1_last10k_mean": 0.0146,
+      "kl_rep_raw_last10k_mean": 8.67,
+      "note": "Protocol PASS 2026-08-26. Held-out 0.627→1.639; online 1.941. Max collect length 441 so the 10k cap never binds (finding 13). Size-S seq32 FIFO-500k continued from M5 100k — not DreamerV3 14.5."
     }
   },
   "findings": [
@@ -155,6 +164,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M5 lengths 180–220 so the 400 cap was idle. Crafter is 10k. Mapping gym done to terminated would store continue=0 on timeout. M6 cap 10000; continue follows info.discount.",
       "paper_spin": "Eval protocol: state episode length 10000. Do not train at 400 and score at 10k."
+    },
+    {
+      "id": "13",
+      "file": "findings/13-m6-1m-still-dies-at-190.md",
+      "title": "M6 1M gmean is 1.6; they still die at ~190 steps",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Protocol PASS. Held-out gmean 0.627→1.639, online 1.941. Collect max length 441 / mean 190 so the 10k cap is idle. n=10 eval is a lottery (900k 0.43, 1M 1.64). Not DreamerV3 14.5.",
+      "paper_spin": "Results: captioned size-S 1M number + length plot. Limitations: survival, not diamonds, is the missing skill; 10-episode eval is variance."
     }
   ],
   "do_not_revive": [
@@ -170,6 +187,9 @@
     "Reading imagined λ-return on a frozen random-policy WM as a Crafter score or a reason to grind M4 past 20k",
     "Reading M5 4-episode 400-step eval return as a DreamerV3 Crafter score",
     "Training M6 at a 400-step collect cap and quoting a 10k-step Crafter score",
+    "Captioning M6 held-out 1.64 next to DreamerV3 14.5",
+    "Reading the M6 10-episode held-out sawtooth (900k 0.43) as policy collapse",
+    "Grinding the 1M checkpoint until the orange eval line is monotone",
     "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
     "Greedy logits.argmax collect during the outer loop"
   ]

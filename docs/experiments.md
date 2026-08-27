@@ -2,7 +2,7 @@
 
 Living log of approaches tried, including failures and why they failed.
 
-## M6 Crafter baseline (2026-08-26, harness)
+## M6 Crafter baseline (2026-08-26, 1M done)
 
 Continue the M5 **100k** agent to **1M** env steps. Config:
 `configs/m6_baseline.yaml`. Live run: `notebooks/09_train_baseline.ipynb`
@@ -14,14 +14,18 @@ Continue the M5 **100k** agent to **1M** env steps. Config:
   `checkpoints/m6_baseline/ckpt_latest.pt`.
 - Same 16/1/1, batch 16 × seq 32, 32×32 latent. Collect/eval cap **10000**
   (finding 12). Replay FIFO still **500000**.
-- Cited metrics: official gmean on `results/m6_baseline/collect_episodes.jsonl`
-  (from resume onward — first 100k has no per-achievement log) and held-out
-  **10 × 10k** STE eval every 100k (first snapshot is the M5 policy).
-- Weights every 50k; replay dump every 100k + interrupt. Dashboard every 1000.
-- Do not caption the number as DreamerV3 14.5. Fill the score after the user
-  1M run. Tag `v1.0-baseline-result` only then.
-
-Smoke: `python scripts/smoke_crafter_score.py`.
+- Finished **1M** 2026-08-26. Notebook protocol **PASS** (finite metrics,
+  entropy 0.533, jsonl n=4746, 10 held-out evals, joint ckpt).
+- **Cited numbers:** held-out gmean **0.627 → 1.639**; online (collect jsonl
+  from resume) **1.941**. Caption: size-S, seq 32, FIFO 500k, continued from
+  M5 100k. **Not DreamerV3 14.5.**
+- Collect mean length **190**, max **441**. Zero episodes hit 1000. The 10k
+  cap never binds — they still die (finding 13). Last eval: sapling 100%,
+  wood 60%, plant 60%, wake 40%; stone/pickaxe 0.
+- Held-out n=10 is a lottery (900k 0.43, 200k 2.22). Online buckets stay
+  1.4–2.1. Do not re-run because the orange line dipped.
+- Weights every 50k; GIF `results/m6_baseline/eval_step_1000000.gif`.
+- Tag `v1.0-baseline-result` when you want the milestone artifact.
 
 ## M5 outer loop (2026-08-26)
 
