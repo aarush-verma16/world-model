@@ -32,6 +32,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | 4×400 CrafterReward return vs achievements | Evaluation: M5 0.10 is one unlock then die; geo-mean is M6 |
 | 400-step collect cap vs Crafter 10k | Eval protocol: continue follows `discount`; do not train at 400 and score at 10k |
 | Size-S 1M gmean 1.6 with death at 190 | Results: captioned baseline; 10k cap still idle; n=10 eval is variance |
+| XL-from-scratch actor on unimix floor at 20k | Negative: 200M ≠ 14.5; prefill-after-one-episode is not the paper seed |
 
 ## Index of findings
 
@@ -48,6 +49,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 11. [4×400 eval return is not a Crafter score](findings/11-eval-return-is-not-crafter-score.md) — M5 100k last 0.10 is one achievement then die.
 12. [400-step cap is not Crafter](findings/12-episode-cap-is-not-crafter.md) — M5 lengths were under 400; timeout must not look like death.
 13. [M6 1M still dies at 190](findings/13-m6-1m-still-dies-at-190.md) — held-out 1.64 / online 1.94; 10k cap idle; not DreamerV3 14.5.
+14. [XL from scratch collapsed the actor](findings/14-xl-from-scratch-actor-collapse.md) — entropy on unimix floor by 20k; held-out 1.30→0.23, wake_up only.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -60,6 +62,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M4 actor-critic** (`configs/m4_actor_critic.yaml`): 20k steps on the frozen 700k WM, 2026-08-26. Notebook exit **PASS**. Last-2k imagined reward **0.017**/step vs λ-return **2.61** (finding 10). GIF: `results/m4_actor_critic/imagine_final.gif`.
 - **M5 outer loop** (`configs/m5_outer_loop.yaml`): 100k env steps, 2026-08-26. Notebook plumbing **PASS**. Last eval return **0.10** = one achievement then death (finding 11), not geo-mean. Dashboard 18→1.1 env/s then **~38** after the log-cadence fix (finding 08). Live: `notebooks/08_train_outer_loop.ipynb`.
 - **M6 baseline** (`configs/m6_baseline.yaml`): **1M env steps**, 2026-08-26. Protocol **PASS**. Held-out gmean **0.627 → 1.639**, online **1.941**. Collect mean length **190**, max **441** — 10k cap never binds (finding 13). Live: `notebooks/09_train_baseline.ipynb`.
+- **M7 paper-online** (`configs/m7_paper_online.yaml`): XL ~198M from scratch. At **100k** (2026-08-27) held-out **1.298 → 0.233**, entropy on unimix floor by 20k, wake_up only (finding 14). Do not grind to 1M. Live: `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

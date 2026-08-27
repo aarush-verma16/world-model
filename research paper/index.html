@@ -212,6 +212,25 @@
         </figure>
       </div>
 
+      <h2 id="m7stub">M7 paper-style online (stopped reading at 100k)</h2>
+      <p class="muted">XL ~198M from scratch, fresh actor, 2026-08-27. Not a 14.5 run. Actor sat on the unimix floor by 20k env steps (finding 14). Do not grind to 1M.</p>
+      <table>
+        <thead><tr><th>Knob</th><th>Value</th><th>Read as</th></tr></thead>
+        <tbody>
+          <tr><td>held-out gmean</td><td>1.298 → 0.233</td><td>Worse than the random start, not a noisy orange line</td></tr>
+          <tr><td>100k unlocks</td><td>wake_up 100, everything else 0</td><td>They unlearned sapling/wood/drink/plant</td></tr>
+          <tr><td>entropy</td><td>0.08 mean from 20–80k</td><td>Unimix floor for 17 actions. M6 never went below 0.22</td></tr>
+          <tr><td>collect length</td><td>mean 163, max 399</td><td>Still dying; 10k cap idle again</td></tr>
+          <tr><td>prefill</td><td>stops after one episode ≥ 32</td><td>Not the documented 10k random seed</td></tr>
+        </tbody>
+      </table>
+      <div class="compare">
+        <figure>
+          <img src="figures/m7_dashboard_100k_collapse.png" alt="M7 notebook dashboard at ~124k showing actor collapse" />
+          <figcaption>Dashboard ~124k. Falling gmean, wake_up-only bars, length under the M6 190 line. Status ep_len=nan is a sparse log row, not a trainer NaN.</figcaption>
+        </figure>
+      </div>
+
       <h2 id="graphs">Why two weeks of extra losses could not work</h2>
       <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
       <div class="grid">
@@ -361,7 +380,10 @@ flowchart LR
         body:"M5 eval lengths 174–257, so the 400 cap never truncated. Crafter is 10k. Mapping gym done to terminated would store continue=0 on timeout. M6 cap 10000; continue follows info.discount. Do not train at 400 and quote a 10k score." },
       { id:"13", tags:["eval","negative-result"], title:"M6 1M gmean is 1.6; they still die at ~190 steps",
         file:"findings/13-m6-1m-still-dies-at-190.md",
-        body:"Protocol PASS, held-out 0.627→1.639, online 1.941. Collect mean length 190, max 441 — the 10k cap never binds. n=10 eval is a lottery (900k 0.43 vs 1M 1.64). Last unlocks are sapling/wood/plant/wake; stone 0. Not DreamerV3 14.5." }
+        body:"Protocol PASS, held-out 0.627→1.639, online 1.941. Collect mean length 190, max 441 — the 10k cap never binds. n=10 eval is a lottery (900k 0.43 vs 1M 1.64). Last unlocks are sapling/wood/plant/wake; stone 0. Not DreamerV3 14.5." },
+      { id:"14", tags:["eval","negative-result"], title:"XL from scratch collapsed the actor by 20k env steps",
+        file:"findings/14-xl-from-scratch-actor-collapse.md",
+        body:"M7 XL 198M, fresh actor, random WM. Entropy on the unimix floor (~0.08 nats) by 20k. Held-out 1.298→0.233; 100k bars are wake_up only. Prefill exits after one finished episode, not 10k random. Do not grind to 1M." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -382,7 +404,8 @@ flowchart LR
       "Reading the M6 10-episode held-out sawtooth as policy collapse",
       "Grinding the 1M checkpoint until the orange eval line is monotone",
       "Stream sampler / is_first as an M5 prerequisite",
-      "Greedy logits.argmax collect in the outer loop"
+      "Greedy logits.argmax collect in the outer loop",
+      "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor"
     ];
 
     let tag = "all";

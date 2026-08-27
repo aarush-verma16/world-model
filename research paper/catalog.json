@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-26",
+  "updated": "2026-08-27",
   "runs": {
     "pre_reset_12k": {
       "config": "configs/m3_world_model.yaml",
@@ -66,6 +66,19 @@
       "recon_l1_last10k_mean": 0.0146,
       "kl_rep_raw_last10k_mean": 8.67,
       "note": "Protocol PASS 2026-08-26. Held-out 0.627→1.639; online 1.941. Max collect length 441 so the 10k cap never binds (finding 13). Size-S seq32 FIFO-500k continued from M5 100k — not DreamerV3 14.5."
+    },
+    "m7_paper_online_100k": {
+      "config": "configs/m7_paper_online.yaml",
+      "env_steps": 100000,
+      "heldout_gmean_start": 1.298,
+      "heldout_gmean_100k": 0.233,
+      "online_gmean_100k": 0.284,
+      "eval_length_100k": 163.6,
+      "collect_length_mean": 162.9,
+      "collect_length_max": 399,
+      "entropy_20_40k_mean": 0.082,
+      "recon_l1_80_100k_mean": 0.011,
+      "note": "XL 198M from scratch. Actor on unimix floor by 20k. Held-out 1.298→0.233, wake_up only. Do not grind to 1M (finding 14)."
     }
   },
   "findings": [
@@ -172,6 +185,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "Protocol PASS. Held-out gmean 0.627→1.639, online 1.941. Collect max length 441 / mean 190 so the 10k cap is idle. n=10 eval is a lottery (900k 0.43, 1M 1.64). Not DreamerV3 14.5.",
       "paper_spin": "Results: captioned size-S 1M number + length plot. Limitations: survival, not diamonds, is the missing skill; 10-episode eval is variance."
+    },
+    {
+      "id": "14",
+      "file": "findings/14-xl-from-scratch-actor-collapse.md",
+      "title": "XL from scratch collapsed the actor by 20k env steps",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "198M XL, fresh actor, random WM. Entropy on unimix floor (~0.08) by 20k. Held-out 1.298→0.233, wake_up only. Prefill exits after one episode. Do not grind to 1M.",
+      "paper_spin": "Negative result: 200M is not the missing piece once the actor is a delta on unimix. Recipe: 10k prefill that stops at one life is not the paper seed."
     }
   ],
   "do_not_revive": [
@@ -191,6 +212,7 @@
     "Reading the M6 10-episode held-out sawtooth (900k 0.43) as policy collapse",
     "Grinding the 1M checkpoint until the orange eval line is monotone",
     "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
-    "Greedy logits.argmax collect during the outer loop"
+    "Greedy logits.argmax collect during the outer loop",
+    "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor (~0.08 nats)"
   ]
 }
