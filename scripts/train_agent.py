@@ -259,7 +259,12 @@ def pretrain_dreamer(
     seq_len = int(train["seq_len"])
     last_wm: dict[str, float] | None = None
     last_ac: dict[str, float] | None = None
-    for _ in range(n):
+    t0 = time.time()
+    print(
+        f"pretrain {n} WM+AC starting (no collect; XL is ~1–3 min, prints every 10)...",
+        flush=True,
+    )
+    for i in range(n):
         unfreeze_world_model(world_model)
         batch = buffer.sample(batch_size, seq_len)
         _loss, last_wm = world_model_step(
@@ -293,11 +298,19 @@ def pretrain_dreamer(
             scaler=scaler,
             max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
         )
+        if (i + 1) % 10 == 0 or i == 0:
+            recon_i = last_wm.get("recon_l1", float("nan")) if last_wm else float("nan")
+            ent_i = last_ac.get("entropy", float("nan")) if last_ac else float("nan")
+            print(
+                f"  pretrain {i + 1}/{n}  recon_l1={recon_i:.4f}  ac_H={ent_i:.3f}  "
+                f"({time.time() - t0:.0f}s)",
+                flush=True,
+            )
     recon = last_wm.get("recon_l1", float("nan")) if last_wm else float("nan")
     ent = last_ac.get("entropy", float("nan")) if last_ac else float("nan")
     print(
         f"pretrain {n} WM+AC (DreamerV3-torch pretrain)  "
-        f"recon_l1={recon:.4f}  ac_H={ent:.3f}",
+        f"recon_l1={recon:.4f}  ac_H={ent:.3f}  ({time.time() - t0:.0f}s)",
         flush=True,
     )
     return n, n
