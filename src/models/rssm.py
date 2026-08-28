@@ -391,6 +391,7 @@ class RSSM(nn.Module):
         prev_state: RSSMState,
         prev_action: Tensor,
         embed: Tensor,
+        is_first: Tensor | None = None,
     ) -> tuple[RSSMState, Tensor, Tensor, Tensor]:
         """One observe step (real embedding available).
 
@@ -399,6 +400,9 @@ class RSSM(nn.Module):
             prev_action: one-hot action `[B, action_dim]` that led to this obs
                 (zeros for the first timestep).
             embed: encoder embedding `[B, embed_dim]` for the current obs.
+            is_first: optional `[B]` bool/float. True rows reset `h` / `z` to
+                `initial()` and zero the previous action (DreamerV3 episode
+                boundary). `None` keeps the carry as passed.
 
         Returns:
             (new_state, z_prior, prior_logits, posterior_logits)
@@ -414,6 +418,24 @@ class RSSM(nn.Module):
             raise ValueError(
                 f"expected embed [..., {self.embed_dim}], got {tuple(embed.shape)}"
             )
+
+        if is_first is not None:
+            first = is_first.reshape(-1)
+            if first.dtype != torch.bool:
+                first = first != 0
+            if bool(first.any()):
+                batch = prev_action.shape[0]
+                init = self.initial(batch, device=prev_action.device)
+                keep = (~first).to(dtype=prev_action.dtype).view(batch, 1)
+                reset = first.to(dtype=prev_action.dtype).view(batch, 1)
+                prev_action = prev_action * keep
+                z_keep = keep.view(batch, 1, 1)
+                z_reset = reset.view(batch, 1, 1)
+                prev_state = RSSMState(
+                    h=prev_state.h * keep + init.h * reset,
+                    z_posterior=prev_state.z_posterior * z_keep
+                    + init.z_posterior * z_reset,
+                )
 
         z_flat = prev_state.z_posterior.reshape(prev_state.z_posterior.shape[0], -1)
         x = self.img_in(torch.cat([z_flat, prev_action], dim=-1))
@@ -466,7 +488,12 @@ class RSSM(nn.Module):
         z_prior = sample_onehot_ste(unimix_probs(prior_logits, self.unimix))
         return h, z_prior, prior_logits
 
-    def observe(self, embeds: Tensor, actions: Tensor) -> RSSMOutput:
+    def observe(
+        self,
+        embeds: Tensor,
+        actions: Tensor,
+        is_first: Tensor | None = None,
+    ) -> RSSMOutput:
         """Roll the RSSM over a real sequence.
 
         Args:
@@ -474,6 +501,10 @@ class RSSM(nn.Module):
             actions: `[B, T, action_dim]` one-hot actions. `actions[:, t]` is the
                 action taken *after* observing timestep `t` (used to form `h_{t+1}`).
                 For timestep 0 the previous action is treated as zeros.
+            is_first: optional `[B, T]` bool/float. True at episode starts so a
+                window that crosses a life does not carry `h` across the reset.
+                `None` matches the old episode-bounded sampler (reset only at
+                the window origin).
 
         Returns:
             `RSSMOutput` with `[B, T, ...]` tensors for `h`, `z_prior`,
@@ -491,6 +522,10 @@ class RSSM(nn.Module):
             raise ValueError(
                 f"embeds/actions batch-time mismatch: {tuple(embeds.shape)} vs {tuple(actions.shape)}"
             )
+        if is_first is not None and tuple(is_first.shape[:2]) != tuple(embeds.shape[:2]):
+            raise ValueError(
+                f"is_first batch-time mismatch: {tuple(is_first.shape)} vs {tuple(embeds.shape)}"
+            )
 
         batch, time, _ = embeds.shape
         state = self.initial(batch, device=embeds.device)
@@ -504,8 +539,9 @@ class RSSM(nn.Module):
         zero_action = torch.zeros(batch, self.action_dim, device=embeds.device)
         for t in range(time):
             prev_action = zero_action if t == 0 else actions[:, t - 1]
+            first_t = None if is_first is None else is_first[:, t]
             state, z_prior, prior_logits, posterior_logits = self.obs_step(
-                state, prev_action, embeds[:, t]
+                state, prev_action, embeds[:, t], first_t
             )
             hs.append(state.h)
             z_priors.append(z_prior)

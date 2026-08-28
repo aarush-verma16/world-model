@@ -76,7 +76,7 @@ def world_model_step(
     obs = batch["obs"]
     optim.zero_grad(set_to_none=True)
     with autocast_context(device, amp_dtype):
-        out = model(obs, batch["actions"])
+        out = model(obs, batch["actions"], is_first=batch.get("is_first"))
         batch_n, time_n = obs.shape[:2]
         obs_f = nhwc_uint8_to_nchw_unit(obs.reshape(batch_n * time_n, *obs.shape[2:])).view(
             batch_n, time_n, 3, 64, 64

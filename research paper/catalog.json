@@ -133,7 +133,12 @@
       "heldout_gmean_50k": 1.36,
       "online_gmean_80k": 1.46,
       "collect_length_mean": 173,
-      "note": "Live 1M, ratio 32 / seq 32 / deter 2560. ac_H alive. Combat-length wall (finding 19). Not DreamerV3 14.5 (finding 20)."
+      "note": "Stopped for M9. Ratio 32 / seq 32 / V2 finished-episode replay. ac_H alive. Combat-length wall (finding 19). Keep the dir; do not resume it into M9."
+    },
+    "m9_xl": {
+      "config": "configs/m9_xl.yaml",
+      "env_steps": 0,
+      "note": "From-scratch XL with streaming replay + is_first. New dirs checkpoints/m9_xl. train_ratio still 32. Notebook 10."
     }
   },
   "findings": [
@@ -295,7 +300,7 @@
       "file": "findings/20-score-gap-is-recipe-not-a-missing-head.md",
       "title": "The 14.5 gap is a different experiment, not a missing loss head",
       "tags": ["eval", "compute", "negative-result"],
-      "one_liner": "14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. We are ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k, still dying to zombies. 16x less replay per env step. Two remaining code gaps: is_first and CNN blocks=1.",
+      "one_liner": "14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. M8-XL was ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k. M9 closes the V2 sampler (is_first + stream). Still 16x less replay per env step.",
       "paper_spin": "Compute/protocol figure: same 1M x-axis is 16x less replay and 8x fewer updates. Do not read 1.36 vs 14.5 as a missing reconstruction head."
     }
   ],
@@ -336,6 +341,7 @@
     "Captioning M8-XL 80k held-out 1.36 next to DreamerV3 14.5 as a failed implementation",
     "Killing m8_xl_acfix2 to 'start the real paper recipe' in the same checkpoint dir",
     "Matching 2026 danijar/dreamerv3 jax main (deter 8192, 64 classes, LaProp) and calling it the 2023 14.5 recipe",
-    "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes"
+    "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes",
+    "Resuming checkpoints/m8_xl_acfix2 into the M9 streaming-replay graph"
   ]
 }

@@ -105,6 +105,7 @@ def actor_critic_step(
             start_mode=start_mode,
             discount=discount,
             dynamics_graph=dynamics_graph,
+            is_first=batch.get("is_first"),
         )
         # Value is detached so the critic target does not move with the critic;
         # reward/cont keep their graph for the `dynamics` path.

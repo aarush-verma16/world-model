@@ -8,7 +8,7 @@
 
 Putting our Crafter geometric mean next to DreamerV3’s **14.5** is valid as a *distance*, and the distance is large. It is **not** evidence that the live actor-critic graph is still wrong, or that we need another reconstruction head. The published 14.5 is XL **at 1M env steps** with **512 replayed transitions per env step**, sequence **64**, streaming replay, and GRU **4096**. We are XL-shaped **at 80k**, ratio **32**, sequence **32**, finished-episode replay, GRU **2560**, and we still modal-die to zombies around step 170 (finding 19). Those are already-measured disagreements, not folklore.
 
-Do not kill `m8_xl_acfix2` to “start the real implementation.” Finish this 1M as the honest **ratio-32 / seq-32 / 16 GiB** number. Then change one remaining gap at a time in a **new** checkpoint dir.
+Do not resume `m8_xl_acfix2` into the M9 graph. That 80k is the honest **ratio-32 / seq-32 / V2-sampler** XL number. M9 is a new dir (`checkpoints/m9_xl`) with streaming replay + `is_first`.
 
 ## Same metric, not the same experiment
 
@@ -57,12 +57,14 @@ The M7 entropy collapse was these six bugs, not “XL is too big.” M8-S held `
 5. **Horizon.** Paper 14.5 is at **1M**. M8-XL is at **80k**. Even a perfect clone is not 14.5 yet.
 6. **Precision.** Paper-torch default fp32; we bf16 AMP. (Current `danijar/dreamerv3` jax also trains Crafter in bf16 — do not treat fp32 as the 14.5 secret.)
 
-### B. Remaining *code* — two real gaps, not a missing pixel loss
+### B. Remaining *code*
 
-1. **Replay is still DreamerV2-style.** DreamerV3 (paper text): V2 only replayed **completed** episodes; V3 uniformly samples subsequences **regardless of episode boundaries** and resets the GRU with `is_first`. Ours (`ReplayBuffer.sample`): windows live entirely inside one finished episode; `RSSM.observe` never sees `is_first`. At modal length ~170 this is a ~one-life delay before a trajectory is trainable. It becomes load-bearing the moment lives get long — which is exactly when we would start to look like 14.5. Finding 08 parked this as “not an M5 prerequisite.” It is a remaining 14.5 prerequisite.
-2. **CNN/decoder residual `blocks=1` vs reference default 2.** The encoder docstring already says DreamerV3’s extra residual blocks are what keep 8–12 px Crafter sprites from aliasing into grass at the first stride-2. XL yaml set `blocks: 1` to fit 16 GiB, not because 1 is the paper.
+**Closed in M9 (2026-08-28):** streaming replay + `is_first` in `RSSM.observe`. M8 sampled finished episodes only; a window never reset the GRU at a life boundary. `configs/m9_xl.yaml` starts from env_steps=0 in `checkpoints/m9_xl`. Do not resume `m8_xl_acfix2` into that graph.
 
-Adam vs jax’s later LaProp/AGC optimizer is a *later* jax main revision (`lr` 4e-5, `deter` 8192, `classes` 64). The **2023 14.5** recipe is the NM512 torch / Table B.1 stack, not 2026 jax `size200m`. Do not “match current github main” in one jump.
+**Still open (workstation recipe, not a missing head):**
+
+1. CNN/decoder residual `blocks=1` vs reference default 2. XL yaml set `blocks: 1` to fit 16 GiB.
+2. Adam vs later jax LaProp/AGC is a *later* jax main revision. The **2023 14.5** recipe is NM512 torch / Table B.1, not 2026 jax `size200m`.
 
 ### C. Behavior on this env — even a correct agent has to not die to zombies
 
@@ -79,13 +81,12 @@ Paper Crafter score is typically the **training-episode** achievement geometric 
 - Silently set `train_ratio: 512` in the live yaml and keep `m8_xl_acfix2`. New recipe, new dir; 5-day clock (finding 15).
 - Jump `deter_dim` to 4096, `blocks` to 2, seq to 64, *and* ratio to 512 in one config. Any OOM or collapse then has four causes.
 - Compare against current jax `dreamerv3` defaults (replay 5e6, deter 8192, 64 classes, different encoder). That is not the 14.5 paper.
-- Stop the live 1M because “the implementation must change.” Then we have no ratio-32 XL-from-scratch number with a working actor-critic.
+- Stop M8 then resume those weights under M9. The sampler and `observe` graph changed; that is a new run.
 
 ## What to change, in order, after this 1M (or in a parallel dir)
 
-1. **Keep `m8_xl_acfix2` running** unless `ac_H` dies. It is the first XL-from-scratch run whose actor-critic is finding-17-correct.
-2. **Streaming replay + `is_first` in `RSSM.observe`.** The one remaining graph disagreement that is *in the paper’s method section*, not a workstation compromise.
-3. If chasing 14.5 on this box: a **new** dir with a middle `train_ratio` (128 or 256) *or* a dedicated 5-day 512 run — captioned, not mixed. Re-smoke seq 64 / `blocks=2` on the *current* reinforce graph before combining with ratio.
+1. **M9 from scratch** (`configs/m9_xl.yaml`). Streaming replay + `is_first` is in the graph. Do not load `m8_xl_acfix2`.
+2. If chasing 14.5 on this box: a **new** dir with a middle `train_ratio` (128 or 256) *or* a dedicated 5-day 512 run — captioned, not mixed. Re-smoke seq 64 / `blocks=2` on the *current* reinforce graph before combining with ratio.
 4. Do not invent new losses while `defeat_zombie` is still ~0.
 
 ## Paper spin

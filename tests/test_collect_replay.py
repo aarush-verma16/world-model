@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from models.encoder import Encoder
@@ -64,7 +65,7 @@ def test_replay_sample_empty_and_too_short_raise() -> None:
     except RuntimeError:
         pass
     else:
-        raise AssertionError("expected RuntimeError when no episode is long enough")
+        raise AssertionError("expected RuntimeError when the stream is shorter than seq_len")
 
 
 def test_replay_add_rejects_length_mismatch() -> None:
@@ -82,7 +83,7 @@ def test_replay_add_rejects_length_mismatch() -> None:
         raise AssertionError("expected ValueError for length mismatch")
 
 
-def test_replay_windows_stay_inside_one_episode() -> None:
+def test_replay_windows_can_cross_episode_boundaries() -> None:
     buf = ReplayBuffer(seed=1)
     for ep_i in range(2):
         t = 10
@@ -93,11 +94,41 @@ def test_replay_windows_stay_inside_one_episode() -> None:
             torch.zeros(t),
             torch.ones(t),
         )
-    batch = buf.sample(batch_size=6, seq_len=5)
-    for i in range(6):
-        acts = batch["actions"][i]
-        assert torch.equal(acts[1:] - acts[:-1], torch.ones(4, dtype=torch.int64))
-        assert bool((acts < 100).all() or (acts >= 100).all())
+    crossed = False
+    for _ in range(40):
+        batch = buf.sample(batch_size=1, seq_len=5)
+        acts = batch["actions"][0]
+        first = batch["is_first"][0] > 0.5
+        if bool(first[1:].any()):
+            crossed = True
+            boundary = int(first[1:].nonzero()[0].item()) + 1
+            assert acts[boundary] >= 100
+            assert acts[boundary - 1] < 100
+        for t in range(1, 5):
+            if bool(first[t]):
+                continue
+            assert int(acts[t]) == int(acts[t - 1]) + 1
+    assert crossed
+
+
+def test_replay_add_step_is_trainable_before_death() -> None:
+    buf = ReplayBuffer(seed=0)
+    for t in range(8):
+        buf.add_step(
+            np.zeros((64, 64, 3), dtype=np.uint8),
+            t,
+            0.0,
+            1.0,
+            is_first=(t == 0),
+        )
+    assert buf.num_steps == 8
+    assert len(buf._episodes) == 0
+    batch = buf.sample(2, 4)
+    assert batch["is_first"].shape == (2, 4)
+    assert float(batch["is_first"][0, 0]) in (0.0, 1.0)
+    buf.close_episode()
+    assert len(buf._episodes) == 1
+    assert buf.num_steps == 8
 
 
 def test_replay_state_dict_roundtrip() -> None:

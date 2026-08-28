@@ -120,7 +120,7 @@ def main() -> None:
         torch.cuda.reset_peak_memory_stats()
 
     def _has_seq() -> bool:
-        return any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes)
+        return buffer.can_sample(seq_len)
 
     def run(mode: str) -> None:
         collected = 0
@@ -129,8 +129,8 @@ def main() -> None:
             collected += int(args.env_steps)
         if not _has_seq():
             raise RuntimeError(
-                f"smoke collect produced no episode >= seq_len={seq_len} "
-                f"after {collected} env steps"
+                f"smoke collect produced < seq_len={seq_len} stream steps "
+                f"after {collected} env steps (have {buffer.num_steps})"
             )
         t0 = time.perf_counter()
         cycle = outer_cycle(

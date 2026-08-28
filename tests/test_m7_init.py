@@ -114,7 +114,7 @@ def test_prefill_random_reaches_step_target() -> None:
     assert got >= 80
     assert buf.num_steps >= 80
     assert len(buf) >= 4
-    assert any(ep.obs.shape[0] >= 8 for ep in buf._episodes)
+    assert buf.can_sample(8)
 
 
 def test_m7_workstation_config_is_ratio_32() -> None:
@@ -193,3 +193,20 @@ def test_overlay_wm_train_copies_paper_kl_scales() -> None:
         {"collect_every": 16, "batch_size": 16, "seq_len": 32, "wm_updates": 1, "ac_updates": 1}
     )
     assert n == 1 and m == 1
+
+
+def test_m9_xl_is_a_new_dir_not_m8_resume() -> None:
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m9_xl.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl.yaml"
+    assert cfg.get("reset_actor") is True
+    assert cfg.get("world_model_ckpt") in (None, "")
+    assert train["imag_gradient"] == "reinforce"
+    assert float(train["train_ratio"]) == 32.0
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m9_xl" in path, (key, path)
+        assert "m8_xl_acfix" not in path, (key, path)
+        assert "m7" not in path, (key, path)

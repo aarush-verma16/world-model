@@ -369,9 +369,14 @@ def test_replay_buffer_samples_contiguous_windows() -> None:
     batch = buf.sample(batch_size=4, seq_len=8)
     assert batch["obs"].shape == (4, 8, 64, 64, 3)
     assert batch["actions"].shape == (4, 8)
+    assert batch["is_first"].shape == (4, 8)
     for i in range(4):
         acts = batch["actions"][i]
-        assert torch.equal(acts[1:] - acts[:-1], torch.ones(7, dtype=torch.int64))
+        first = batch["is_first"][i] > 0.5
+        for t in range(1, 8):
+            if bool(first[t]):
+                continue
+            assert int(acts[t]) == int(acts[t - 1]) + 1
 
 
 def test_world_model_step_updates_weights() -> None:

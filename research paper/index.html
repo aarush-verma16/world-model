@@ -419,7 +419,7 @@ flowchart LR
         body:"No-combat starvation is step 338; at 200 health is still 9. Of 500 M8-XL lives at 80k, 66% end at 150–220 (38% at 150–180). Drinking buys mean 165→225 but drinkers still median 208. defeat_zombie is 0.6%. Last 80 lives: wake_up 92.5% — sleeping zombies deal 7. Do not add a hunger bonus. Watch zombie kills, not the 190 dotted line." },
       { id:"20", tags:["eval","compute","negative-result"], title:"The 14.5 gap is a different experiment, not a missing loss head",
         file:"findings/20-score-gap-is-recipe-not-a-missing-head.md",
-        body:"Published 14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. Live M8-XL is ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k, still dying to zombies (finding 19). That is 16× less replay per env step and 8× fewer optimizer steps. Actor-critic already matches finding 17. Remaining code: is_first in RSSM.observe, CNN blocks=1 vs 2. Do not caption 1.36 next to 14.5; do not kill m8_xl_acfix2 to raise ratio in the same dir." }
+        body:"Published 14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. M8-XL was ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k. M9 (configs/m9_xl.yaml) starts from 0 with is_first + streaming replay. Still 16× less replay per env step. Do not resume m8_xl_acfix2 into M9." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -459,7 +459,8 @@ flowchart LR
       "Captioning M8-XL 80k held-out 1.36 next to DreamerV3 14.5 as a failed implementation",
       "Killing m8_xl_acfix2 to start the real paper recipe in the same checkpoint dir",
       "Matching 2026 jax dreamerv3 main (deter 8192, 64 classes) and calling it the 2023 14.5 recipe",
-      "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes"
+      "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes",
+      "Resuming m8_xl_acfix2 into the M9 streaming-replay graph"
     ];
 
     let tag = "all";

@@ -23,13 +23,28 @@ class EpisodeBatch:
     actions: Tensor  # int64 [T]
     rewards: Tensor  # float32 [T]
     cont: Tensor  # float32 [T]  — 1 if episode continues after this step
+    is_first: Tensor | None = None  # float32 [T] — 1 at the episode start
+
+
+def _episode_is_first(ep: EpisodeBatch) -> Tensor:
+    """Per-step first flags; missing field means only index 0 is first."""
+    t = int(ep.obs.shape[0])
+    if ep.is_first is not None:
+        return ep.is_first.to(dtype=torch.float32)
+    flags = torch.zeros(t, dtype=torch.float32)
+    if t:
+        flags[0] = 1.0
+    return flags
 
 
 class ReplayBuffer:
-    """Stores full episodes and samples fixed-length contiguous windows.
+    """Stores episodes and samples fixed-length contiguous windows.
 
-    Windows never cross episode boundaries (no `is_first`). Optional FIFO
-    `max_steps` drops the oldest episodes so host RAM cannot grow forever.
+    DreamerV3 samples subsequences across episode boundaries and resets the
+    GRU where `is_first` is set. Unfinished lives are already in the buffer
+    (`add_step`) so training does not wait for death. Optional FIFO
+    `max_steps` drops the oldest finished episodes so host RAM cannot grow
+    forever.
     """
 
     def __init__(self, seed: int = 0, max_steps: int | None = None) -> None:
@@ -37,24 +52,92 @@ class ReplayBuffer:
         self._rng = np.random.default_rng(seed)
         self._total_steps = 0
         self.max_steps = None if max_steps is None else int(max_steps)
+        self._live_obs: list[np.ndarray] = []
+        self._live_act: list[int] = []
+        self._live_rew: list[float] = []
+        self._live_cont: list[float] = []
+        self._live_first: list[float] = []
 
     def __len__(self) -> int:
-        return len(self._episodes)
+        return len(self._episodes) + (1 if self._live_obs else 0)
 
     @property
     def num_steps(self) -> int:
-        return self._total_steps
+        return self._total_steps + len(self._live_obs)
+
+    def can_sample(self, seq_len: int) -> bool:
+        """True when a length-`seq_len` window exists anywhere in the stream."""
+        return self.num_steps >= int(seq_len)
+
+    def _live_batch(self) -> EpisodeBatch | None:
+        n = len(self._live_obs)
+        if n == 0:
+            return None
+        return EpisodeBatch(
+            obs=torch.as_tensor(np.stack(self._live_obs, axis=0), dtype=torch.uint8),
+            actions=torch.as_tensor(self._live_act, dtype=torch.int64),
+            rewards=torch.as_tensor(self._live_rew, dtype=torch.float32),
+            cont=torch.as_tensor(self._live_cont, dtype=torch.float32),
+            is_first=torch.as_tensor(self._live_first, dtype=torch.float32),
+        )
+
+    def _parts(self) -> list[EpisodeBatch]:
+        parts = list(self._episodes)
+        live = self._live_batch()
+        if live is not None:
+            parts.append(live)
+        return parts
+
+    def _clear_live(self) -> None:
+        self._live_obs = []
+        self._live_act = []
+        self._live_rew = []
+        self._live_cont = []
+        self._live_first = []
+
+    def close_episode(self) -> None:
+        """Freeze the in-progress life so FIFO eviction can drop it later."""
+        live = self._live_batch()
+        if live is None:
+            return
+        self._episodes.append(live)
+        self._total_steps += int(live.obs.shape[0])
+        self._clear_live()
+        self._evict()
 
     def _evict(self) -> None:
-        """Drop oldest episodes until `num_steps <= max_steps`.
+        """Drop oldest finished episodes until `num_steps <= max_steps`.
 
         A single episode longer than `max_steps` is kept (we do not split).
+        The live (unfinished) life is never dropped from the front.
         """
         if self.max_steps is None:
             return
-        while len(self._episodes) > 1 and self._total_steps > self.max_steps:
+        live_n = len(self._live_obs)
+        while len(self._episodes) > 1 and self._total_steps + live_n > self.max_steps:
             old = self._episodes.pop(0)
             self._total_steps -= int(old.obs.shape[0])
+
+    def add_step(
+        self,
+        obs: Tensor | np.ndarray,
+        action: int | Tensor,
+        reward: float | Tensor,
+        cont: float | Tensor,
+        is_first: bool,
+    ) -> None:
+        """Append one transition. `is_first` starts a new life in the stream."""
+        if bool(is_first) and self._live_obs:
+            self.close_episode()
+        frame = np.asarray(obs, dtype=np.uint8)
+        if frame.ndim != 3 or frame.shape[-1] != 3:
+            raise ValueError(f"obs step must be [H,W,3] uint8, got {tuple(frame.shape)}")
+        self._live_obs.append(frame)
+        self._live_act.append(int(action))
+        self._live_rew.append(float(reward))
+        self._live_cont.append(float(cont))
+        self._live_first.append(1.0 if bool(is_first) or not self._live_obs[:-1] else 0.0)
+        self._evict()
 
     def add_episode(
         self,
@@ -63,7 +146,9 @@ class ReplayBuffer:
         rewards: Tensor | np.ndarray,
         cont: Tensor | np.ndarray,
     ) -> None:
-        """Append one episode. All arrays length `T` along dim 0."""
+        """Append one finished episode. All arrays length `T` along dim 0."""
+        if self._live_obs:
+            self.close_episode()
         obs_t = torch.as_tensor(np.asarray(obs, dtype=np.uint8), dtype=torch.uint8)
         act_t = torch.as_tensor(np.asarray(actions), dtype=torch.int64)
         rew_t = torch.as_tensor(np.asarray(rewards), dtype=torch.float32)
@@ -76,54 +161,94 @@ class ReplayBuffer:
                 f"length mismatch: obs {t}, actions {tuple(act_t.shape)}, "
                 f"rewards {tuple(rew_t.shape)}, cont {tuple(cont_t.shape)}"
             )
+        first = torch.zeros(t, dtype=torch.float32)
+        if t:
+            first[0] = 1.0
         self._episodes.append(
-            EpisodeBatch(obs=obs_t, actions=act_t, rewards=rew_t, cont=cont_t)
+            EpisodeBatch(
+                obs=obs_t, actions=act_t, rewards=rew_t, cont=cont_t, is_first=first
+            )
         )
         self._total_steps += t
         self._evict()
 
+    def _gather(
+        self, parts: list[EpisodeBatch], start: int, seq_len: int
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        lengths = [int(ep.obs.shape[0]) for ep in parts]
+        idx = 0
+        offset = start
+        while offset >= lengths[idx]:
+            offset -= lengths[idx]
+            idx += 1
+        obs_c: list[Tensor] = []
+        act_c: list[Tensor] = []
+        rew_c: list[Tensor] = []
+        cont_c: list[Tensor] = []
+        first_c: list[Tensor] = []
+        remaining = seq_len
+        while remaining > 0:
+            ep = parts[idx]
+            take = min(remaining, lengths[idx] - offset)
+            end = offset + take
+            obs_c.append(ep.obs[offset:end])
+            act_c.append(ep.actions[offset:end])
+            rew_c.append(ep.rewards[offset:end])
+            cont_c.append(ep.cont[offset:end])
+            first_c.append(_episode_is_first(ep)[offset:end])
+            remaining -= take
+            idx += 1
+            offset = 0
+        return (
+            torch.cat(obs_c, dim=0),
+            torch.cat(act_c, dim=0),
+            torch.cat(rew_c, dim=0),
+            torch.cat(cont_c, dim=0),
+            torch.cat(first_c, dim=0),
+        )
+
     def sample(self, batch_size: int, seq_len: int) -> dict[str, Tensor]:
-        """Sample contiguous windows.
+        """Sample contiguous windows, including across episode boundaries.
 
         Returns dict with:
             obs `[B, L, 64, 64, 3]` uint8
             actions `[B, L]` int64
             rewards `[B, L]` float32
             cont `[B, L]` float32
+            is_first `[B, L]` float32
         """
-        if not self._episodes:
-            raise RuntimeError("replay buffer is empty")
-        # Episodes long enough to hold a window.
-        eligible = [ep for ep in self._episodes if ep.obs.shape[0] >= seq_len]
-        if not eligible:
+        if not self.can_sample(seq_len):
             raise RuntimeError(
-                f"no episode with length >= seq_len={seq_len} "
-                f"(have {len(self._episodes)} episodes, max_len="
-                f"{max(ep.obs.shape[0] for ep in self._episodes)})"
+                f"need {seq_len} stream steps to sample, have {self.num_steps} "
+                f"({len(self._episodes)} finished episodes)"
             )
-
+        parts = self._parts()
+        total = self.num_steps
+        n_starts = total - int(seq_len) + 1
         obs_list: list[Tensor] = []
         act_list: list[Tensor] = []
         rew_list: list[Tensor] = []
         cont_list: list[Tensor] = []
+        first_list: list[Tensor] = []
         for _ in range(batch_size):
-            ep = eligible[int(self._rng.integers(0, len(eligible)))]
-            t = ep.obs.shape[0]
-            start = int(self._rng.integers(0, t - seq_len + 1))
-            end = start + seq_len
-            obs_list.append(ep.obs[start:end])
-            act_list.append(ep.actions[start:end])
-            rew_list.append(ep.rewards[start:end])
-            cont_list.append(ep.cont[start:end])
-
+            start = int(self._rng.integers(0, n_starts))
+            obs, act, rew, cont, first = self._gather(parts, start, int(seq_len))
+            obs_list.append(obs)
+            act_list.append(act)
+            rew_list.append(rew)
+            cont_list.append(cont)
+            first_list.append(first)
         return {
             "obs": torch.stack(obs_list, dim=0),
             "actions": torch.stack(act_list, dim=0),
             "rewards": torch.stack(rew_list, dim=0),
             "cont": torch.stack(cont_list, dim=0),
+            "is_first": torch.stack(first_list, dim=0),
         }
 
     def state_dict(self) -> dict:
+        if self._live_obs:
+            self.close_episode()
         return {
             "episodes": [
                 {
@@ -131,6 +256,7 @@ class ReplayBuffer:
                     "actions": ep.actions,
                     "rewards": ep.rewards,
                     "cont": ep.cont,
+                    "is_first": _episode_is_first(ep),
                 }
                 for ep in self._episodes
             ],
@@ -138,15 +264,28 @@ class ReplayBuffer:
         }
 
     def load_state_dict(self, state: dict) -> None:
-        self._episodes = [
-            EpisodeBatch(
-                obs=torch.as_tensor(item["obs"], dtype=torch.uint8),
-                actions=torch.as_tensor(item["actions"], dtype=torch.int64),
-                rewards=torch.as_tensor(item["rewards"], dtype=torch.float32),
-                cont=torch.as_tensor(item["cont"], dtype=torch.float32),
+        self._clear_live()
+        loaded: list[EpisodeBatch] = []
+        for item in state["episodes"]:
+            obs = torch.as_tensor(item["obs"], dtype=torch.uint8)
+            t = int(obs.shape[0])
+            first = item.get("is_first")
+            if first is None:
+                flags = torch.zeros(t, dtype=torch.float32)
+                if t:
+                    flags[0] = 1.0
+            else:
+                flags = torch.as_tensor(first, dtype=torch.float32)
+            loaded.append(
+                EpisodeBatch(
+                    obs=obs,
+                    actions=torch.as_tensor(item["actions"], dtype=torch.int64),
+                    rewards=torch.as_tensor(item["rewards"], dtype=torch.float32),
+                    cont=torch.as_tensor(item["cont"], dtype=torch.float32),
+                    is_first=flags,
+                )
             )
-            for item in state["episodes"]
-        ]
+        self._episodes = loaded
         self._total_steps = int(
             state.get("total_steps", sum(ep.obs.shape[0] for ep in self._episodes))
         )
@@ -288,7 +427,7 @@ def prefill_random_steps(
     cap = int(max_episode_steps)
     if target <= 0:
         return 0
-    if buffer.num_steps >= target and any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+    if buffer.can_sample(seq_len) and buffer.num_steps >= target:
         print(
             f"prefill skip: replay already {buffer.num_steps} steps "
             f"(need {target}, seq_len={seq_len})",
@@ -298,9 +437,7 @@ def prefill_random_steps(
 
     got = 0
     ep_i = 0
-    while buffer.num_steps < target or not any(
-        ep.obs.shape[0] >= seq_len for ep in buffer._episodes
-    ):
+    while buffer.num_steps < target or not buffer.can_sample(seq_len):
         obs, _ = env.reset(seed=int(seed) + ep_i)
         ep_i += 1
         obs_buf: list = []
@@ -320,7 +457,9 @@ def prefill_random_steps(
             got += 1
             if terminated or truncated or len(obs_buf) >= cap:
                 break
-            if buffer.num_steps + len(obs_buf) >= target and len(obs_buf) >= seq_len:
+            if buffer.num_steps + len(obs_buf) >= target and buffer.num_steps + len(
+                obs_buf
+            ) >= seq_len:
                 break
         if len(obs_buf) == 0:
             continue
@@ -328,9 +467,10 @@ def prefill_random_steps(
         if got >= target * 4:
             break
 
-    if not any(ep.obs.shape[0] >= seq_len for ep in buffer._episodes):
+    if not buffer.can_sample(seq_len):
         raise RuntimeError(
-            f"prefill {got} env steps produced no episode >= seq_len={seq_len}"
+            f"prefill {got} env steps produced only {buffer.num_steps} stream "
+            f"steps (need seq_len={seq_len})"
         )
     print(
         f"prefill {got} random env steps  episodes={len(buffer)} "

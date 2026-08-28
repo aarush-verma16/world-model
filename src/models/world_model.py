@@ -196,6 +196,7 @@ class WorldModel(nn.Module):
         actions: Tensor,
         *,
         actions_onehot: bool = False,
+        is_first: Tensor | None = None,
     ) -> WorldModelOutput:
         """Observe a sequence and predict recon / reward / continue.
 
@@ -203,12 +204,13 @@ class WorldModel(nn.Module):
             obs_u8: `[B, T, 64, 64, 3]` uint8
             actions: `[B, T]` int64 or `[B, T, action_dim]` one-hot
             actions_onehot: if True, `actions` is already one-hot
+            is_first: optional `[B, T]` flags; see `RSSM.observe`.
         """
         if obs_u8.ndim != 5:
             raise ValueError(f"expected obs [B,T,H,W,C], got {tuple(obs_u8.shape)}")
         embeds = self.encode(obs_u8)
         act = actions.float() if actions_onehot else one_hot_action(actions, self.rssm.action_dim)
-        rssm_out = self.rssm.observe(embeds, act)
+        rssm_out = self.rssm.observe(embeds, act, is_first=is_first)
         feat = rssm_features(rssm_out.h, rssm_out.z_posterior)
         recon = self.decode(feat)
         flat_feat = feat.reshape(-1, feat.shape[-1])

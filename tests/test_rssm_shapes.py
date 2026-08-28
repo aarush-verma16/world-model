@@ -7,6 +7,7 @@ import torch
 
 from models.rssm import (
     RSSM,
+    RSSMState,
     GRUCellLayerNorm,
     get_activation,
     one_hot_action,
@@ -289,3 +290,31 @@ def test_observe_outputs_are_batch_time_leading() -> None:
         tensor = getattr(out, name)
         assert tensor.shape[0] == batch, name
         assert tensor.shape[1] == time, name
+
+
+def test_observe_is_first_resets_carry_at_boundary() -> None:
+    """is_first must drop the previous life's h and the previous action."""
+    rssm = RSSM(
+        embed_dim=8, action_dim=3, deter_dim=6, stoch=2, classes=4, hidden=8,
+        initial="zeros",
+    )
+    rssm.eval()
+    garbage_h = torch.ones(1, 6) * 5.0
+    garbage_z = torch.zeros(1, 2, 4)
+    garbage_z[..., 0] = 1.0
+    garbage = RSSMState(h=garbage_h, z_posterior=garbage_z)
+    embed = torch.randn(1, 8)
+    prev_action = torch.zeros(1, 3)
+    prev_action[..., 1] = 1.0
+    torch.manual_seed(1)
+    reset_state, *_ = rssm.obs_step(
+        garbage, prev_action, embed, is_first=torch.ones(1)
+    )
+    torch.manual_seed(1)
+    init = rssm.initial(1)
+    zero = torch.zeros(1, 3)
+    from_init, *_ = rssm.obs_step(init, zero, embed, is_first=None)
+    assert torch.allclose(reset_state.h, from_init.h, atol=1e-5)
+    torch.manual_seed(1)
+    no_reset, *_ = rssm.obs_step(garbage, prev_action, embed, is_first=None)
+    assert not torch.allclose(reset_state.h, no_reset.h, atol=1e-4)

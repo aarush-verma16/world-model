@@ -79,7 +79,7 @@ def rssm_policy_step(
 
 
 class Collector:
-    """One Crafter env, RSSM-conditioned actor, appends finished episodes to replay."""
+    """One Crafter env, RSSM-conditioned actor, streams steps into replay."""
 
     def __init__(
         self,
@@ -129,7 +129,7 @@ class Collector:
         self._need_reset = False
 
     def step(self) -> dict[str, Any]:
-        """One env step. Finished episodes are added to the buffer."""
+        """One env step. Transitions go into replay immediately (`add_step`)."""
         if self._need_reset or self._obs is None:
             self.reset()
         assert self._obs is not None and self._state is not None
@@ -157,6 +157,13 @@ class Collector:
         self._act_buf.append(action_i)
         self._rew_buf.append(float(reward))
         self._cont_buf.append(cont)
+        self.buffer.add_step(
+            self._obs_buf[-1],
+            action_i,
+            float(reward),
+            cont,
+            is_first=len(self._obs_buf) == 1,
+        )
 
         self._state = new_state
         self._prev_action = action_oh
@@ -166,10 +173,7 @@ class Collector:
         if done:
             ep_len = len(self._obs_buf)
             ep_ret = float(sum(self._rew_buf))
-            if ep_len > 0:
-                self.buffer.add_episode(
-                    self._obs_buf, self._act_buf, self._rew_buf, self._cont_buf
-                )
+            self.buffer.close_episode()
             ach_counts = achievement_counts_from_info(
                 info if isinstance(info, dict) else None
             )

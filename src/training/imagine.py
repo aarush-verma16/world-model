@@ -75,6 +75,7 @@ def _start_states(
     obs_u8: Tensor,
     actions: Tensor,
     start_mode: str,
+    is_first: Tensor | None = None,
 ) -> tuple[Tensor, Tensor]:
     """Observe a replay window; return detached `(h, z_posterior)` starts.
 
@@ -88,11 +89,12 @@ def _start_states(
             posterior; imagination then ignores them).
         start_mode: `"all"` flattens every posterior in the window (`N=B*T`);
             `"last"` keeps the final timestep (`N=B`).
+        is_first: optional `[B, T]` episode-start flags for `RSSM.observe`.
     """
     with torch.no_grad():
         embeds = world_model.encode(obs_u8)
         act = one_hot_action(actions, world_model.rssm.action_dim)
-        rssm_out = world_model.rssm.observe(embeds, act)
+        rssm_out = world_model.rssm.observe(embeds, act, is_first=is_first)
         h = rssm_out.h
         z_posterior = rssm_out.z_posterior
         if start_mode == "all":
@@ -118,6 +120,7 @@ def imagine_ahead(
     start_mode: str = "all",
     discount: float = 0.997,
     dynamics_graph: bool = True,
+    is_first: Tensor | None = None,
 ) -> ImaginedRollout:
     """Roll `horizon` `z_prior` steps with actor-chosen STE actions.
 
@@ -131,6 +134,7 @@ def imagine_ahead(
             `both` with mix > 0). Crafter uses `imag_gradient=reinforce`, which
             never backprops through `img_step`; building that graph anyway is
             how XL hits 16 GiB and pages.
+        is_first: optional `[B, T]` flags forwarded to `RSSM.observe`.
 
     Returns:
         `ImaginedRollout`. State-indexed fields have time dim `H + 1` (the seed
@@ -143,7 +147,9 @@ def imagine_ahead(
     """
     if horizon < 1:
         raise ValueError(f"horizon must be >= 1, got {horizon}")
-    h, z_prior = _start_states(world_model, obs_u8, actions, start_mode)
+    h, z_prior = _start_states(
+        world_model, obs_u8, actions, start_mode, is_first=is_first
+    )
     # After detach the seed is a posterior sample; every img_step overwrites
     # z_prior with a prior sample. The name marks the imagination path.
     hs: list[Tensor] = []
