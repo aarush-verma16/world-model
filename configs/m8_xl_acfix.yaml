@@ -14,9 +14,8 @@
 # (finding 15), so a 14.5 claim is not available here — caption any result as
 # "XL from scratch, seq 32, train_ratio 32".
 #
-# User-run: notebooks/10_train_paper_online.ipynb with CONFIG pointing here.
-# Do not resume checkpoints/m7_xl_paper or checkpoints/m7_xl_workstation:
-# those actors are already at the floor.
+# Do not resume checkpoints/m8_xl_acfix (collapsed ~4k, ac_H ~0.10).
+# This yaml writes m8_xl_acfix2. RESUME=None in notebook 10.
 
 seed: 0
 
@@ -81,7 +80,7 @@ train:
   image_every: 100000
   checkpoint_every: 50000
   replay_every: 100000
-  log_dir: runs/m8_xl_acfix
-  checkpoint_dir: checkpoints/m8_xl_acfix
-  results_dir: results/m8_xl_acfix
-  replay_out: data/m8_xl_acfix_replay.pt
+  log_dir: runs/m8_xl_acfix2
+  checkpoint_dir: checkpoints/m8_xl_acfix2
+  results_dir: results/m8_xl_acfix2
+  replay_out: data/m8_xl_acfix2_replay.pt

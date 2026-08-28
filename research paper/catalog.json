@@ -125,7 +125,7 @@
     "m8_xl_acfix": {
       "config": "configs/m8_xl_acfix.yaml",
       "env_steps": null,
-      "note": "LIVE/DYING 2026-08-28. At ~2–3k ac_H 0.098 (floor); pretrain ended 2.34. ~5.5 env/s vs M7 XL 26. Do not grind. Kill; do not resume this dir."
+      "note": "COLLAPSED ~4k 2026-08-28. ac_H 0.099 (floor). Do not resume this dir. Next writes go to checkpoints/m8_xl_acfix2."
     }
   },
   "findings": [
