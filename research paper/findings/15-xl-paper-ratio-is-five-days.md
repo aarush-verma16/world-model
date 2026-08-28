@@ -40,13 +40,29 @@ Published “Crafter in 4–24 hours” numbers are JAX / cluster DreamerV3, not
 
 The orange **1.387** bar chart is still **eval at step 0**. Do not read it as a new held-out.
 
+## Cancelled (same day)
+
+The 1M was stopped at **~40k**. Five hours for 30–40k env steps is unusable on this
+desk, even though it is the intended 16× schedule. Next live config is
+`configs/m7_xl_workstation.yaml`: **same seed recipe**, `train_ratio` **32**
+(1+1 per 16 env, M6's update count), new dirs. Do not resume
+`checkpoints/m7_xl_paper`. Caption that run as ratio-32, not paper 512.
+
+The notebook title “episode length (skill gate)” plus a 190 line was a **lying
+caption**. M6's *finished* 1M mean length is 190 (finding 13). Dipping under
+that line at 40k is the same hunger death, not a unique crash. Watch `ac_H`
+and unlocks. At 40k this cancelled run had entropy **0.56** and first wood/drink
+rates; v1 had entropy **0.08** and wake_up only.
+
 ## Failed alternatives (do not do these because it is “too slow”)
 
-- Kill the run at 40k because 1M is days. That discards the first window where wood/drink appear and entropy is alive.
+- Kill the run at 40k because 1M is days, then judge it solely by length vs 190.
+  Cancel for wall-clock is fine; calling it uniquely “shit” vs M6 is not — M6
+  also died at 190 after 1M. The 40k jsonl had wood/drink; v1 did not.
 - Drop `train_ratio` mid-run and keep the same checkpoint dir. That is a new recipe; caption it or start a new dir.
 - Silently cut to M6’s 16/1/1 and still call it the paper outer loop. M6 already showed size-S + that ratio dies at 190.
 - Blame XL params for the 5-day clock. The 16× update count is enough.
 
 ## Paper spin
 
-Hardware appendix next to finding 08: seq 32 was a VRAM choice that **also** doubled Crafter gradient steps vs the torch reference at seq 64. A 1M at `train_ratio` 512 on 16 GiB torch is a 5-day experiment. Do not put a 14.5 next to a 40k screenshot, and do not “fix” the clock by changing the ratio without saying so.
+Hardware appendix next to finding 08: seq 32 was a VRAM choice that **also** doubled Crafter gradient steps vs the torch reference at seq 64. A 1M at `train_ratio` 512 on 16 GiB torch is a 5-day experiment; this box cancelled it. The follow-up is ratio 32 in a new dir, captioned as such. Do not put a 14.5 next to a 40k screenshot.

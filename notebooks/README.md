@@ -18,7 +18,7 @@ Do this continuously as features land; do not wait for a milestone tag.
 | `07_train_actor_critic.ipynb` | Frozen-WM actor-critic: 15-step `z_prior` imagination, loss/entropy curves, GIF |
 | `08_train_outer_loop.ipynb` | M5 outer loop: policy collect, WM + AC updates, real-env eval return (user-run) |
 | `09_train_baseline.ipynb` | M6 baseline: continue 100k → 1M, official Crafter gmean + 10×10k eval (user-run) |
-| `10_train_paper_online.ipynb` | M7 XL paper-online 1M: random prefill, WM pretrain, train_ratio 512, reinforce actor (user-run) |
+| `10_train_paper_online.ipynb` | M7 XL 1M: default workstation `train_ratio` 32 (user-run). Paper 512 is `m7_paper_online.yaml` (~5 days). |
 
 ## Conventions
 

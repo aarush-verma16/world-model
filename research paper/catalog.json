@@ -209,7 +209,7 @@
       "file": "findings/15-xl-paper-ratio-is-five-days.md",
       "title": "Paper train_ratio 512 on this box is ~2 env/s",
       "tags": ["compute"],
-      "one_liner": "M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC / 16 env, not a hung dashboard. 37/16≈2.3 vs M6. 1M is ~5.4 days. Seq 32 also doubles paper-torch’s 8 updates/16 env.",
+      "one_liner": "M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC / 16 env, not a hung dashboard. 37/16≈2.3 vs M6. 1M is ~5.4 days; cancelled. Next is ratio 32 in a new dir. Seq 32 also doubles paper-torch’s 8 updates/16 env.",
       "paper_spin": "Hardware appendix: seq 32 to fit 16 GiB doubled Crafter optimizer steps vs torch seq 64. Do not silently drop train_ratio to finish overnight."
     }
   ],
@@ -232,6 +232,7 @@
     "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
     "Greedy logits.argmax collect during the outer loop",
     "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor (~0.08 nats)",
-    "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop"
+    "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
+    "Reading collect length vs M6's 190 as a 40k pass/fail"
   ]
 }

@@ -7,22 +7,14 @@ Living log of approaches tried, including failures and why they failed.
 **v1 collapsed** at ~100k (`runs/m7_paper_online`, finding 14): unimix-floor
 entropy, wake_up only. Do not resume that checkpoint.
 
-**v2 (live ~40k / 1M, 2026-08-27):** `configs/m7_paper_online.yaml` →
-`checkpoints/m7_xl_paper`. Still **XL (~198M WM)**. Recipe matches
-`NM512/dreamerv3-torch` Crafter. **~2.14 env/s** so 1M is **~5.4 days**
-(finding 15) — 16 WM+16 AC / 16 env, not the M5 dashboard bug. Entropy
-~0.56; first wood/drink unlocks after 25k. Orange held-out is still step 0.
+**v2 cancelled at ~40k / 1M (2026-08-27):** paper `train_ratio` 512 was **~2.14 env/s**
+(~5.4 days for 1M, finding 15). Entropy ~0.56; first wood/drink after 25k; mean
+length still ~170 (same hunger death as M6). Orange held-out was still step 0.
 
-- 2500 uniform-random prefill steps (not one untrained-actor episode)
-- 100 WM-only pretrain steps before any actor update
-- `train_ratio: 512` → 16 WM + 16 AC updates / 16 env steps at seq 32
-- `imag_gradient: reinforce` (discrete Crafter)
-- `dyn_scale`/`rep_scale` 0.5 / 0.1
-- entropy 3e-4 (paper). seq 32 not 64 (VRAM). Replay FIFO 500k not 1e6 (RAM).
-
-Live: `notebooks/10_train_paper_online.ipynb`. Leave this kernel. Watch
-`ac_H`; 0.08 is the floor, stop. Next real read is 100k held-out (~8 more
-hours at 2 env/s).
+**v3 (wired):** `configs/m7_xl_workstation.yaml` — same XL seed recipe,
+`train_ratio` **32** (1+1 / 16 env). New dirs. Do not resume `m7_xl_paper`.
+Live: `notebooks/10_train_paper_online.ipynb` — **restart the kernel**. Watch
+`ac_H`; 0.08 is the floor, stop. Length vs 190 is not a 40k gate.
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 

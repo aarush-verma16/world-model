@@ -117,9 +117,31 @@ def test_prefill_random_reaches_step_target() -> None:
     assert any(ep.obs.shape[0] >= 8 for ep in buf._episodes)
 
 
+def test_m7_workstation_config_is_ratio_32() -> None:
+    import yaml
+
+    from training.outer_loop import loop_updates
+
+    cfg = yaml.safe_load(Path("configs/m7_xl_workstation.yaml").read_text(encoding="utf-8"))
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl.yaml"
+    assert cfg.get("world_model_ckpt") in (None, "")
+    assert cfg.get("reset_actor") is True
+    assert float(cfg["train"]["train_ratio"]) == 32.0
+    assert cfg["train"]["imag_gradient"] == "reinforce"
+    assert int(cfg["train"]["prefill_steps"]) == 2500
+    assert "m7_xl_paper" not in cfg["train"]["checkpoint_dir"]
+    assert "m7_paper_online" not in cfg["train"]["checkpoint_dir"]
+    wm_u, ac_u = loop_updates(cfg["train"])
+    assert wm_u == 1 and ac_u == 1
+
+
 def test_loop_updates_train_ratio_and_explicit() -> None:
     from training.outer_loop import loop_updates
 
+    n, m = loop_updates(
+        {"collect_every": 16, "batch_size": 16, "seq_len": 32, "train_ratio": 32}
+    )
+    assert n == 1 and m == 1
     n, m = loop_updates(
         {"collect_every": 16, "batch_size": 16, "seq_len": 32, "train_ratio": 512}
     )

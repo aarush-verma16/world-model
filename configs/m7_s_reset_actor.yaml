@@ -3,7 +3,8 @@
 # Loads M6 joint WM weights (same 19M graph). Actor/critic start random.
 # Replay starts empty so the new policy is not trained on the old die-at-190
 # buffer. Cannot reach DreamerV3 14.5 (that is XL / ~200M). Use this if
-# `count_params.py --smoke --size xl` OOMs.
+# `count_params.py --smoke --size xl` OOMs. train_ratio 32 (finishable);
+# 512 is ~5 days on this box (finding 15).
 #
 # User-run: notebooks/10_train_paper_online.ipynb with CONFIG pointing here.
 
@@ -37,9 +38,10 @@ train:
   amp: bf16
   env_steps: 1000000
   collect_every: 16
-  train_ratio: 512
-  wm_updates: 16
-  ac_updates: 16
+  # Same as m7_xl_workstation: ratio 32 is finishable. 512 is ~5 days (finding 15).
+  train_ratio: 32
+  wm_updates: 1
+  ac_updates: 1
   max_episode_steps: 10000
   prefill_steps: 2500
   pretrain_wm_steps: 100

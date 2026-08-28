@@ -286,12 +286,11 @@ score, directly comparable to published numbers.
 **Artifact:** tag `v1.0-baseline-result`. This is the most important tag in the whole project —
 everything downstream depends on this being a real, verified, reproducible number.
 
-**Inserted next (2026-08-27):** M6's agent still died at mean length 190 on
-size-S (~19M). Before the ablation below, chase the paper *setup* with
-`configs/m7_paper_online.yaml` / `notebooks/10_train_paper_online.ipynb`:
-XL ~200M from scratch, fresh actor, 10k-step lives. Size-S keep-WM fallback
-is `configs/m7_s_reset_actor.yaml`. Do not grind the M6 checkpoint. Ablation
-stays this milestone once the question is no longer "they just die."
+**Inserted next (2026-08-27):** M6 still died at mean length 190. Paper
+`train_ratio` 512 on XL is ~2 env/s / 5 days on this box (finding 15) — cancelled
+at 40k. Live recipe is `configs/m7_xl_workstation.yaml` (ratio 32, same seed
+knobs) via `notebooks/10_train_paper_online.ipynb`. Do not resume
+`checkpoints/m7_xl_paper` or grind M6. Length vs 190 is not a 40k pass/fail.
 
 ---
 

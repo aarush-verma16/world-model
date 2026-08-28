@@ -386,7 +386,7 @@ flowchart LR
         body:"M7 XL 198M, fresh actor, random WM. Entropy on the unimix floor (~0.08 nats) by 20k. Held-out 1.298→0.233; 100k bars are wake_up only. Prefill exits after one finished episode, not 10k random. Do not grind to 1M." },
       { id:"15", tags:["compute"], title:"Paper train_ratio 512 on this box is ~2 env/s",
         file:"findings/15-xl-paper-ratio-is-five-days.md",
-        body:"M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC per 16 env steps, not a hung dashboard. M6 size-S 16/1/1 was ~37 env/s; 37/16≈2.3. 1M is ~5.4 days. Seq 32 also doubles NM512/dreamerv3-torch’s 8 updates per 16 env (they train every 2 steps at seq 64)." }
+        body:"M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC per 16 env steps, not a hung dashboard. M6 size-S 16/1/1 was ~37 env/s; 37/16≈2.3. 1M is ~5.4 days; cancelled. Next live config is ratio 32 in a new dir. Seq 32 also doubles NM512/dreamerv3-torch’s 8 updates per 16 env." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -409,7 +409,8 @@ flowchart LR
       "Stream sampler / is_first as an M5 prerequisite",
       "Greedy logits.argmax collect in the outer loop",
       "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor",
-      "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop"
+      "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
+      "Reading collect length vs M6's 190 as a 40k pass/fail"
     ];
 
     let tag = "all";

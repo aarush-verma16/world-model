@@ -17,8 +17,8 @@
 # That is 16× M6's 16/1/1, not a hung dashboard.
 # Replay FIFO 500k not 1e6 — host RAM (finding 08).
 #
-# User-run: notebooks/10_train_paper_online.ipynb
-# Stop the collapsed kernel first. Watch ac_H — if it sits near 0.08, stop.
+# Live notebook default is configs/m7_xl_workstation.yaml (ratio 32).
+# Only use this file if you mean the 5-day paper-ratio run.
 
 seed: 0
 

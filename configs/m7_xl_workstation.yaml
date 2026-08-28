@@ -1,0 +1,78 @@
+# M7 — XL online 1M that this workstation can actually finish.
+#
+# Same graph and seed recipe as m7_paper_online.yaml (XL ~198M, fresh actor,
+# 2500 random prefill, 100 WM pretrain, imag_gradient=reinforce, dyn/rep 0.5/0.1).
+# NOT the paper train_ratio. 512 on this box is ~2 env/s / ~5.4 days (finding 15).
+# That run was cancelled at ~40k. Do not resume checkpoints/m7_xl_paper.
+#
+# train_ratio 32 → 1 WM + 1 AC per 16 env steps (M6's update count).
+# Expected ~M6 speed (~30 env/s), 1M in ~8 hours, not 5 days.
+# Caption: XL from scratch, seq 32, ratio 32 — not DreamerV3 14.5.
+#
+# User-run: notebooks/10_train_paper_online.ipynb (this is the default CONFIG).
+# Restart the kernel. Watch ac_H (0.08 = dead) and unlocks, not "beat 190".
+# M6's finished 1M still died at mean length 190 (finding 13).
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 32
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  pretrain_wm_steps: 100
+  replay_max_steps: 500000
+  eval_every: 100000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 100000
+  checkpoint_every: 50000
+  replay_every: 100000
+  log_dir: runs/m7_xl_workstation
+  checkpoint_dir: checkpoints/m7_xl_workstation
+  results_dir: results/m7_xl_workstation
+  replay_out: data/m7_xl_workstation_replay.pt
