@@ -56,6 +56,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 15. [Paper train_ratio 512 is ~2 env/s](findings/15-xl-paper-ratio-is-five-days.md) — 16 WM+16 AC / 16 env; 1M is ~5.4 days on this box; not the M5 dashboard bug.
 16. [XL + M6 update count still collapses the actor](findings/16-xl-workstation-actor-collapse.md) — ratio 32 is 26 env/s; ac_H ~0.09 from 20k; held-out 1.69→0.50. Do not grind to 1M. **Its conclusion is superseded by 17.**
 17. [The collapse was six actor-critic bugs](findings/17-actor-critic-alignment-bugs.md) — `V(s_t+1)` advantage baseline, off-by-one critic target, no slow critic, no discount weights, critic loss leaking into the actor, and a notebook that never forwarded `imag_gradient` so both XL runs summed a dynamics term DreamerV3 weights at 0.
+18. [XL 5 env/s is 16 GiB paging](findings/18-xl-reinforce-graph-thrashes-16gib.md) — 15.7 GiB / 88 W, not a dead actor. `ac_H` 0.50 at 22k. Unused reinforce RSSM graph.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 

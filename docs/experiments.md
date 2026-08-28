@@ -54,7 +54,9 @@ S checkpoint to 1M by editing `env_steps`. Kill XL if `ac_H` is under 0.15
 at 30k, or sooner if it is already sitting on ~0.10 for several thousand
 steps — that is the unimix floor. An empty length panel at 1k is the
 256-step log stride (finding 08), not a hung env. The first ~2 min is the
-step-0 10×10k eval; after that XL should be ~20–30 env/s (M7 was 26).
+step-0 10×10k eval. XL at 22k with `ac_H` ~0.5 is **not** the M7 floor; the
+~5 env/s crawl is 16 GiB paging (finding 18). Interrupt, restart, `RESUME=auto`
+on `m8_xl_acfix2` after the unused reinforce RSSM graph is dropped.
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 

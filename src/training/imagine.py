@@ -78,6 +78,10 @@ def _start_states(
 ) -> tuple[Tensor, Tensor]:
     """Observe a replay window; return detached `(h, z_posterior)` starts.
 
+    Encode/observe run under `no_grad`: the starts are detached anyway, so the
+    XL encoder backward was allocated and thrown away (16 GiB thrash on this
+    box). Imagination never trains the encoder.
+
     Args:
         obs_u8: `[B, T, 64, 64, 3]` uint8.
         actions: `[B, T]` int64 (real actions used only to condition the
@@ -85,20 +89,21 @@ def _start_states(
         start_mode: `"all"` flattens every posterior in the window (`N=B*T`);
             `"last"` keeps the final timestep (`N=B`).
     """
-    embeds = world_model.encode(obs_u8)
-    act = one_hot_action(actions, world_model.rssm.action_dim)
-    rssm_out = world_model.rssm.observe(embeds, act)
-    h = rssm_out.h
-    z_posterior = rssm_out.z_posterior
-    if start_mode == "all":
-        batch, time = h.shape[:2]
-        h = h.reshape(batch * time, h.shape[-1])
-        z_posterior = z_posterior.reshape(batch * time, *z_posterior.shape[-2:])
-    elif start_mode == "last":
-        h = h[:, -1]
-        z_posterior = z_posterior[:, -1]
-    else:
-        raise ValueError(f"start_mode must be 'all' or 'last', got {start_mode!r}")
+    with torch.no_grad():
+        embeds = world_model.encode(obs_u8)
+        act = one_hot_action(actions, world_model.rssm.action_dim)
+        rssm_out = world_model.rssm.observe(embeds, act)
+        h = rssm_out.h
+        z_posterior = rssm_out.z_posterior
+        if start_mode == "all":
+            batch, time = h.shape[:2]
+            h = h.reshape(batch * time, h.shape[-1])
+            z_posterior = z_posterior.reshape(batch * time, *z_posterior.shape[-2:])
+        elif start_mode == "last":
+            h = h[:, -1]
+            z_posterior = z_posterior[:, -1]
+        else:
+            raise ValueError(f"start_mode must be 'all' or 'last', got {start_mode!r}")
     return h.detach(), z_posterior.detach()
 
 
@@ -112,6 +117,7 @@ def imagine_ahead(
     horizon: int,
     start_mode: str = "all",
     discount: float = 0.997,
+    dynamics_graph: bool = True,
 ) -> ImaginedRollout:
     """Roll `horizon` `z_prior` steps with actor-chosen STE actions.
 
@@ -121,17 +127,19 @@ def imagine_ahead(
         horizon: imagination length `H` (DreamerV3 default 15).
         start_mode: `"all"` or `"last"`.
         discount: extra multiplier on predicted continue (DreamerV3 0.997).
+        dynamics_graph: keep the straight-through RSSM graph (`dynamics` /
+            `both` with mix > 0). Crafter uses `imag_gradient=reinforce`, which
+            never backprops through `img_step`; building that graph anyway is
+            how XL hits 16 GiB and pages.
 
     Returns:
         `ImaginedRollout`. State-indexed fields have time dim `H + 1` (the seed
         state plus one per `img_step`); action-indexed fields have time dim `H`.
 
     The actor sees a **detached** feature at every step, matching DreamerV3's
-    `inp = feat.detach()`. The straight-through action still carries gradient
-    into `img_step`, so the `dynamics` path survives; what is cut is the
-    recurrent actor→actor path that has no analogue in the paper. The critic
-    also reads detached features so the critic loss cannot leak gradient into
-    the actor through the imagined dynamics.
+    `inp = feat.detach()`. When `dynamics_graph` is True the straight-through
+    action still carries gradient into `img_step`. The critic always reads
+    detached features so the critic loss cannot leak into the actor.
     """
     if horizon < 1:
         raise ValueError(f"horizon must be >= 1, got {horizon}")
@@ -150,9 +158,16 @@ def imagine_ahead(
     values: list[Tensor] = []
 
     for step in range(horizon + 1):
-        feat = rssm_features(h, z_prior)
-        reward_logits = world_model.reward_head(feat)
-        cont_logit = world_model.continue_head(feat).squeeze(-1)
+        if dynamics_graph:
+            feat = rssm_features(h, z_prior)
+            reward_logits = world_model.reward_head(feat)
+            cont_logit = world_model.continue_head(feat).squeeze(-1)
+        else:
+            with torch.no_grad():
+                feat = rssm_features(h, z_prior)
+                reward_logits = world_model.reward_head(feat)
+                cont_logit = world_model.continue_head(feat).squeeze(-1)
+            feat = feat.detach()
         value_logits = critic(feat.detach())
 
         hs.append(h)
@@ -169,7 +184,11 @@ def imagine_ahead(
         acts.append(action)
         logps.append(log_prob)
         ents.append(entropy)
-        h, z_prior, _prior_logits = world_model.rssm.img_step(h, z_prior, action)
+        if dynamics_graph:
+            h, z_prior, _prior_logits = world_model.rssm.img_step(h, z_prior, action)
+        else:
+            with torch.no_grad():
+                h, z_prior, _prior_logits = world_model.rssm.img_step(h, z_prior, action)
 
     return ImaginedRollout(
         h=torch.stack(hs, dim=1),

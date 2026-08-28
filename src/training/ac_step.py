@@ -88,6 +88,13 @@ def actor_critic_step(
     optim.zero_grad(set_to_none=True)
 
     with autocast_context(device, amp_dtype):
+        mode = str(imag_gradient).lower()
+        mix = float(imag_gradient_mix)
+        if mode == "both" and not 0.0 <= mix <= 1.0:
+            raise ValueError(f"imag_gradient_mix must be in [0, 1], got {mix}")
+        # Crafter is reinforce (or both with mix 0). Do not allocate the
+        # straight-through RSSM graph if it cannot receive gradient.
+        dynamics_graph = mode == "dynamics" or (mode == "both" and mix > 0.0)
         rollout = imagine_ahead(
             world_model,
             actor,
@@ -97,6 +104,7 @@ def actor_critic_step(
             horizon=horizon,
             start_mode=start_mode,
             discount=discount,
+            dynamics_graph=dynamics_graph,
         )
         # Value is detached so the critic target does not move with the critic;
         # reward/cont keep their graph for the `dynamics` path.
@@ -118,7 +126,6 @@ def actor_critic_step(
         # imag_gradient_mix=0.0 weights the dynamics term at zero, because the
         # straight-through gradient through a one-hot action is biased and
         # nothing normalizes it against the reinforce term.
-        mode = str(imag_gradient).lower()
         if mode == "reinforce":
             actor_loss = reinforce + entropy_loss
             backprop = backprop.detach()
@@ -126,9 +133,6 @@ def actor_critic_step(
             actor_loss = backprop + entropy_loss
             reinforce = reinforce.detach()
         elif mode == "both":
-            mix = float(imag_gradient_mix)
-            if not 0.0 <= mix <= 1.0:
-                raise ValueError(f"imag_gradient_mix must be in [0, 1], got {mix}")
             actor_loss = mix * backprop + (1.0 - mix) * reinforce + entropy_loss
         else:
             raise ValueError(

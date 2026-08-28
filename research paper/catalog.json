@@ -265,6 +265,14 @@
       "tags": ["graph", "negative-result", "eval"],
       "one_liner": "Advantage baseline used V(s_t+1) not V(s_t); critic target off by one; no slow critic; no discount weights; critic loss leaked into the actor; and the notebook never forwarded imag_gradient, so both XL runs summed the straight-through dynamics term that DreamerV3 weights at 0 for discrete actions.",
       "paper_spin": "Implementation-identifiability section: six divergences, each silent in the loss curves, all presenting as entropy → unimix floor. An off-by-one advantage baseline is exactly zero-error at init under critic.outscale 0.0, so no shape/grad/smoke test can catch it."
+    },
+    {
+      "id": "18",
+      "file": "findings/18-xl-reinforce-graph-thrashes-16gib.md",
+      "title": "XL at train_ratio 32 was paging 16 GiB, not a failed AC fix",
+      "tags": ["compute", "graph"],
+      "one_liner": "M8-XL ~22k is 5 env/s at 15.7/16.3 GiB and 88 W. M7 XL same ratio was 26 env/s. ac_H 0.50 not the 0.08 floor. Unused encode/observe/img_step autograd on reinforce allocated the paging line.",
+      "paper_spin": "Hardware appendix: a discarded dynamics graph plus WDDM clients turns a 10-hour 1M into 55 hours without changing the loss."
     }
   ],
   "do_not_revive": [
@@ -289,6 +297,7 @@
     "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
     "Reading collect length vs M6's 190 as a 40k pass/fail",
     "Grinding m7_xl_workstation after ac_H sits near 0.08–0.10 from 20k (held-out 1.69→0.50)",
+    "Grinding an XL 1M at ~5 env/s while nvidia-smi shows 16 GiB full and ~90 W",
     "Blaming actor entropy collapse on model size or train_ratio before diffing ac_step/imagine against the reference (finding 17)",
     "Implementing imag_gradient='both' as reinforce + dynamics summed; DreamerV3 is a convex mix with imag_gradient_mix 0.0 (dynamics weight zero on discrete actions)",
     "Using V(s_t+1) as the REINFORCE baseline for the action taken at s_t",

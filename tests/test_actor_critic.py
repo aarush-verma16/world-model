@@ -324,6 +324,25 @@ def test_both_mode_mix_one_is_pure_dynamics() -> None:
     assert torch.allclose(loss.actor, loss.backprop - 3.0e-4 * loss.entropy, atol=1e-5)
 
 
+def test_reinforce_imagination_does_not_keep_rssm_graph() -> None:
+    """Crafter is reinforce: img_step must not store a dynamics backward."""
+    wm = _tiny_wm()
+    freeze_world_model(wm)
+    actor = Actor(wm.feat_dim, wm.rssm.action_dim, hidden=32, layers=1)
+    critic = Critic(wm.feat_dim, hidden=32, layers=1, num_bins=21)
+    batch = _batch(batch=2, seq=4)
+    rollout = imagine_ahead(
+        wm, actor, critic, batch["obs"], batch["actions"],
+        horizon=3, start_mode="last", dynamics_graph=False,
+    )
+    assert not rollout.feat.requires_grad
+    assert not rollout.reward.requires_grad
+    assert rollout.log_prob.requires_grad
+    actor.zero_grad(set_to_none=True)
+    rollout.log_prob.mean().backward()
+    assert actor.net.net[-1].weight.grad is not None
+
+
 def test_ste_action_reaches_actor() -> None:
     """Imagined return depends on STE actions, so actor logits get a dynamics grad."""
     wm = _tiny_wm()
