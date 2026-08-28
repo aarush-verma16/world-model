@@ -51,7 +51,10 @@ eval length **227**, last `ac_H` **0.89** (min 0.74; collect entropy 2.00).
 Last-40 collect: wood 95%, sapling 88%. `ep_len=57` is one short life, not
 the run. **Next is `configs/m8_xl_acfix.yaml` (1M).** Do not resume the
 S checkpoint to 1M by editing `env_steps`. Kill XL if `ac_H` is under 0.15
-at 30k.
+at 30k, or sooner if it is already sitting on ~0.10 for several thousand
+steps — that is the unimix floor. An empty length panel at 1k is the
+256-step log stride (finding 08), not a hung env. The first ~2 min is the
+step-0 10×10k eval; after that XL should be ~20–30 env/s (M7 was 26).
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 

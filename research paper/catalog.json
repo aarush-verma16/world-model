@@ -125,7 +125,7 @@
     "m8_xl_acfix": {
       "config": "configs/m8_xl_acfix.yaml",
       "env_steps": null,
-      "note": "NOT YET RUN. XL 198M from scratch on the fixed actor-critic, 1M, train_ratio 32. Only after m8_s_acfix holds entropy. Smoke: ac_H 2.758, value/slow_value 0.0000, adv +0.123±0.311, weight 0.899, peak VRAM 12.90/13.68 GiB."
+      "note": "LIVE/DYING 2026-08-28. At ~2–3k ac_H 0.098 (floor); pretrain ended 2.34. ~5.5 env/s vs M7 XL 26. Do not grind. Kill; do not resume this dir."
     }
   },
   "findings": [

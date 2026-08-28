@@ -51,7 +51,9 @@ from training.evaluate import evaluate_policy, save_eval_gif
 from training.ac_step import actor_critic_step
 from training.imagine import decode_imagination, unfreeze_world_model
 from training.outer_loop import (
+    absorb_finished,
     crossed_interval,
+    flush_episode_window,
     joint_payload,
     load_checkpoint,
     loop_updates,
@@ -538,6 +540,10 @@ def main() -> None:
     )
     last_log_time = time.time()
     last_log_env = env_steps
+    pending_lens: list[float] = []
+    pending_rets: list[float] = []
+    last_ep_len = float("nan")
+    last_ep_ret = float("nan")
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
@@ -559,7 +565,15 @@ def main() -> None:
 
     try:
         if env_steps == 0 or not eval_history:
+            t_eval = time.time()
             run_eval(env_steps)
+            print(
+                f"held-out eval done in {time.time() - t_eval:.0f}s "
+                f"(not counted in env/s)",
+                flush=True,
+            )
+        last_log_time = time.time()
+        last_log_env = env_steps
 
         while env_steps < target:
             cycle = outer_cycle(
@@ -607,15 +621,13 @@ def main() -> None:
             row["collect_entropy"] = float(cycle.collect["entropy"])
             finished = cycle.collect.get("episodes") or []
             if finished:
-                row["collect_ep_return"] = float(np.mean([e["return"] for e in finished]))
-                row["collect_ep_len"] = float(np.mean([e["length"] for e in finished]))
+                absorb_finished(finished, pending_lens, pending_rets)
                 collect_log = record_finished_episodes(
                     finished, env_steps, episodes_path, collect_log
                 )
 
             if (
                 crossed_interval(prev_steps, env_steps, log_every)
-                or env_steps <= collect_every
                 or env_steps >= target
             ):
                 now = time.time()
@@ -623,6 +635,12 @@ def main() -> None:
                 sps = (env_steps - last_log_env) / dt
                 last_log_time = now
                 last_log_env = env_steps
+                last_ep_len, last_ep_ret = flush_episode_window(
+                    pending_lens, pending_rets, last_ep_len, last_ep_ret
+                )
+                if np.isfinite(last_ep_len):
+                    row["collect_ep_len"] = last_ep_len
+                    row["collect_ep_return"] = last_ep_ret
                 row["env_steps_per_sec"] = sps
                 if collect_log:
                     online_score, _ = score_from_episodes(
@@ -652,8 +670,8 @@ def main() -> None:
             if crossed_interval(prev_steps, env_steps, eval_every):
                 run_eval(env_steps)
 
-            if cycle.rollout is not None and (
-                crossed_interval(prev_steps, env_steps, image_every) or env_steps <= collect_every
+            if cycle.rollout is not None and crossed_interval(
+                prev_steps, env_steps, image_every
             ):
                 vis = decode_imagination(world_model, cycle.rollout.feat, max_starts=1)
                 save_imagination_strip(vis, results_dir / f"imagine_step_{env_steps:06d}.png")

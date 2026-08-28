@@ -15,7 +15,9 @@ from training.device import make_grad_scaler, parse_amp
 from training.evaluate import evaluate_policy
 from training.imagine import freeze_world_model, unfreeze_world_model
 from training.outer_loop import (
+    absorb_finished,
     crossed_interval,
+    flush_episode_window,
     joint_payload,
     load_checkpoint,
     outer_cycle,
@@ -24,6 +26,21 @@ from training.outer_loop import (
 from training.replay_buffer import ReplayBuffer
 from training.returns import PercentileReturnNorm
 from training.wm_step import world_model_step
+
+
+def test_flush_episode_window_keeps_off_stride_deaths() -> None:
+    """A death at env 176 must still show up in the log at 256."""
+    pending_lens: list[float] = []
+    pending_rets: list[float] = []
+    absorb_finished([{"length": 176, "return": 1.0}], pending_lens, pending_rets)
+    absorb_finished([{"length": 80, "return": 0.0}], pending_lens, pending_rets)
+    last_len, last_ret = flush_episode_window(pending_lens, pending_rets, float("nan"), float("nan"))
+    assert last_len == 128.0
+    assert last_ret == 0.5
+    assert pending_lens == []
+    carried, carried_ret = flush_episode_window(pending_lens, pending_rets, last_len, last_ret)
+    assert carried == 128.0
+    assert carried_ret == 0.5
 
 
 def test_crossed_interval_skips_non_multiples_of_collect() -> None:

@@ -52,6 +52,38 @@ def crossed_interval(prev: int, now: int, every: int) -> bool:
     return max(0, int(now)) // int(every) > max(0, int(prev)) // int(every)
 
 
+def absorb_finished(
+    finished: list[dict[str, Any]],
+    pending_lens: list[float],
+    pending_rets: list[float],
+) -> None:
+    """Park lives that ended this collect cycle until the next log tick."""
+    for ep in finished:
+        pending_lens.append(float(ep["length"]))
+        pending_rets.append(float(ep["return"]))
+
+
+def flush_episode_window(
+    pending_lens: list[float],
+    pending_rets: list[float],
+    last_len: float,
+    last_ret: float,
+) -> tuple[float, float]:
+    """Mean of lives that ended since the last log; otherwise the last known.
+
+    Collect finishes on any 16-step cycle. Logs are every 256 env steps, so
+    most deaths never land on a log tick. Writing `collect_ep_len` only when
+    `finished` is nonempty on the log cycle leaves `ep_len=nan` and an empty
+    length panel for the first thousands of steps.
+    """
+    if pending_lens:
+        last_len = sum(pending_lens) / len(pending_lens)
+        last_ret = sum(pending_rets) / len(pending_rets)
+        pending_lens.clear()
+        pending_rets.clear()
+    return last_len, last_ret
+
+
 @dataclass
 class OuterCycleResult:
     """Metrics from one collect / WM / AC cycle."""

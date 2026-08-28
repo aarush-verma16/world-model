@@ -77,6 +77,8 @@ The 100k env-step outer loop (`configs/m5_outer_loop.yaml`, notebook `08`) start
 
 Fix: status line every 256 env steps, matplotlib every 1000, `gc.collect()` only on checkpoint. After resume, the same run recovered **~38 env/s** (peak 44; VRAM 2.54 GiB). 60k→100k wall clock was **~18 min** (ckpt 60k 09:45, ckpt 100k 10:03). The dashboard **texture** change at 60k is that cadence: 3664 logs at stride 16, then 161 logs at stride 256. Entropy/L1 did not jump to a new optimizer; they got undersampled. `env_steps % eval_every == 0` with `collect_every=16` never hits 5000 (or 5000-image dumps) — evals in the first half are 0/10k/20k/… only. `crossed_interval` compares integer buckets so 4992→5008 fires (hence 65008, 75008, …). Last train-metric row is **99840** (`256 × 390`); the loop still hit **100000** (eval + `ckpt_step_100000.pt`). Resume from `ckpt_latest.pt` was `env_steps=58624`.
 
+A later dashboard lie on the same cadence: `collect_ep_len` was written only when a life ended *on a log tick*. Collect finishes on any 16-step cycle, logs every 256, so most deaths never appeared. The length panel is empty for the first thousands of steps (`ep_len=nan`) and later looks like a 256-step square wave. The jsonl already had every life. Fix: park finished lengths between logs and write the window mean (or the last known) on the log row. Do not read an empty length panel at 1k as “the env is broken.”
+
 The noisy recon-L1 uptick on the dashboard is **not** the slowdown (online coverage vs a frozen buffer). 4-episode eval return bouncing −0.65 / 0.1 / −0.4 is M5 noise, not a Crafter score (finding 11).
 
 ![M5 notebook dashboard at ~50k](../figures/m5_notebook_dashboard_50k.png)

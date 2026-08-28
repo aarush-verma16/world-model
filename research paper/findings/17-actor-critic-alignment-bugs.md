@@ -165,6 +165,15 @@ Orange sawtooth is n=10 (75k 0.76, 125k 1.87, 200k 2.07). Same lottery as
 M6 (finding 13). This is not M7 collapse. Next: XL 1M, new dirs, do not
 resume `m8_s_acfix` into a 1M by editing `env_steps`.
 
+### M8-XL live (do not grind)
+
+`configs/m8_xl_acfix.yaml` at **~2–3k**: `ac_H` **0.098** (unimix floor) after
+pretrain ended at 2.34. Held-out at 0 is 1.20. Throughput **~5.5 env/s** vs
+M7 XL's **26** at the same ratio — not the step-0 10×10k eval (that only
+poisons the first log). Empty length panel is the 256-step log stride
+(finding 08), not a hung env. Kill this run; a sleep policy at 5.5 env/s
+is not a 1M.
+
 ## Paper spin
 
 Feeds an "implementation identifiability" section: a table of six actor-critic
