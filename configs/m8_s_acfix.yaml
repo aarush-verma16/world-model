@@ -1,4 +1,5 @@
-# M8 — first run on the fixed actor-critic. Cheap, so run this one FIRST.
+# M8-S — 200k validation of the fixed actor-critic. DONE 2026-08-28
+# (held-out 1.386→2.068, min ac_H 0.74). Do not grind this to 1M.
 #
 # Both M7 XL runs collapsed the actor to the unimix floor (finding 16). The
 # cause was in the actor-critic step, not the model size or train_ratio

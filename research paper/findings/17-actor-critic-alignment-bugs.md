@@ -146,22 +146,24 @@ entropy 2.758 of ln(17) = 2.833, `value` and `slow_value` exactly 0.0000,
 `adv = +0.1225 ± 0.3110` (spread now larger than the mean), `weight` 0.899,
 peak VRAM 12.90/13.68 GiB.
 
-### Early live read (M8-S, ~96k / 200k, 2026-08-27)
+### M8-S 200k done (2026-08-28)
 
-`configs/m8_s_acfix.yaml`, size-S on M6's 1M WM, fresh actor. Kill rule was
-`ac_H < 0.15` at 30k. It never went there.
+`configs/m8_s_acfix.yaml` **finished its 200k budget.** That was the cheap
+validation, not the 1M score run. 1M is `configs/m8_xl_acfix.yaml`.
 
-| window | `ac_H` mean (min) |
-|---|---|
-| 0–20k | 1.93 (1.70) |
-| 20–40k | 1.83 (1.45) |
-| 60–80k | 1.65 (1.47) |
+Kill rule `ac_H < 0.15` at 30k: never happened. Whole-run min `ac_H` **0.737**.
+Last log **0.894** (collect entropy **1.995**). Zero logs under 0.15.
 
-Zero train logs under 1.0. Screenshot at 96256: `ac_H=1.500`, ~40 env/s.
-Collect 80–100k: sapling **73%**, wood 30%, drink 23%, plant 18% (last 40 lives
-sapling **98%**). Mean length still **174–179** — same hunger death as M6.
-Held-out n=10 is the usual lottery (0: 1.39, 25k: 0.70, 50k: 1.00, 75k: 0.76).
-Do not kill for the orange dip or the length cliffs. Let 200k finish, then XL.
+Held-out 10×10k: **1.386 → 2.068**. Eval length **227**. Last bars: wake 100,
+wood **90**, sapling 70, drink 30, table 20, plant 10, wood sword 10. Online
+gmean **1.716**. Collect last-50k: sapling 83%, wood **70%**, plant 43%. Last
+40 lives: wood **95%**, sapling 88%. Mean collect length **179**, max **442**.
+Status `ep_len=57` is one short life in the last ten (214, 200, 165, 269,
+**57**, 235, 190, 437, 183, 166), not the run.
+
+Orange sawtooth is n=10 (75k 0.76, 125k 1.87, 200k 2.07). Same lottery as
+M6 (finding 13). This is not M7 collapse. Next: XL 1M, new dirs, do not
+resume `m8_s_acfix` into a 1M by editing `env_steps`.
 
 ## Paper spin
 

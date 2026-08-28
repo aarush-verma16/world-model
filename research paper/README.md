@@ -69,7 +69,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M5 outer loop** (`configs/m5_outer_loop.yaml`): 100k env steps, 2026-08-26. Notebook plumbing **PASS**. Last eval return **0.10** = one achievement then death (finding 11), not geo-mean. Dashboard 18→1.1 env/s then **~38** after the log-cadence fix (finding 08). Live: `notebooks/08_train_outer_loop.ipynb`.
 - **M6 baseline** (`configs/m6_baseline.yaml`): **1M env steps**, 2026-08-26. Protocol **PASS**. Held-out gmean **0.627 → 1.639**, online **1.941**. Collect mean length **190**, max **441** — 10k cap never binds (finding 13). Live: `notebooks/09_train_baseline.ipynb`.
 - **M7 paper-online** (`configs/m7_paper_online.yaml`): XL ~198M from scratch. v1 at **100k** (2026-08-27) held-out **1.298 → 0.233**, entropy on unimix floor by 20k, wake_up only (finding 14). v2 (`checkpoints/m7_xl_paper`) cancelled at **~40k**: **~2.14 env/s**, entropy still alive (finding 15). v3 (`configs/m7_xl_workstation.yaml`, ratio 32) at **100k**: **26 env/s**, held-out **1.694 → 0.499**, entropy on the floor from ~20k (finding 16). Do not grind v3 to 1M. `notebooks/10_train_paper_online.ipynb`.
-- **M8 actor-critic fix** (finding 17): six AC bugs vs the torch reference. Live `m8_s_acfix` at **~96k / 200k**: `ac_H` **1.50** (min 1.45 in 20–40k; kill was 0.15). Collect 80–100k sapling 73%. Let 200k finish before XL. `notebooks/10_train_paper_online.ipynb`.
+- **M8 actor-critic fix** (finding 17): `m8_s_acfix` **200k DONE**. Held-out **1.386 → 2.068**, last `ac_H` **0.89** (min 0.74). Next is `configs/m8_xl_acfix.yaml` **1M**. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

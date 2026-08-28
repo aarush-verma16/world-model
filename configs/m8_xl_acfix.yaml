@@ -1,8 +1,8 @@
 # M8 — XL ~198M from scratch on the fixed actor-critic. The score attempt.
 #
-# Only start this after configs/m8_s_acfix.yaml has held ac_H well above the
-# 0.08 unimix floor. XL from scratch already burned two runs (findings 15, 16)
-# and this one is 1M steps; do not spend it validating the fix.
+# M8-S 200k held ac_H (min 0.74). This is the 1M XL score attempt.
+# XL from scratch already burned two M7 runs (findings 15, 16); those
+# used a broken actor-critic. Do not resume any m7_* checkpoint.
 #
 # Same graph and seed recipe as m7_xl_workstation.yaml (2500 random prefill,
 # 100 WM pretrain, imag_gradient=reinforce, dyn/rep 0.5/0.1) plus the

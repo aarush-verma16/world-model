@@ -113,8 +113,14 @@
     },
     "m8_s_acfix": {
       "config": "configs/m8_s_acfix.yaml",
-      "env_steps": null,
-      "note": "NOT YET RUN. First run on the fixed actor-critic (finding 17). Size-S on M6's 1M WM, fresh actor, 200k. Cheap validation before spending XL. Kill if ac_H < 0.15 at 30k. Smoke: ac_H 2.777 of ln(17)=2.833, value/slow_value 0.0000, adv +0.104±0.271, peak VRAM 2.39/3.45 GiB."
+      "env_steps": 200000,
+      "heldout_gmean_start": 1.386,
+      "heldout_gmean_200k": 2.068,
+      "online_gmean_end": 1.716,
+      "eval_length_200k": 227.1,
+      "entropy_last": 0.894,
+      "entropy_min": 0.737,
+      "note": "200k DONE 2026-08-28. Size-S on M6 WM, fresh actor. AC fix took: min ac_H 0.737. Held-out 1.386→2.068, wood 90 / sapling 70. Not 14.5. Next is m8_xl_acfix 1M."
     },
     "m8_xl_acfix": {
       "config": "configs/m8_xl_acfix.yaml",

@@ -46,14 +46,12 @@ The notebook also skipped DreamerV3-torch `pretrain: 100` (joint WM+AC on the
 random prefill) and did not overlay paper KL scales onto the size YAML. That
 is wired now (`pretrain_dreamer`, `overlay_wm_train`).
 
-**Next, in order.** `configs/m8_s_acfix.yaml` (size-S on M6's 1M world model,
-fresh actor, 200k, ~1 h) to validate the fix cheaply, then
-`configs/m8_xl_acfix.yaml` (XL 198M from scratch, 1M) for the score attempt.
-Kill either run if `ac_H` is under 0.15 at 30k.
-
-**M8-S live ~96k / 200k (2026-08-27):** `ac_H` **1.50** (window mins ≥ 1.45).
-Fix took. Collect 80–100k sapling 73% / wood 30%. Held-out 75k **0.76** is n=10
-noise. Length still ~175. Let 200k finish, then `m8_xl_acfix.yaml`.
+**M8-S 200k DONE (2026-08-28):** held-out **1.386 → 2.068**, online **1.716**,
+eval length **227**, last `ac_H` **0.89** (min 0.74; collect entropy 2.00).
+Last-40 collect: wood 95%, sapling 88%. `ep_len=57` is one short life, not
+the run. **Next is `configs/m8_xl_acfix.yaml` (1M).** Do not resume the
+S checkpoint to 1M by editing `env_steps`. Kill XL if `ac_H` is under 0.15
+at 30k.
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 
