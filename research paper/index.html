@@ -395,7 +395,10 @@ flowchart LR
         body:"Diffed ac_step/imagine against NM512/dreamerv3-torch. (1) The advantage used V(s_t+1) as the baseline for the action taken at s_t, so Q−V was really reward+(γc−1)·V — a sign that barely depends on the action. (2) The critic head at s_t+1 was trained against the λ-return target for V(s_t). (3) No slow (EMA) critic. (4) No cumprod discount weights, so imagined steps after a predicted death trained at full weight. (5) The critic read non-detached features, leaking critic-loss gradient into the actor through img_step. (6) The notebook computed imag_gradient and never passed it, so both XL runs ran 'both' = reinforce + dynamics SUMMED; DreamerV3's 'both' is a convex mix with imag_gradient_mix 0.0, i.e. dynamics weight zero on every discrete-action task. Also missing critic.outscale 0.0. The sharp bit: an off-by-one advantage baseline is exactly zero-error at init under outscale 0.0 (V≡0 makes both formulas identical), so no shape, gradient or smoke test can catch it — only a test with a non-constant value function. M8-S 200k DONE: held-out 1.386→2.068, min ac_H 0.74 (M7 floor was 0.08). 1M is m8_xl_acfix, not this config." },
       { id:"18", tags:["compute","graph"], title:"XL at train_ratio 32 was paging 16 GiB, not a failed AC fix",
         file:"findings/18-xl-reinforce-graph-thrashes-16gib.md",
-        body:"M8-XL at ~22k is ~5 env/s with nvidia-smi 15.7/16.3 GiB, 100% util, 88 W. M7 XL same ratio was 26 env/s at 12.9 GiB smoke. ac_H 0.50–0.57 (floor 0.08) and wood/table unlocks — not the M7 collapse. encode/observe and img_step ran with autograd on even though Crafter is imag_gradient=reinforce and the starts are detached. That unused RSSM graph plus WDDM clients (Discord, Edge, Claude, Cursor) is the paging line. Do not grind 55 hours; do not roll back a milestone." }
+        body:"M8-XL at ~22k is ~5 env/s with nvidia-smi 15.7/16.3 GiB, 100% util, 88 W. M7 XL same ratio was 26 env/s at 12.9 GiB smoke. ac_H 0.50–0.57 (floor 0.08) and wood/table unlocks — not the M7 collapse. encode/observe and img_step ran with autograd on even though Crafter is imag_gradient=reinforce and the starts are detached. That unused RSSM graph plus WDDM clients (Discord, Edge, Claude, Cursor) is the paging line. Do not grind 55 hours; do not roll back a milestone." },
+      { id:"19", tags:["eval","negative-result"], title:"The ~200-step death is combat, not hunger and not a cap",
+        file:"findings/19-length-is-combat-not-hunger.md",
+        body:"No-combat starvation is step 338; at 200 health is still 9. Of 500 M8-XL lives at 80k, 66% end at 150–220 (38% at 150–180). Drinking buys mean 165→225 but drinkers still median 208. defeat_zombie is 0.6%. Last 80 lives: wake_up 92.5% — sleeping zombies deal 7. Do not add a hunger bonus. Watch zombie kills, not the 190 dotted line." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -429,7 +432,9 @@ flowchart LR
       "Letting the critic read non-detached imagined features",
       "Computing a config value in the notebook and not passing it to outer_cycle",
       "Trusting a smoke test to catch an advantage-alignment bug (a zero-init critic makes wrong and right identical)",
-      "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified"
+      "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified",
+      "Calling the 190-step wall hunger and adding a drink bonus to move mean length",
+      "Reading length vs 190 as a fail on a run whose ac_H is alive and gmean is climbing"
     ];
 
     let tag = "all";

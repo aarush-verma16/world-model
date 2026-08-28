@@ -273,6 +273,14 @@
       "tags": ["compute", "graph"],
       "one_liner": "M8-XL ~22k is 5 env/s at 15.7/16.3 GiB and 88 W. M7 XL same ratio was 26 env/s. ac_H 0.50 not the 0.08 floor. Unused encode/observe/img_step autograd on reinforce allocated the paging line.",
       "paper_spin": "Hardware appendix: a discarded dynamics graph plus WDDM clients turns a 10-hour 1M into 55 hours without changing the loss."
+    },
+    {
+      "id": "19",
+      "file": "findings/19-length-is-combat-not-hunger.md",
+      "title": "The ~200-step death is combat, not hunger and not a cap",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "No-combat starvation is step 338; at 200 health is still 9. 66% of M8-XL lives end at 150–220. Drinking buys ~60 steps; defeat_zombie is 0.6%. Sleeping zombies deal 7.",
+      "paper_spin": "Crafter death-clock figure: do not treat mean length 190 as a hunger proxy until defeat_zombie is common."
     }
   ],
   "do_not_revive": [
@@ -306,6 +314,8 @@
     "Letting the critic read non-detached imagined features (critic loss then flows into the actor through img_step)",
     "Computing a config value in the notebook and not passing it to outer_cycle",
     "Trusting a smoke test to catch an advantage-alignment bug: a zero-init critic makes the wrong and right formulas identical",
-    "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified"
+    "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified",
+    "Calling the 190-step Crafter wall hunger and adding a drink/hunger bonus to move mean length",
+    "Reading length vs 190 as a pass/fail on a run whose ac_H is alive and gmean is climbing"
   ]
 }
