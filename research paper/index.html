@@ -82,7 +82,7 @@
 <body>
   <header>
     <h1>Findings archive</h1>
-    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-26.</p>
+    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-28.</p>
   </header>
   <div class="wrap">
     <nav>
@@ -91,6 +91,7 @@
       <a href="#m4">M4 imagined return</a>
       <a href="#m5stub">M5 outer loop</a>
       <a href="#m6stub">M6 baseline</a>
+      <a href="#m8gap">14.5 gap</a>
       <a href="#graphs">Two training graphs</a>
       <a href="#findings">Findings</a>
       <a href="#stills">Recon stills</a>
@@ -230,6 +231,23 @@
           <figcaption>Dashboard ~124k. Falling gmean, wake_up-only bars, length under the M6 190 line. Status ep_len=nan is a sparse log row, not a trainer NaN.</figcaption>
         </figure>
       </div>
+
+      <h2 id="m8gap">The 14.5 gap (finding 20)</h2>
+      <p class="muted">Hafner et al. 2023 Crafter XL is <strong>14.5 ± 1.6 at 1M</strong> with <code>train_ratio</code> 512 and seq 64. Live M8-XL is ratio 32, seq 32, ~80k, held-out 1.36. Same metric, not the same experiment. Actor-critic graph is already finding-17-aligned; do not kill <code>m8_xl_acfix2</code> to chase 14.5 in the same dir.</p>
+      <div class="compare">
+        <figure>
+          <img src="figures/score_gap_vs_dreamerv3.png" alt="Crafter gmean: random, our runs, DreamerV3 14.5" />
+          <figcaption>1.36 / 1.64 sit on the random floor (~1.6), not next to 14.5. M8-XL is also not at 1M yet.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/recipe_gap_updates_at_1m.png" alt="Optimizer steps at 1M env: 62.5k vs 500k" />
+          <figcaption>At a 1M env-step budget we would do ~62.5k WM+AC updates vs paper-torch ~500k. 16× less replay per env step.</figcaption>
+        </figure>
+      </div>
+      <figure>
+        <img src="figures/recipe_gap_table.png" alt="Knob-by-knob recipe table vs DreamerV3 Crafter 2023" />
+        <figcaption>Remaining code: streaming replay + <code>is_first</code>, and CNN <code>blocks=1</code> vs 2. Everything else in this table is a workstation recipe, not a missing pixel loss.</figcaption>
+      </figure>
 
       <h2 id="graphs">Why two weeks of extra losses could not work</h2>
       <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
@@ -398,7 +416,10 @@ flowchart LR
         body:"M8-XL at ~22k is ~5 env/s with nvidia-smi 15.7/16.3 GiB, 100% util, 88 W. M7 XL same ratio was 26 env/s at 12.9 GiB smoke. ac_H 0.50–0.57 (floor 0.08) and wood/table unlocks — not the M7 collapse. encode/observe and img_step ran with autograd on even though Crafter is imag_gradient=reinforce and the starts are detached. That unused RSSM graph plus WDDM clients (Discord, Edge, Claude, Cursor) is the paging line. Do not grind 55 hours; do not roll back a milestone." },
       { id:"19", tags:["eval","negative-result"], title:"The ~200-step death is combat, not hunger and not a cap",
         file:"findings/19-length-is-combat-not-hunger.md",
-        body:"No-combat starvation is step 338; at 200 health is still 9. Of 500 M8-XL lives at 80k, 66% end at 150–220 (38% at 150–180). Drinking buys mean 165→225 but drinkers still median 208. defeat_zombie is 0.6%. Last 80 lives: wake_up 92.5% — sleeping zombies deal 7. Do not add a hunger bonus. Watch zombie kills, not the 190 dotted line." }
+        body:"No-combat starvation is step 338; at 200 health is still 9. Of 500 M8-XL lives at 80k, 66% end at 150–220 (38% at 150–180). Drinking buys mean 165→225 but drinkers still median 208. defeat_zombie is 0.6%. Last 80 lives: wake_up 92.5% — sleeping zombies deal 7. Do not add a hunger bonus. Watch zombie kills, not the 190 dotted line." },
+      { id:"20", tags:["eval","compute","negative-result"], title:"The 14.5 gap is a different experiment, not a missing loss head",
+        file:"findings/20-score-gap-is-recipe-not-a-missing-head.md",
+        body:"Published 14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. Live M8-XL is ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k, still dying to zombies (finding 19). That is 16× less replay per env step and 8× fewer optimizer steps. Actor-critic already matches finding 17. Remaining code: is_first in RSSM.observe, CNN blocks=1 vs 2. Do not caption 1.36 next to 14.5; do not kill m8_xl_acfix2 to raise ratio in the same dir." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -434,7 +455,11 @@ flowchart LR
       "Trusting a smoke test to catch an advantage-alignment bug (a zero-init critic makes wrong and right identical)",
       "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified",
       "Calling the 190-step wall hunger and adding a drink bonus to move mean length",
-      "Reading length vs 190 as a fail on a run whose ac_H is alive and gmean is climbing"
+      "Reading length vs 190 as a fail on a run whose ac_H is alive and gmean is climbing",
+      "Captioning M8-XL 80k held-out 1.36 next to DreamerV3 14.5 as a failed implementation",
+      "Killing m8_xl_acfix2 to start the real paper recipe in the same checkpoint dir",
+      "Matching 2026 jax dreamerv3 main (deter 8192, 64 classes) and calling it the 2023 14.5 recipe",
+      "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes"
     ];
 
     let tag = "all";

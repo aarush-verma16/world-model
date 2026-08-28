@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-27",
+  "updated": "2026-08-28",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -126,6 +126,14 @@
       "config": "configs/m8_xl_acfix.yaml",
       "env_steps": null,
       "note": "COLLAPSED ~4k 2026-08-28. ac_H 0.099 (floor). Do not resume this dir. Next writes go to checkpoints/m8_xl_acfix2."
+    },
+    "m8_xl_acfix2_80k": {
+      "config": "configs/m8_xl_acfix.yaml",
+      "env_steps": 80704,
+      "heldout_gmean_50k": 1.36,
+      "online_gmean_80k": 1.46,
+      "collect_length_mean": 173,
+      "note": "Live 1M, ratio 32 / seq 32 / deter 2560. ac_H alive. Combat-length wall (finding 19). Not DreamerV3 14.5 (finding 20)."
     }
   },
   "findings": [
@@ -281,6 +289,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "No-combat starvation is step 338; at 200 health is still 9. 66% of M8-XL lives end at 150–220. Drinking buys ~60 steps; defeat_zombie is 0.6%. Sleeping zombies deal 7.",
       "paper_spin": "Crafter death-clock figure: do not treat mean length 190 as a hunger proxy until defeat_zombie is common."
+    },
+    {
+      "id": "20",
+      "file": "findings/20-score-gap-is-recipe-not-a-missing-head.md",
+      "title": "The 14.5 gap is a different experiment, not a missing loss head",
+      "tags": ["eval", "compute", "negative-result"],
+      "one_liner": "14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. We are ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k, still dying to zombies. 16x less replay per env step. Two remaining code gaps: is_first and CNN blocks=1.",
+      "paper_spin": "Compute/protocol figure: same 1M x-axis is 16x less replay and 8x fewer updates. Do not read 1.36 vs 14.5 as a missing reconstruction head."
     }
   ],
   "do_not_revive": [
@@ -316,6 +332,10 @@
     "Trusting a smoke test to catch an advantage-alignment bug: a zero-init critic makes the wrong and right formulas identical",
     "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified",
     "Calling the 190-step Crafter wall hunger and adding a drink/hunger bonus to move mean length",
-    "Reading length vs 190 as a pass/fail on a run whose ac_H is alive and gmean is climbing"
+    "Reading length vs 190 as a pass/fail on a run whose ac_H is alive and gmean is climbing",
+    "Captioning M8-XL 80k held-out 1.36 next to DreamerV3 14.5 as a failed implementation",
+    "Killing m8_xl_acfix2 to 'start the real paper recipe' in the same checkpoint dir",
+    "Matching 2026 danijar/dreamerv3 jax main (deter 8192, 64 classes, LaProp) and calling it the 2023 14.5 recipe",
+    "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes"
   ]
 }

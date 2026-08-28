@@ -37,6 +37,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | XL + workstation ratio 32 still collapses | Negative with 14/15: finishable XL-from-scratch dies; paper ratio is 5 days — **superseded by 17** |
 | Six silent actor-critic divergences → one symptom | Implementation identifiability: off-by-one advantage is exactly 0-error at init; `imag_gradient_mix: 0.0` is load-bearing |
 | ~200-step death is combat, not hunger | Results / Crafter mechanics: starvation clock is 338; modal 170 is zombies + sleep |
+| 14.5 gap is recipe + sampler, not a missing head | Compute/protocol: ratio 32 vs 512 is 16× less replay; remaining code is `is_first` and CNN `blocks=1` |
 
 ## Index of findings
 
@@ -59,6 +60,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 17. [The collapse was six actor-critic bugs](findings/17-actor-critic-alignment-bugs.md) — `V(s_t+1)` advantage baseline, off-by-one critic target, no slow critic, no discount weights, critic loss leaking into the actor, and a notebook that never forwarded `imag_gradient` so both XL runs summed a dynamics term DreamerV3 weights at 0.
 18. [XL 5 env/s is 16 GiB paging](findings/18-xl-reinforce-graph-thrashes-16gib.md) — 15.7 GiB / 88 W, not a dead actor. `ac_H` 0.50 at 22k. Unused reinforce RSSM graph.
 19. [~200-step death is combat, not hunger](findings/19-length-is-combat-not-hunger.md) — starvation clock 338; 66% of M8 lives die at 150–220 with drink still left.
+20. [The 14.5 gap is a different experiment](findings/20-score-gap-is-recipe-not-a-missing-head.md) — ratio 32 vs 512, seq 32 vs 64, episode-bounded replay; do not put 1.36 next to 14.5.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -72,7 +74,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M5 outer loop** (`configs/m5_outer_loop.yaml`): 100k env steps, 2026-08-26. Notebook plumbing **PASS**. Last eval return **0.10** = one achievement then death (finding 11), not geo-mean. Dashboard 18→1.1 env/s then **~38** after the log-cadence fix (finding 08). Live: `notebooks/08_train_outer_loop.ipynb`.
 - **M6 baseline** (`configs/m6_baseline.yaml`): **1M env steps**, 2026-08-26. Protocol **PASS**. Held-out gmean **0.627 → 1.639**, online **1.941**. Collect mean length **190**, max **441** — 10k cap never binds (finding 13). Live: `notebooks/09_train_baseline.ipynb`.
 - **M7 paper-online** (`configs/m7_paper_online.yaml`): XL ~198M from scratch. v1 at **100k** (2026-08-27) held-out **1.298 → 0.233**, entropy on unimix floor by 20k, wake_up only (finding 14). v2 (`checkpoints/m7_xl_paper`) cancelled at **~40k**: **~2.14 env/s**, entropy still alive (finding 15). v3 (`configs/m7_xl_workstation.yaml`, ratio 32) at **100k**: **26 env/s**, held-out **1.694 → 0.499**, entropy on the floor from ~20k (finding 16). Do not grind v3 to 1M. `notebooks/10_train_paper_online.ipynb`.
-- **M8 actor-critic fix** (finding 17): `m8_s_acfix` **200k DONE**. Held-out **1.386 → 2.068**, last `ac_H` **0.89** (min 0.74). Next is `configs/m8_xl_acfix.yaml` **1M**. `notebooks/10_train_paper_online.ipynb`.
+- **M8 actor-critic fix** (finding 17): `m8_s_acfix` **200k DONE**. Held-out **1.386 → 2.068**, last `ac_H` **0.89** (min 0.74). Live XL is `checkpoints/m8_xl_acfix2` (`configs/m8_xl_acfix.yaml`) — **do not resume** collapsed `m8_xl_acfix`. At ~80k: online gmean ~1.46, held-out 1.36 @ 50k, `ac_H` alive, length wall is combat (finding 19). Score vs 14.5 is a different experiment (finding 20), not a reason to stop the 1M. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 
