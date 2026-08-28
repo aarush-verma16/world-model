@@ -89,6 +89,17 @@
       "collect_n": 230,
       "collect_length_mean_last40": 171.15,
       "note": "v2 dirs m7_xl_paper. train_ratio 512 → 16/16/16. ~2.14 env/s so 1M is ~5.4 days (finding 15). Entropy alive (~0.56). First wood/drink unlocks after 25k. Orange bar is still eval@0."
+    },
+    "m7_xl_workstation_100k": {
+      "config": "configs/m7_xl_workstation.yaml",
+      "env_steps": 100000,
+      "env_steps_per_sec": 26.18,
+      "heldout_gmean_start": 1.694,
+      "heldout_gmean_100k": 0.499,
+      "online_gmean_100k": 0.494,
+      "eval_length_100k": 199.7,
+      "entropy_40_100k_mean": 0.087,
+      "note": "XL, ratio 32, 26 env/s. Actor on unimix floor from ~20k. Held-out 1.694→0.499. Do not grind to 1M (finding 16)."
     }
   },
   "findings": [
@@ -211,6 +222,14 @@
       "tags": ["compute"],
       "one_liner": "M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC / 16 env, not a hung dashboard. 37/16≈2.3 vs M6. 1M is ~5.4 days; cancelled. Next is ratio 32 in a new dir. Seq 32 also doubles paper-torch’s 8 updates/16 env.",
       "paper_spin": "Hardware appendix: seq 32 to fit 16 GiB doubled Crafter optimizer steps vs torch seq 64. Do not silently drop train_ratio to finish overnight."
+    },
+    {
+      "id": "16",
+      "file": "findings/16-xl-workstation-actor-collapse.md",
+      "title": "XL + M6 update count still collapses the actor by 20k",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Workstation ratio 32 is 26 env/s and dead: ac_H ~0.09 from 20k, held-out 1.69→0.50. Prefill/pretrain/reinforce did not replace train_ratio 512. Do not grind to 1M.",
+      "paper_spin": "Negative result with finding 14/15: finishable XL-from-scratch on this box collapses; paper-ratio XL is a 5-day run."
     }
   ],
   "do_not_revive": [
@@ -233,6 +252,7 @@
     "Greedy logits.argmax collect during the outer loop",
     "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor (~0.08 nats)",
     "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
-    "Reading collect length vs M6's 190 as a 40k pass/fail"
+    "Reading collect length vs M6's 190 as a 40k pass/fail",
+    "Grinding m7_xl_workstation after ac_H sits near 0.08–0.10 from 20k (held-out 1.69→0.50)"
   ]
 }

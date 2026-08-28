@@ -213,7 +213,7 @@
       </div>
 
       <h2 id="m7stub">M7 paper-style online (stopped reading at 100k)</h2>
-      <p class="muted">XL ~198M from scratch, fresh actor, 2026-08-27. Not a 14.5 run. Actor sat on the unimix floor by 20k env steps (finding 14). Do not grind to 1M.</p>
+      <p class="muted">XL ~198M from scratch, 2026-08-27. v1 held-out 1.30→0.23 (finding 14). v3 workstation ratio 32 is 26 env/s and still dead: 1.69→0.50, entropy on the floor from 20k (finding 16). Do not grind to 1M.</p>
       <table>
         <thead><tr><th>Knob</th><th>Value</th><th>Read as</th></tr></thead>
         <tbody>
@@ -386,7 +386,10 @@ flowchart LR
         body:"M7 XL 198M, fresh actor, random WM. Entropy on the unimix floor (~0.08 nats) by 20k. Held-out 1.298→0.233; 100k bars are wake_up only. Prefill exits after one finished episode, not 10k random. Do not grind to 1M." },
       { id:"15", tags:["compute"], title:"Paper train_ratio 512 on this box is ~2 env/s",
         file:"findings/15-xl-paper-ratio-is-five-days.md",
-        body:"M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC per 16 env steps, not a hung dashboard. M6 size-S 16/1/1 was ~37 env/s; 37/16≈2.3. 1M is ~5.4 days; cancelled. Next live config is ratio 32 in a new dir. Seq 32 also doubles NM512/dreamerv3-torch’s 8 updates per 16 env." }
+        body:"M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC per 16 env steps, not a hung dashboard. M6 size-S 16/1/1 was ~37 env/s; 37/16≈2.3. 1M is ~5.4 days; cancelled. Seq 32 also doubles NM512/dreamerv3-torch’s 8 updates per 16 env." },
+      { id:"16", tags:["eval","negative-result"], title:"XL + M6 update count still collapses the actor by 20k",
+        file:"findings/16-xl-workstation-actor-collapse.md",
+        body:"M7 v3 workstation ratio 32 is 26 env/s and dead. ac_H mean 0.09 from 20–100k (floor ~0.08). Held-out 1.694→0.499; sapling/plant/table gone. Prefill/pretrain/reinforce did not replace train_ratio 512. Do not grind to 1M." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -410,7 +413,8 @@ flowchart LR
       "Greedy logits.argmax collect in the outer loop",
       "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor",
       "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
-      "Reading collect length vs M6's 190 as a 40k pass/fail"
+      "Reading collect length vs M6's 190 as a 40k pass/fail",
+      "Grinding m7_xl_workstation after entropy sits on the unimix floor"
     ];
 
     let tag = "all";

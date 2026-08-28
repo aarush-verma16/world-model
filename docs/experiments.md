@@ -11,10 +11,10 @@ entropy, wake_up only. Do not resume that checkpoint.
 (~5.4 days for 1M, finding 15). Entropy ~0.56; first wood/drink after 25k; mean
 length still ~170 (same hunger death as M6). Orange held-out was still step 0.
 
-**v3 (wired):** `configs/m7_xl_workstation.yaml` — same XL seed recipe,
-`train_ratio` **32** (1+1 / 16 env). New dirs. Do not resume `m7_xl_paper`.
-Live: `notebooks/10_train_paper_online.ipynb` — **restart the kernel**. Watch
-`ac_H`; 0.08 is the floor, stop. Length vs 190 is not a 40k gate.
+**v3 at 100k (2026-08-27):** `configs/m7_xl_workstation.yaml`, **26 env/s**.
+Held-out **1.694 → 0.499**. `ac_H` on the unimix floor from ~20k (mean
+0.09, finding 16). Same collapse as v1, faster wall clock. **Stop — do not
+grind to 1M.**
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 
