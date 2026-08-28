@@ -13,6 +13,8 @@
 #
 # seq 64 is the paper batch_length; it filled 16 GiB on this card at size-S.
 # Stay at 32; train_ratio 512 keeps the same transitions-per-env-step.
+# Wall clock on this box: ~2.1 env/s → ~5.4 days for 1M (finding 15).
+# That is 16× M6's 16/1/1, not a hung dashboard.
 # Replay FIFO 500k not 1e6 — host RAM (finding 08).
 #
 # User-run: notebooks/10_train_paper_online.ipynb

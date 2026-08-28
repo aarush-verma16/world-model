@@ -383,7 +383,10 @@ flowchart LR
         body:"Protocol PASS, held-out 0.627→1.639, online 1.941. Collect mean length 190, max 441 — the 10k cap never binds. n=10 eval is a lottery (900k 0.43 vs 1M 1.64). Last unlocks are sapling/wood/plant/wake; stone 0. Not DreamerV3 14.5." },
       { id:"14", tags:["eval","negative-result"], title:"XL from scratch collapsed the actor by 20k env steps",
         file:"findings/14-xl-from-scratch-actor-collapse.md",
-        body:"M7 XL 198M, fresh actor, random WM. Entropy on the unimix floor (~0.08 nats) by 20k. Held-out 1.298→0.233; 100k bars are wake_up only. Prefill exits after one finished episode, not 10k random. Do not grind to 1M." }
+        body:"M7 XL 198M, fresh actor, random WM. Entropy on the unimix floor (~0.08 nats) by 20k. Held-out 1.298→0.233; 100k bars are wake_up only. Prefill exits after one finished episode, not 10k random. Do not grind to 1M." },
+      { id:"15", tags:["compute"], title:"Paper train_ratio 512 on this box is ~2 env/s",
+        file:"findings/15-xl-paper-ratio-is-five-days.md",
+        body:"M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC per 16 env steps, not a hung dashboard. M6 size-S 16/1/1 was ~37 env/s; 37/16≈2.3. 1M is ~5.4 days. Seq 32 also doubles NM512/dreamerv3-torch’s 8 updates per 16 env (they train every 2 steps at seq 64)." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -405,7 +408,8 @@ flowchart LR
       "Grinding the 1M checkpoint until the orange eval line is monotone",
       "Stream sampler / is_first as an M5 prerequisite",
       "Greedy logits.argmax collect in the outer loop",
-      "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor"
+      "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor",
+      "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop"
     ];
 
     let tag = "all";

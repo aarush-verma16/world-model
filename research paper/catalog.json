@@ -79,6 +79,16 @@
       "entropy_20_40k_mean": 0.082,
       "recon_l1_80_100k_mean": 0.011,
       "note": "XL 198M from scratch. Actor on unimix floor by 20k. Held-out 1.298→0.233, wake_up only. Do not grind to 1M (finding 14)."
+    },
+    "m7_xl_paper_40k": {
+      "config": "configs/m7_paper_online.yaml",
+      "env_steps": 39968,
+      "env_steps_per_sec": 2.14,
+      "online_gmean": 0.693,
+      "heldout_gmean_step0": 1.387,
+      "collect_n": 230,
+      "collect_length_mean_last40": 171.15,
+      "note": "v2 dirs m7_xl_paper. train_ratio 512 → 16/16/16. ~2.14 env/s so 1M is ~5.4 days (finding 15). Entropy alive (~0.56). First wood/drink unlocks after 25k. Orange bar is still eval@0."
     }
   },
   "findings": [
@@ -193,6 +203,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "198M XL, fresh actor, random WM. Entropy on unimix floor (~0.08) by 20k. Held-out 1.298→0.233, wake_up only. Prefill exits after one episode. Do not grind to 1M.",
       "paper_spin": "Negative result: 200M is not the missing piece once the actor is a delta on unimix. Recipe: 10k prefill that stops at one life is not the paper seed."
+    },
+    {
+      "id": "15",
+      "file": "findings/15-xl-paper-ratio-is-five-days.md",
+      "title": "Paper train_ratio 512 on this box is ~2 env/s",
+      "tags": ["compute"],
+      "one_liner": "M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC / 16 env, not a hung dashboard. 37/16≈2.3 vs M6. 1M is ~5.4 days. Seq 32 also doubles paper-torch’s 8 updates/16 env.",
+      "paper_spin": "Hardware appendix: seq 32 to fit 16 GiB doubled Crafter optimizer steps vs torch seq 64. Do not silently drop train_ratio to finish overnight."
     }
   ],
   "do_not_revive": [
@@ -213,6 +231,7 @@
     "Grinding the 1M checkpoint until the orange eval line is monotone",
     "Stream sampler / is_first as an M5 prerequisite (episode-bounded windows are enough)",
     "Greedy logits.argmax collect during the outer loop",
-    "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor (~0.08 nats)"
+    "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor (~0.08 nats)",
+    "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop"
   ]
 }
