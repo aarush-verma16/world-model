@@ -49,8 +49,11 @@ is wired now (`pretrain_dreamer`, `overlay_wm_train`).
 **Next, in order.** `configs/m8_s_acfix.yaml` (size-S on M6's 1M world model,
 fresh actor, 200k, ~1 h) to validate the fix cheaply, then
 `configs/m8_xl_acfix.yaml` (XL 198M from scratch, 1M) for the score attempt.
-Kill either run if `ac_H` is under 0.15 at 30k. Both smoke clean; neither has
-been trained.
+Kill either run if `ac_H` is under 0.15 at 30k.
+
+**M8-S live ~96k / 200k (2026-08-27):** `ac_H` **1.50** (window mins ≥ 1.45).
+Fix took. Collect 80–100k sapling 73% / wood 30%. Held-out 75k **0.76** is n=10
+noise. Length still ~175. Let 200k finish, then `m8_xl_acfix.yaml`.
 
 ## M6 Crafter baseline (2026-08-26, 1M done)
 

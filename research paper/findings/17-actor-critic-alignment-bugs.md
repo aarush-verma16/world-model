@@ -146,6 +146,23 @@ entropy 2.758 of ln(17) = 2.833, `value` and `slow_value` exactly 0.0000,
 `adv = +0.1225 ± 0.3110` (spread now larger than the mean), `weight` 0.899,
 peak VRAM 12.90/13.68 GiB.
 
+### Early live read (M8-S, ~96k / 200k, 2026-08-27)
+
+`configs/m8_s_acfix.yaml`, size-S on M6's 1M WM, fresh actor. Kill rule was
+`ac_H < 0.15` at 30k. It never went there.
+
+| window | `ac_H` mean (min) |
+|---|---|
+| 0–20k | 1.93 (1.70) |
+| 20–40k | 1.83 (1.45) |
+| 60–80k | 1.65 (1.47) |
+
+Zero train logs under 1.0. Screenshot at 96256: `ac_H=1.500`, ~40 env/s.
+Collect 80–100k: sapling **73%**, wood 30%, drink 23%, plant 18% (last 40 lives
+sapling **98%**). Mean length still **174–179** — same hunger death as M6.
+Held-out n=10 is the usual lottery (0: 1.39, 25k: 0.70, 50k: 1.00, 75k: 0.76).
+Do not kill for the orange dip or the length cliffs. Let 200k finish, then XL.
+
 ## Paper spin
 
 Feeds an "implementation identifiability" section: a table of six actor-critic
