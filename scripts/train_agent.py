@@ -27,7 +27,7 @@ import torch
 import yaml
 from torch.utils.tensorboard import SummaryWriter
 
-from agents.actor_critic import Actor, Critic
+from agents.actor_critic import Actor, Critic, SlowCritic
 from envs.crafter_env import register_crafter_envs
 from models.world_model import WorldModel
 from training.ckpt import resolve_outer_resume
@@ -48,7 +48,8 @@ from training.crafter_score import (
     score_from_episodes,
 )
 from training.evaluate import evaluate_policy, save_eval_gif
-from training.imagine import decode_imagination
+from training.ac_step import actor_critic_step
+from training.imagine import decode_imagination, unfreeze_world_model
 from training.outer_loop import (
     crossed_interval,
     joint_payload,
@@ -90,6 +91,18 @@ def make_actor_critic(cfg: dict[str, Any], world_model: WorldModel, device: torc
         high=float(critic_cfg.get("high", 20.0)),
     ).to(device)
     return actor, critic
+
+
+def make_slow_critic(
+    cfg: dict[str, Any], critic: Critic, device: torch.device
+) -> SlowCritic:
+    """DreamerV3 slow critic. `critic.slow_target: false` disables the anchor."""
+    critic_cfg = cfg.get("critic", {})
+    return SlowCritic(
+        critic,
+        fraction=float(critic_cfg.get("slow_target_fraction", 0.02)),
+        update_every=int(critic_cfg.get("slow_target_update", 1)),
+    ).to(device)
 
 
 def load_seed_world_model(m5_cfg: dict[str, Any], device: torch.device) -> tuple[WorldModel, dict[str, Any]]:
@@ -207,6 +220,87 @@ def prefill_replay(collector: Collector, buffer: ReplayBuffer, seq_len: int, ste
     )
 
 
+def pretrain_dreamer(
+    world_model: WorldModel,
+    wm_optim: torch.optim.Optimizer,
+    actor: Actor,
+    critic: Critic,
+    ac_optim: torch.optim.Optimizer,
+    buffer: ReplayBuffer,
+    *,
+    device: torch.device,
+    wm_train_cfg: dict[str, Any],
+    train: dict[str, Any],
+    retnorm: PercentileReturnNorm,
+    slow_critic: SlowCritic | None,
+    amp_dtype: torch.dtype | None,
+    scaler: torch.amp.GradScaler,
+) -> tuple[int, int]:
+    """DreamerV3-torch `pretrain: 100`: WM-then-AC updates on the prefill, no collect.
+
+    The JAX/torch reference runs `_train` (world model, then actor-critic) this
+    many times on the random 2500-step buffer before the first env step of the
+    outer loop. WM-only pretrain was a misread of that flag.
+    """
+    n = int(train.get("pretrain_steps", train.get("pretrain_wm_steps", 0)))
+    if n <= 0:
+        return 0, 0
+    if buffer.num_steps < int(train["seq_len"]):
+        print(
+            f"skip pretrain: replay has {buffer.num_steps} steps, need seq_len="
+            f"{train['seq_len']}",
+            flush=True,
+        )
+        return 0, 0
+
+    batch_size = int(train["batch_size"])
+    seq_len = int(train["seq_len"])
+    last_wm: dict[str, float] | None = None
+    last_ac: dict[str, float] | None = None
+    for _ in range(n):
+        unfreeze_world_model(world_model)
+        batch = buffer.sample(batch_size, seq_len)
+        _loss, last_wm = world_model_step(
+            world_model,
+            wm_optim,
+            batch,
+            device=device,
+            train_cfg=wm_train_cfg,
+            amp_dtype=amp_dtype,
+            scaler=scaler,
+            max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
+        )
+        batch = buffer.sample(batch_size, seq_len)
+        _loss, last_ac, _rollout = actor_critic_step(
+            world_model,
+            actor,
+            critic,
+            ac_optim,
+            batch,
+            device=device,
+            retnorm=retnorm,
+            horizon=int(train.get("horizon", 15)),
+            start_mode=str(train.get("start_mode", "all")),
+            lam=float(train.get("lam", 0.95)),
+            discount=float(train.get("discount", 0.997)),
+            entropy_scale=float(train.get("entropy_scale", 3.0e-4)),
+            imag_gradient=str(train.get("imag_gradient", "reinforce")),
+            imag_gradient_mix=float(train.get("imag_gradient_mix", 0.0)),
+            slow_critic=slow_critic,
+            amp_dtype=amp_dtype,
+            scaler=scaler,
+            max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
+        )
+    recon = last_wm.get("recon_l1", float("nan")) if last_wm else float("nan")
+    ent = last_ac.get("entropy", float("nan")) if last_ac else float("nan")
+    print(
+        f"pretrain {n} WM+AC (DreamerV3-torch pretrain)  "
+        f"recon_l1={recon:.4f}  ac_H={ent:.3f}",
+        flush=True,
+    )
+    return n, n
+
+
 def pretrain_world_model(
     world_model: WorldModel,
     wm_optim: torch.optim.Optimizer,
@@ -221,12 +315,10 @@ def pretrain_world_model(
     scaler: torch.amp.GradScaler,
     max_grad_norm: float,
 ) -> None:
-    """WM-only updates on the random prefill (DreamerV3-torch `pretrain: 100`)."""
+    """Deprecated alias: WM-only. Prefer `pretrain_dreamer` (joint WM+AC)."""
     n = int(steps)
     if n <= 0:
         return
-    from training.imagine import unfreeze_world_model
-
     unfreeze_world_model(world_model)
     last: dict[str, float] | None = None
     for _ in range(n):
@@ -321,6 +413,11 @@ def main() -> None:
         ]
     )
     retnorm = PercentileReturnNorm()
+    slow_critic = (
+        make_slow_critic(cfg, critic, device)
+        if bool(cfg.get("critic", {}).get("slow_target", True))
+        else None
+    )
     amp_dtype = parse_amp(train.get("amp", "bf16"), device)
     scaler = make_grad_scaler(device, amp_dtype)
 
@@ -340,7 +437,15 @@ def main() -> None:
     collect_seed = int(cfg["seed"])
     if resume_path is not None:
         counters = load_checkpoint(
-            resume_path, world_model, wm_optim, actor, critic, ac_optim, retnorm, device
+            resume_path,
+            world_model,
+            wm_optim,
+            actor,
+            critic,
+            ac_optim,
+            retnorm,
+            device,
+            slow_critic=slow_critic,
         )
         env_steps = counters["env_steps"]
         wm_steps = counters["wm_steps"]
@@ -370,19 +475,23 @@ def main() -> None:
             seq_len=int(train["seq_len"]),
             seed=int(cfg["seed"]),
         )
-        pretrain_world_model(
+        pre_wm, pre_ac = pretrain_dreamer(
             world_model,
             wm_optim,
+            actor,
+            critic,
+            ac_optim,
             buffer,
             device=device,
             wm_train_cfg=wm_train_cfg,
-            batch_size=int(train["batch_size"]),
-            seq_len=int(train["seq_len"]),
-            steps=int(train.get("pretrain_wm_steps", 0)),
+            train=train,
+            retnorm=retnorm,
+            slow_critic=slow_critic,
             amp_dtype=amp_dtype,
             scaler=scaler,
-            max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
         )
+        wm_steps += pre_wm
+        ac_steps += pre_ac
     collector = Collector(
         collect_env,
         world_model,
@@ -475,6 +584,8 @@ def main() -> None:
                 discount=float(train.get("discount", 0.997)),
                 entropy_scale=float(train.get("entropy_scale", 3.0e-4)),
                 imag_gradient=imag_gradient,
+                imag_gradient_mix=float(train.get("imag_gradient_mix", 0.0)),
+                slow_critic=slow_critic,
                 amp_dtype=amp_dtype,
                 scaler=scaler,
                 wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
@@ -560,6 +671,7 @@ def main() -> None:
                     ac_optim=ac_optim,
                     retnorm=retnorm,
                     collect_seed=collector.next_seed,
+                    slow_critic=slow_critic,
                 )
                 save_checkpoint(ckpt_dir / f"ckpt_step_{env_steps}.pt", payload)
                 save_checkpoint(ckpt_dir / "ckpt_latest.pt", payload)
@@ -584,6 +696,7 @@ def main() -> None:
             ac_optim=ac_optim,
             retnorm=retnorm,
             collect_seed=collector.next_seed,
+            slow_critic=slow_critic,
         )
         save_checkpoint(ckpt_dir / "ckpt_final.pt", payload)
         save_checkpoint(ckpt_dir / "ckpt_latest.pt", payload)

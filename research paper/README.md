@@ -34,7 +34,8 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | Size-S 1M gmean 1.6 with death at 190 | Results: captioned baseline; 10k cap still idle; n=10 eval is variance |
 | XL-from-scratch actor on unimix floor at 20k | Negative: 200M ≠ 14.5; prefill-after-one-episode is not the paper seed |
 | Paper train_ratio 512 is ~2 env/s / 5-day 1M | Compute appendix: 16× M6 updates, not dashboard decay; seq 32 doubles torch seq-64 steps |
-| XL + workstation ratio 32 still collapses | Negative with 14/15: finishable XL-from-scratch dies; paper ratio is 5 days |
+| XL + workstation ratio 32 still collapses | Negative with 14/15: finishable XL-from-scratch dies; paper ratio is 5 days — **superseded by 17** |
+| Six silent actor-critic divergences → one symptom | Implementation identifiability: off-by-one advantage is exactly 0-error at init; `imag_gradient_mix: 0.0` is load-bearing |
 
 ## Index of findings
 
@@ -53,7 +54,8 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 13. [M6 1M still dies at 190](findings/13-m6-1m-still-dies-at-190.md) — held-out 1.64 / online 1.94; 10k cap idle; not DreamerV3 14.5.
 14. [XL from scratch collapsed the actor](findings/14-xl-from-scratch-actor-collapse.md) — entropy on unimix floor by 20k; held-out 1.30→0.23, wake_up only.
 15. [Paper train_ratio 512 is ~2 env/s](findings/15-xl-paper-ratio-is-five-days.md) — 16 WM+16 AC / 16 env; 1M is ~5.4 days on this box; not the M5 dashboard bug.
-16. [XL + M6 update count still collapses the actor](findings/16-xl-workstation-actor-collapse.md) — ratio 32 is 26 env/s; ac_H ~0.09 from 20k; held-out 1.69→0.50. Do not grind to 1M.
+16. [XL + M6 update count still collapses the actor](findings/16-xl-workstation-actor-collapse.md) — ratio 32 is 26 env/s; ac_H ~0.09 from 20k; held-out 1.69→0.50. Do not grind to 1M. **Its conclusion is superseded by 17.**
+17. [The collapse was six actor-critic bugs](findings/17-actor-critic-alignment-bugs.md) — `V(s_t+1)` advantage baseline, off-by-one critic target, no slow critic, no discount weights, critic loss leaking into the actor, and a notebook that never forwarded `imag_gradient` so both XL runs summed a dynamics term DreamerV3 weights at 0.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -67,6 +69,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M5 outer loop** (`configs/m5_outer_loop.yaml`): 100k env steps, 2026-08-26. Notebook plumbing **PASS**. Last eval return **0.10** = one achievement then death (finding 11), not geo-mean. Dashboard 18→1.1 env/s then **~38** after the log-cadence fix (finding 08). Live: `notebooks/08_train_outer_loop.ipynb`.
 - **M6 baseline** (`configs/m6_baseline.yaml`): **1M env steps**, 2026-08-26. Protocol **PASS**. Held-out gmean **0.627 → 1.639**, online **1.941**. Collect mean length **190**, max **441** — 10k cap never binds (finding 13). Live: `notebooks/09_train_baseline.ipynb`.
 - **M7 paper-online** (`configs/m7_paper_online.yaml`): XL ~198M from scratch. v1 at **100k** (2026-08-27) held-out **1.298 → 0.233**, entropy on unimix floor by 20k, wake_up only (finding 14). v2 (`checkpoints/m7_xl_paper`) cancelled at **~40k**: **~2.14 env/s**, entropy still alive (finding 15). v3 (`configs/m7_xl_workstation.yaml`, ratio 32) at **100k**: **26 env/s**, held-out **1.694 → 0.499**, entropy on the floor from ~20k (finding 16). Do not grind v3 to 1M. `notebooks/10_train_paper_online.ipynb`.
+- **M8 actor-critic fix** (finding 17): all three M7 runs above shared six actor-critic bugs, so none of them tested XL or `train_ratio`. Fixed in `src/training/returns.py` (`imagined_targets`), `src/training/imagine.py` and `src/training/ac_step.py`. Next runs are `configs/m8_s_acfix.yaml` (size-S on M6's 1M world model, 200k, ~1 h — run this first) then `configs/m8_xl_acfix.yaml` (XL 1M). Both smoke clean; neither has been trained yet.
 
 ## Conventions
 

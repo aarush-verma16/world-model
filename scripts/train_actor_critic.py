@@ -22,7 +22,7 @@ import torch
 import yaml
 from torch.utils.tensorboard import SummaryWriter
 
-from agents.actor_critic import Actor, Critic
+from agents.actor_critic import Actor, Critic, SlowCritic
 from models.world_model import WorldModel
 from training.ac_step import actor_critic_step
 from training.ckpt import resolve_resume
@@ -148,6 +148,15 @@ def main() -> None:
         ]
     )
     retnorm = PercentileReturnNorm()
+    slow_critic = (
+        SlowCritic(
+            critic,
+            fraction=float(critic_cfg.get("slow_target_fraction", 0.02)),
+            update_every=int(critic_cfg.get("slow_target_update", 1)),
+        ).to(device)
+        if bool(critic_cfg.get("slow_target", True))
+        else None
+    )
     amp_dtype = parse_amp(train.get("amp", "bf16"), device)
     scaler = make_grad_scaler(device, amp_dtype)
 
@@ -167,6 +176,11 @@ def main() -> None:
             optim.load_state_dict(ac_ckpt["optim"])
         if "retnorm" in ac_ckpt:
             retnorm.load_state_dict(ac_ckpt["retnorm"])
+        if slow_critic is not None:
+            if "slow_critic" in ac_ckpt:
+                slow_critic.load_state_dict(ac_ckpt["slow_critic"])
+            else:
+                slow_critic.reset(critic)
         start_step = int(ac_ckpt.get("step", 0))
         print(f"resumed actor-critic from {resume_path} at step {start_step}")
 
@@ -209,6 +223,7 @@ def main() -> None:
             lam=float(train.get("lam", 0.95)),
             discount=float(train.get("discount", 0.997)),
             entropy_scale=float(train.get("entropy_scale", 3.0e-4)),
+            slow_critic=slow_critic,
             amp_dtype=amp_dtype,
             scaler=scaler,
             max_grad_norm=float(train.get("max_grad_norm", 100.0)),
@@ -248,6 +263,8 @@ def main() -> None:
                 "optim": optim.state_dict(),
                 "retnorm": retnorm.state_dict(),
             }
+            if slow_critic is not None:
+                payload["slow_critic"] = slow_critic.state_dict()
             torch.save(payload, ckpt_dir / f"ckpt_step_{step}.pt")
             torch.save(payload, ckpt_dir / "ckpt_latest.pt")
             metrics_path.write_text(json.dumps(history), encoding="utf-8")
@@ -260,6 +277,8 @@ def main() -> None:
         "optim": optim.state_dict(),
         "retnorm": retnorm.state_dict(),
     }
+    if slow_critic is not None:
+        final["slow_critic"] = slow_critic.state_dict()
     torch.save(final, ckpt_dir / "ckpt_final.pt")
     torch.save(final, ckpt_dir / "ckpt_latest.pt")
     metrics_path.write_text(json.dumps(history), encoding="utf-8")

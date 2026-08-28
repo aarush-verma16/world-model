@@ -46,6 +46,53 @@ def lambda_returns(
     return torch.stack(outs, dim=1)
 
 
+def imagined_targets(
+    reward: Tensor,
+    cont: Tensor,
+    value: Tensor,
+    *,
+    lam: float,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Align an imagined rollout into critic targets, baselines, and weights.
+
+    This is DreamerV3's `ImagBehavior._compute_target`. Inputs are the
+    **state-indexed** `[N, H+1]` predictions for `s_0 .. s_H` (`reward[:, i]`
+    and `value[:, i]` are both evaluated *at* `s_i`); outputs are `[N, H]`,
+    indexed by the action taken at `s_0 .. s_{H-1}`.
+
+    Args:
+        reward: `[N, H+1]` predicted reward at each state.
+        cont: `[N, H+1]` continue probability already multiplied by `discount`.
+        value: `[N, H+1]` critic value at each state. Detach before calling if
+            the target must not move with the critic.
+        lam: λ in `[0, 1]`.
+
+    Returns:
+        `returns` `[N, H]` — λ-return target for `V(s_i)`,
+        `base` `[N, H]` — `V(s_i)`, the baseline that makes `returns - base` an
+        advantage rather than `reward + (γ-1)·V`,
+        `weights` `[N, H]` — detached `∏_{j<i} cont[:, j]`, so imagined steps
+        after a predicted death stop contributing.
+    """
+    if reward.ndim != 2:
+        raise ValueError(f"expected [N, H+1], got {tuple(reward.shape)}")
+    if reward.shape != cont.shape or reward.shape != value.shape:
+        raise ValueError(
+            f"reward/cont/value shape mismatch: {tuple(reward.shape)} "
+            f"{tuple(cont.shape)} {tuple(value.shape)}"
+        )
+    if reward.shape[1] < 2:
+        raise ValueError(
+            f"need at least 2 states (H >= 1), got H+1={reward.shape[1]}"
+        )
+    returns = lambda_returns(reward[:, 1:], cont[:, 1:], value[:, 1:], lam=lam)
+    base = value[:, :-1]
+    weights = torch.cumprod(
+        torch.cat([torch.ones_like(cont[:, :1]), cont[:, :-1]], dim=1), dim=1
+    ).detach()[:, :-1]
+    return returns, base, weights
+
+
 class PercentileReturnNorm:
     """EMA of the 5th–95th percentile range; divide returns by `max(limit, range)`.
 

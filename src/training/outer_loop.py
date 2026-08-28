@@ -13,7 +13,7 @@ from typing import Any
 
 import torch
 
-from agents.actor_critic import Actor, Critic
+from agents.actor_critic import Actor, Critic, SlowCritic
 from models.world_model import WorldModel
 from training.ac_step import actor_critic_step
 from training.collect import Collector
@@ -84,7 +84,9 @@ def outer_cycle(
     lam: float,
     discount: float,
     entropy_scale: float,
-    imag_gradient: str = "both",
+    imag_gradient: str = "reinforce",
+    imag_gradient_mix: float = 0.0,
+    slow_critic: SlowCritic | None = None,
     amp_dtype: torch.dtype | None,
     scaler: torch.amp.GradScaler,
     wm_max_grad_norm: float = 1000.0,
@@ -129,6 +131,8 @@ def outer_cycle(
             discount=float(discount),
             entropy_scale=float(entropy_scale),
             imag_gradient=str(imag_gradient),
+            imag_gradient_mix=float(imag_gradient_mix),
+            slow_critic=slow_critic,
             amp_dtype=amp_dtype,
             scaler=scaler,
             max_grad_norm=float(ac_max_grad_norm),
@@ -154,9 +158,10 @@ def joint_payload(
     ac_optim: torch.optim.Optimizer,
     retnorm: PercentileReturnNorm,
     collect_seed: int,
+    slow_critic: SlowCritic | None = None,
 ) -> dict[str, Any]:
     """Checkpoint dict — replay is saved separately (`save_replay`)."""
-    return {
+    payload = {
         "env_steps": int(env_steps),
         "wm_steps": int(wm_steps),
         "ac_steps": int(ac_steps),
@@ -168,6 +173,9 @@ def joint_payload(
         "retnorm": retnorm.state_dict(),
         "collect_seed": int(collect_seed),
     }
+    if slow_critic is not None:
+        payload["slow_critic"] = slow_critic.state_dict()
+    return payload
 
 
 def save_checkpoint(path: Path, payload: dict[str, Any]) -> None:
@@ -184,12 +192,22 @@ def load_checkpoint(
     ac_optim: torch.optim.Optimizer,
     retnorm: PercentileReturnNorm,
     device: torch.device,
+    slow_critic: SlowCritic | None = None,
 ) -> dict[str, int]:
-    """Restore weights / optim / retnorm. Returns step counters + collect_seed."""
+    """Restore weights / optim / retnorm. Returns step counters + collect_seed.
+
+    A checkpoint written before the slow critic existed has no `slow_critic`
+    key; the EMA copy then just restarts from the loaded critic.
+    """
     payload = torch.load(path, weights_only=False, map_location=device)
     world_model.load_state_dict(payload["world_model"], strict=True)
     actor.load_state_dict(payload["actor"], strict=True)
     critic.load_state_dict(payload["critic"], strict=True)
+    if slow_critic is not None:
+        if "slow_critic" in payload:
+            slow_critic.load_state_dict(payload["slow_critic"], strict=True)
+        else:
+            slow_critic.reset(critic)
     if "wm_optim" in payload:
         wm_optim.load_state_dict(payload["wm_optim"])
     if "ac_optim" in payload:

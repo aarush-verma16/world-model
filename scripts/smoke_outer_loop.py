@@ -38,7 +38,13 @@ from training.outer_loop import (
 from training.replay_buffer import ReplayBuffer
 from training.returns import PercentileReturnNorm
 
-from train_agent import load_seed_actor_critic, load_seed_world_model, make_actor_critic, make_envs
+from train_agent import (
+    load_seed_actor_critic,
+    load_seed_world_model,
+    make_actor_critic,
+    make_envs,
+    make_slow_critic,
+)
 from train_world_model import build_model, set_seed
 
 
@@ -69,11 +75,13 @@ def main() -> None:
         f"seq={train['seq_len']}  start_mode={start_mode}  env_steps={args.env_steps}"
     )
 
-    wm_ckpt = Path(cfg["world_model_ckpt"])
-    if wm_ckpt.is_file():
+    # From-scratch configs (M7/M8 XL) leave both ckpt keys null.
+    raw_wm_ckpt = cfg.get("world_model_ckpt")
+    wm_ckpt = Path(raw_wm_ckpt) if raw_wm_ckpt else None
+    if wm_ckpt is not None and wm_ckpt.is_file():
         world_model, wm_cfg = load_seed_world_model(cfg, device)
     else:
-        print(f"no {wm_ckpt} — random size-S weights (smoke only)")
+        print(f"no {wm_ckpt} — random weights from {cfg['world_model_config']} (smoke only)")
         world_model = build_model(wm_cfg).to(device)
 
     actor, critic = make_actor_critic(cfg, world_model, device)
@@ -85,7 +93,13 @@ def main() -> None:
         ]
     )
     retnorm = PercentileReturnNorm()
-    if Path(cfg["actor_critic_ckpt"]).is_file() and wm_ckpt.is_file():
+    slow_critic = (
+        make_slow_critic(cfg, critic, device)
+        if bool(cfg.get("critic", {}).get("slow_target", True))
+        else None
+    )
+    raw_ac_ckpt = cfg.get("actor_critic_ckpt")
+    if raw_ac_ckpt and Path(raw_ac_ckpt).is_file() and wm_ckpt is not None and wm_ckpt.is_file():
         load_seed_actor_critic(cfg, actor, critic, ac_optim, retnorm, device)
     scaler = make_grad_scaler(device, amp_dtype)
 
@@ -140,6 +154,9 @@ def main() -> None:
             lam=float(train.get("lam", 0.95)),
             discount=float(train.get("discount", 0.997)),
             entropy_scale=float(train.get("entropy_scale", 3.0e-4)),
+            imag_gradient=str(train.get("imag_gradient", "reinforce")),
+            imag_gradient_mix=float(train.get("imag_gradient_mix", 0.0)),
+            slow_critic=slow_critic,
             amp_dtype=amp_dtype,
             scaler=scaler,
             wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
@@ -153,6 +170,13 @@ def main() -> None:
             f"wm={cycle.wm_metrics['total'] if cycle.wm_metrics else None}  "
             f"ac_H={cycle.ac_metrics['entropy'] if cycle.ac_metrics else None}"
         )
+        if cycle.ac_metrics:
+            m = cycle.ac_metrics
+            print(
+                f"adv={m['adv']:+.4f}±{m['adv_std']:.4f}  value={m['value']:+.4f}  "
+                f"slow_value={m['slow_value']:+.4f}  weight={m['weight']:.4f}  "
+                f"retnorm={m['retnorm_scale']:.3f}"
+            )
         ev = evaluate_policy(
             eval_env,
             world_model,
@@ -182,10 +206,19 @@ def main() -> None:
                     ac_optim=ac_optim,
                     retnorm=retnorm,
                     collect_seed=collector.next_seed,
+                    slow_critic=slow_critic,
                 ),
             )
             counters = load_checkpoint(
-                path, world_model, wm_optim, actor, critic, ac_optim, retnorm, device
+                path,
+                world_model,
+                wm_optim,
+                actor,
+                critic,
+                ac_optim,
+                retnorm,
+                device,
+                slow_critic=slow_critic,
             )
             assert counters["env_steps"] == int(args.env_steps)
         vram = vram_peak_gb()

@@ -102,7 +102,8 @@ def test_decode_imagination_shapes() -> None:
         horizon=3, start_mode="last",
     )
     frames = decode_imagination(wm, rollout.feat, max_starts=2)
-    assert frames.shape == (2, 3, 3, 64, 64)
+    # feat is state-indexed: the seed state plus one frame per img_step.
+    assert frames.shape == (2, 4, 3, 64, 64)
     assert float(frames.min()) >= 0.0
     assert float(frames.max()) <= 1.0
 

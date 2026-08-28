@@ -1,6 +1,16 @@
 {
   "title": "World-model findings archive (not the paper)",
   "updated": "2026-08-27",
+  "diagnostics": {
+    "advantage_alignment": {
+      "script": "scripts/diag_advantage_alignment.py",
+      "note": "R2_state_only = fraction of advantage variance explained by a per-start-state constant. High means the advantage carries no action signal. Needs --joint-ckpt: on a fresh zero-init critic both the old and fixed definitions are identically equal (finding 17).",
+      "m6_1m_fixed": {"mean": 0.049, "std": 0.490, "frac_pos": 0.463, "r2_state_only": 0.685},
+      "m6_1m_old": {"mean": 0.057, "std": 0.449, "frac_pos": 0.485, "r2_state_only": 0.730},
+      "m7_xl_100k_fixed": {"mean": 0.005, "std": 0.146, "frac_pos": 0.546, "r2_state_only": 0.516},
+      "m7_xl_100k_old": {"mean": 0.008, "std": 0.121, "frac_pos": 0.575, "r2_state_only": 0.563}
+    }
+  },
   "runs": {
     "pre_reset_12k": {
       "config": "configs/m3_world_model.yaml",
@@ -99,7 +109,17 @@
       "online_gmean_100k": 0.494,
       "eval_length_100k": 199.7,
       "entropy_40_100k_mean": 0.087,
-      "note": "XL, ratio 32, 26 env/s. Actor on unimix floor from ~20k. Held-out 1.694→0.499. Do not grind to 1M (finding 16)."
+      "note": "XL, ratio 32, 26 env/s. Actor on unimix floor from ~20k. Held-out 1.694→0.499. Do not grind to 1M (finding 16). SUPERSEDED by finding 17: this run and m7_xl_paper_40k both ran imag_gradient='both' (notebook never forwarded the config) with a V(s_t+1) advantage baseline, no slow critic and no discount weights."
+    },
+    "m8_s_acfix": {
+      "config": "configs/m8_s_acfix.yaml",
+      "env_steps": null,
+      "note": "NOT YET RUN. First run on the fixed actor-critic (finding 17). Size-S on M6's 1M WM, fresh actor, 200k. Cheap validation before spending XL. Kill if ac_H < 0.15 at 30k. Smoke: ac_H 2.777 of ln(17)=2.833, value/slow_value 0.0000, adv +0.104±0.271, peak VRAM 2.39/3.45 GiB."
+    },
+    "m8_xl_acfix": {
+      "config": "configs/m8_xl_acfix.yaml",
+      "env_steps": null,
+      "note": "NOT YET RUN. XL 198M from scratch on the fixed actor-critic, 1M, train_ratio 32. Only after m8_s_acfix holds entropy. Smoke: ac_H 2.758, value/slow_value 0.0000, adv +0.123±0.311, weight 0.899, peak VRAM 12.90/13.68 GiB."
     }
   },
   "findings": [
@@ -229,7 +249,16 @@
       "title": "XL + M6 update count still collapses the actor by 20k",
       "tags": ["eval", "negative-result"],
       "one_liner": "Workstation ratio 32 is 26 env/s and dead: ac_H ~0.09 from 20k, held-out 1.69→0.50. Prefill/pretrain/reinforce did not replace train_ratio 512. Do not grind to 1M.",
-      "paper_spin": "Negative result with finding 14/15: finishable XL-from-scratch on this box collapses; paper-ratio XL is a 5-day run."
+      "paper_spin": "Negative result with finding 14/15: finishable XL-from-scratch on this box collapses; paper-ratio XL is a 5-day run.",
+      "superseded_by": "17"
+    },
+    {
+      "id": "17",
+      "file": "findings/17-actor-critic-alignment-bugs.md",
+      "title": "The M7 actor collapse was six actor-critic implementation bugs, not size or train_ratio",
+      "tags": ["graph", "negative-result", "eval"],
+      "one_liner": "Advantage baseline used V(s_t+1) not V(s_t); critic target off by one; no slow critic; no discount weights; critic loss leaked into the actor; and the notebook never forwarded imag_gradient, so both XL runs summed the straight-through dynamics term that DreamerV3 weights at 0 for discrete actions.",
+      "paper_spin": "Implementation-identifiability section: six divergences, each silent in the loss curves, all presenting as entropy → unimix floor. An off-by-one advantage baseline is exactly zero-error at init under critic.outscale 0.0, so no shape/grad/smoke test can catch it."
     }
   ],
   "do_not_revive": [
@@ -253,6 +282,15 @@
     "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor (~0.08 nats)",
     "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
     "Reading collect length vs M6's 190 as a 40k pass/fail",
-    "Grinding m7_xl_workstation after ac_H sits near 0.08–0.10 from 20k (held-out 1.69→0.50)"
+    "Grinding m7_xl_workstation after ac_H sits near 0.08–0.10 from 20k (held-out 1.69→0.50)",
+    "Blaming actor entropy collapse on model size or train_ratio before diffing ac_step/imagine against the reference (finding 17)",
+    "Implementing imag_gradient='both' as reinforce + dynamics summed; DreamerV3 is a convex mix with imag_gradient_mix 0.0 (dynamics weight zero on discrete actions)",
+    "Using V(s_t+1) as the REINFORCE baseline for the action taken at s_t",
+    "Training the critic head at s_t+1 against the λ-return target for V(s_t)",
+    "Running the actor-critic without a slow (EMA) critic or without the cumprod discount weights",
+    "Letting the critic read non-detached imagined features (critic loss then flows into the actor through img_step)",
+    "Computing a config value in the notebook and not passing it to outer_cycle",
+    "Trusting a smoke test to catch an advantage-alignment bug: a zero-init critic makes the wrong and right formulas identical",
+    "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified"
   ]
 }

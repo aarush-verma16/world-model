@@ -389,7 +389,10 @@ flowchart LR
         body:"M7 v2 at 40k is 2.14 env/s because 16 WM+16 AC per 16 env steps, not a hung dashboard. M6 size-S 16/1/1 was ~37 env/s; 37/16≈2.3. 1M is ~5.4 days; cancelled. Seq 32 also doubles NM512/dreamerv3-torch’s 8 updates per 16 env." },
       { id:"16", tags:["eval","negative-result"], title:"XL + M6 update count still collapses the actor by 20k",
         file:"findings/16-xl-workstation-actor-collapse.md",
-        body:"M7 v3 workstation ratio 32 is 26 env/s and dead. ac_H mean 0.09 from 20–100k (floor ~0.08). Held-out 1.694→0.499; sapling/plant/table gone. Prefill/pretrain/reinforce did not replace train_ratio 512. Do not grind to 1M." }
+        body:"M7 v3 workstation ratio 32 is 26 env/s and dead. ac_H mean 0.09 from 20–100k (floor ~0.08). Held-out 1.694→0.499; sapling/plant/table gone. Prefill/pretrain/reinforce did not replace train_ratio 512. Do not grind to 1M. SUPERSEDED by 17: the same six actor-critic bugs were under every M7 run, so none of them tested XL or train_ratio." },
+      { id:"17", tags:["graph","negative-result","eval"], title:"The M7 actor collapse was six actor-critic implementation bugs, not size or train_ratio",
+        file:"findings/17-actor-critic-alignment-bugs.md",
+        body:"Diffed ac_step/imagine against NM512/dreamerv3-torch. (1) The advantage used V(s_t+1) as the baseline for the action taken at s_t, so Q−V was really reward+(γc−1)·V — a sign that barely depends on the action. (2) The critic head at s_t+1 was trained against the λ-return target for V(s_t). (3) No slow (EMA) critic. (4) No cumprod discount weights, so imagined steps after a predicted death trained at full weight. (5) The critic read non-detached features, leaking critic-loss gradient into the actor through img_step. (6) The notebook computed imag_gradient and never passed it, so both XL runs ran 'both' = reinforce + dynamics SUMMED; DreamerV3's 'both' is a convex mix with imag_gradient_mix 0.0, i.e. dynamics weight zero on every discrete-action task. Also missing critic.outscale 0.0. The sharp bit: an off-by-one advantage baseline is exactly zero-error at init under outscale 0.0 (V≡0 makes both formulas identical), so no shape, gradient or smoke test can catch it — only a test with a non-constant value function. Post-fix smoke: entropy 2.758 of ln(17)=2.833, value and slow_value exactly 0, adv +0.123±0.311." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -414,7 +417,16 @@ flowchart LR
       "Grinding an XL-from-scratch run after actor entropy sits on the unimix floor",
       "Silently dropping train_ratio 512 to finish a 1M overnight and still calling it the paper outer loop",
       "Reading collect length vs M6's 190 as a 40k pass/fail",
-      "Grinding m7_xl_workstation after entropy sits on the unimix floor"
+      "Grinding m7_xl_workstation after entropy sits on the unimix floor",
+      "Blaming actor entropy collapse on model size or train_ratio before diffing ac_step/imagine against the reference",
+      "Implementing imag_gradient 'both' as reinforce + dynamics summed (DreamerV3 mixes them, with dynamics weight 0 on discrete actions)",
+      "Using V(s_t+1) as the REINFORCE baseline for the action taken at s_t",
+      "Training the critic head at s_t+1 against the λ-return target for V(s_t)",
+      "Running the actor-critic without a slow (EMA) critic or without the cumprod discount weights",
+      "Letting the critic read non-detached imagined features",
+      "Computing a config value in the notebook and not passing it to outer_cycle",
+      "Trusting a smoke test to catch an advantage-alignment bug (a zero-init critic makes wrong and right identical)",
+      "Raising entropy_scale above 3e-4 to fight a collapse before the actor-critic graph is verified"
     ];
 
     let tag = "all";

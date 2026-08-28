@@ -1,0 +1,90 @@
+# M8 — first run on the fixed actor-critic. Cheap, so run this one FIRST.
+#
+# Both M7 XL runs collapsed the actor to the unimix floor (finding 16). The
+# cause was in the actor-critic step, not the model size or train_ratio
+# (finding 17): the advantage used V(s_{t+1}) as the baseline for the action
+# taken at s_t, so `Q - V` was really `reward + (γ-1)·V` — a term whose sign
+# barely depends on the action. There was no slow critic, no discount weights,
+# and the notebook silently ran imag_gradient="both" instead of "reinforce".
+#
+# This config isolates "did the fix work?" from "can XL learn a WM from
+# scratch?": size-S (19M) on M6's already-good 1M world model, fresh actor.
+# It runs at ~30 env/s, so 100k is ~1 hour. It CANNOT reach DreamerV3 14.5 —
+# that needs XL. Once ac_H holds well above the 0.08 floor here, move to
+# configs/m8_xl_acfix.yaml for the score run.
+#
+# Kill criterion: if ac_H is under 0.15 at 30k, the fix did not take and the
+# next suspect is entropy_scale, not another 1M run.
+#
+# User-run: notebooks/10_train_paper_online.ipynb with CONFIG pointing here.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_s.yaml
+world_model_ckpt: checkpoints/m6_baseline/ckpt_latest.pt
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 512
+  layers: 2
+  unimix: 0.01
+
+critic:
+  hidden: 512
+  layers: 2
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  # DreamerV3 slow critic. The EMA copy is a second regression target, not a
+  # bootstrap source; without it the critic chases its own target.
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 200000
+  collect_every: 16
+  train_ratio: 32
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  # DreamerV3-torch `pretrain: 100` = 100 joint WM-then-AC updates on that
+  # buffer before any env collect. `pretrain_wm_steps` is the same count
+  # (legacy key). The notebook used to skip this entirely.
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 500000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 100000
+  log_dir: runs/m8_s_acfix
+  checkpoint_dir: checkpoints/m8_s_acfix
+  results_dir: results/m8_s_acfix
+  replay_out: data/m8_s_acfix_replay.pt

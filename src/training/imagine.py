@@ -25,8 +25,19 @@ from models.world_model import WorldModel
 class ImaginedRollout:
     """One imagination batch. Leading dim `N` is start states (`B` or `B*T`).
 
-    All time-indexed tensors are `[N, H, ...]`. `z_prior` is the latent after
-    each `img_step` — never a posterior.
+    Indexing follows DreamerV3: **state-indexed** quantities cover the `H + 1`
+    states `s_0 .. s_H` (`s_0` is the replay posterior, `s_i` is after `i`
+    `img_step`s), while **action-indexed** quantities cover the `H` actions
+    taken *at* `s_0 .. s_{H-1}`.
+
+    State-indexed `[N, H+1, ...]`: `h`, `z_prior`, `feat`, `reward`, `cont`,
+    `value`, `value_logits`.
+    Action-indexed `[N, H, ...]`: `action`, `log_prob`, `entropy`.
+
+    So `value[:, i]` is `V(s_i)` — the baseline for `log_prob[:, i]` — and
+    `reward[:, i]` is the reward predicted *at* `s_i`. Mixing the two is how
+    the advantage silently becomes `reward + (γ-1)·V` instead of `Q - V`.
+    `z_prior` is a prior sample at every index except the detached seed.
     """
 
     h: Tensor
@@ -112,8 +123,15 @@ def imagine_ahead(
         discount: extra multiplier on predicted continue (DreamerV3 0.997).
 
     Returns:
-        `ImaginedRollout` with time dim `H`. Reward / continue / value are
-        decoded from the *next* state after each `img_step`.
+        `ImaginedRollout`. State-indexed fields have time dim `H + 1` (the seed
+        state plus one per `img_step`); action-indexed fields have time dim `H`.
+
+    The actor sees a **detached** feature at every step, matching DreamerV3's
+    `inp = feat.detach()`. The straight-through action still carries gradient
+    into `img_step`, so the `dynamics` path survives; what is cut is the
+    recurrent actor→actor path that has no analogue in the paper. The critic
+    also reads detached features so the critic loss cannot leak gradient into
+    the actor through the imagined dynamics.
     """
     if horizon < 1:
         raise ValueError(f"horizon must be >= 1, got {horizon}")
@@ -131,28 +149,27 @@ def imagine_ahead(
     v_logits: list[Tensor] = []
     values: list[Tensor] = []
 
-    for _ in range(horizon):
-        feat_in = rssm_features(h, z_prior)
-        action, log_prob, entropy, _probs = actor.policy(feat_in)
-        h, z_prior, _prior_logits = world_model.rssm.img_step(h, z_prior, action)
+    for step in range(horizon + 1):
         feat = rssm_features(h, z_prior)
         reward_logits = world_model.reward_head(feat)
         cont_logit = world_model.continue_head(feat).squeeze(-1)
-        value_logits = critic(feat)
-        reward = symlog_twohot_mean(reward_logits, world_model.reward_head.bins)
-        value = symlog_twohot_mean(value_logits, critic.bins)
-        cont = torch.sigmoid(cont_logit) * discount
+        value_logits = critic(feat.detach())
 
         hs.append(h)
         zs.append(z_prior)
         feats.append(feat)
+        rewards.append(symlog_twohot_mean(reward_logits, world_model.reward_head.bins))
+        conts.append(torch.sigmoid(cont_logit) * discount)
+        v_logits.append(value_logits)
+        values.append(symlog_twohot_mean(value_logits, critic.bins))
+
+        if step == horizon:
+            break
+        action, log_prob, entropy, _probs = actor.policy(feat.detach())
         acts.append(action)
         logps.append(log_prob)
         ents.append(entropy)
-        rewards.append(reward)
-        conts.append(cont)
-        v_logits.append(value_logits)
-        values.append(value)
+        h, z_prior, _prior_logits = world_model.rssm.img_step(h, z_prior, action)
 
     return ImaginedRollout(
         h=torch.stack(hs, dim=1),

@@ -13,8 +13,27 @@ the rare nonzero achievement/damage steps. Decode a scalar with
 
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import Tensor, nn
+
+
+def init_output_layer(layer: nn.Linear, out_scale: float) -> None:
+    """DreamerV3 `outscale` init for a head's last layer.
+
+    `out_scale=0.0` zeros the layer so the head starts at its prior (a uniform
+    two-hot distribution decodes to 0). A critic that starts at 0 cannot hand
+    the actor a large arbitrary advantage on step 1.
+    """
+    fan = (layer.in_features + layer.out_features) / 2.0
+    limit = math.sqrt(3.0 * float(out_scale) / fan)
+    if limit == 0.0:
+        nn.init.zeros_(layer.weight)
+    else:
+        nn.init.uniform_(layer.weight, -limit, limit)
+    if layer.bias is not None:
+        nn.init.zeros_(layer.bias)
 
 
 def rssm_features(h: Tensor, z: Tensor) -> Tensor:
@@ -46,6 +65,7 @@ class MLPHead(nn.Module):
         out_dim: int,
         hidden: int = 512,
         layers: int = 2,
+        out_scale: float | None = None,
     ) -> None:
         super().__init__()
         if layers < 1:
@@ -61,7 +81,10 @@ class MLPHead(nn.Module):
                 ]
             )
             prev = hidden
-        mods.append(nn.Linear(prev, out_dim))
+        out_layer = nn.Linear(prev, out_dim)
+        if out_scale is not None:
+            init_output_layer(out_layer, out_scale)
+        mods.append(out_layer)
         self.net = nn.Sequential(*mods)
         self.in_dim = in_dim
         self.out_dim = out_dim

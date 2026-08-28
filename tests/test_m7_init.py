@@ -135,7 +135,50 @@ def test_m7_workstation_config_is_ratio_32() -> None:
     assert wm_u == 1 and ac_u == 1
 
 
-def test_loop_updates_train_ratio_and_explicit() -> None:
+def test_m8_acfix_configs_enable_the_reference_recipe() -> None:
+    """Both M8 configs must carry the finding-17 settings, not M7's defaults."""
+    import yaml
+
+    for path, wm_size in (
+        ("configs/m8_s_acfix.yaml", "configs/sizes/dreamer_s.yaml"),
+        ("configs/m8_xl_acfix.yaml", "configs/sizes/dreamer_xl.yaml"),
+    ):
+        cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        assert cfg["world_model_config"] == wm_size, path
+        assert cfg.get("reset_actor") is True, path
+        critic = cfg["critic"]
+        assert critic["slow_target"] is True, path
+        assert float(critic["slow_target_fraction"]) == 0.02, path
+        assert int(critic["slow_target_update"]) == 1, path
+        train = cfg["train"]
+        assert train["imag_gradient"] == "reinforce", path
+        assert int(train.get("pretrain_steps", train["pretrain_wm_steps"])) == 100, path
+        assert float(train["entropy_scale"]) == 3.0e-4, path
+        assert int(train["horizon"]) == 15, path
+        # Never point an M8 run at an M7 checkpoint dir: those actors are dead.
+        for key in ("checkpoint_dir", "log_dir", "results_dir"):
+            assert "m7" not in train[key], (path, key)
+
+
+def test_m8_s_acfix_seeds_from_the_m6_world_model() -> None:
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m8_s_acfix.yaml").read_text(encoding="utf-8"))
+    assert cfg["world_model_ckpt"] == "checkpoints/m6_baseline/ckpt_latest.pt"
+    assert cfg.get("actor_critic_ckpt") in (None, "")
+    assert cfg.get("seed_replay") in (None, "")
+
+
+def test_overlay_wm_train_copies_paper_kl_scales() -> None:
+    from train_agent import overlay_wm_train
+
+    out = overlay_wm_train(
+        {"dyn_scale": 1.0, "rep_scale": 0.5, "lr": 1e-4},
+        {"dyn_scale": 0.5, "rep_scale": 0.1},
+    )
+    assert out["dyn_scale"] == 0.5
+    assert out["rep_scale"] == 0.1
+    assert out["lr"] == 1e-4
     from training.outer_loop import loop_updates
 
     n, m = loop_updates(

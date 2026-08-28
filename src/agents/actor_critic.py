@@ -10,6 +10,8 @@ window; every imagined step is `z_prior`.
 
 from __future__ import annotations
 
+import copy
+
 import torch
 from torch import Tensor, nn
 
@@ -68,6 +70,9 @@ class Critic(nn.Module):
     Bins live on this module (not shared weights with the frozen reward head)
     so the critic can move independently. Default range matches DreamerV3 /
     the world-model reward head (`symlog([-20, 20])`, 255 bins).
+
+    `out_scale=0.0` is DreamerV3's `critic.outscale`: the last layer starts at
+    zero so the initial value is exactly 0 everywhere.
     """
 
     def __init__(
@@ -78,12 +83,61 @@ class Critic(nn.Module):
         num_bins: int = 255,
         low: float = -20.0,
         high: float = 20.0,
+        out_scale: float | None = 0.0,
     ) -> None:
         super().__init__()
-        self.net = MLPHead(feat_dim, num_bins, hidden=hidden, layers=layers)
+        self.net = MLPHead(
+            feat_dim, num_bins, hidden=hidden, layers=layers, out_scale=out_scale
+        )
         self.feat_dim = feat_dim
         self.register_buffer("bins", torch.linspace(low, high, num_bins))
 
     def forward(self, feat: Tensor) -> Tensor:
         """`feat` `[..., feat_dim]` → two-hot logits `[..., num_bins]`."""
         return self.net(feat)
+
+
+class SlowCritic(nn.Module):
+    """EMA copy of the critic, used as a second regression target.
+
+    DreamerV3 regresses the critic onto the λ-return **and** onto this slow
+    copy. Without the anchor the critic and the bootstrap inside its own target
+    chase each other; the visible symptom is a saturated actor, not a bad
+    critic metric. `fraction` is the paper's `slow_target_fraction` (0.02).
+    """
+
+    def __init__(
+        self,
+        critic: Critic,
+        fraction: float = 0.02,
+        update_every: int = 1,
+    ) -> None:
+        super().__init__()
+        if not 0.0 < float(fraction) <= 1.0:
+            raise ValueError(f"fraction must be in (0, 1], got {fraction}")
+        self.critic = copy.deepcopy(critic)
+        self.critic.requires_grad_(False)
+        self.fraction = float(fraction)
+        self.update_every = max(1, int(update_every))
+        self.register_buffer("updates", torch.zeros((), dtype=torch.long))
+
+    @torch.no_grad()
+    def update(self, critic: Critic) -> None:
+        """Mix `critic` weights into this copy (call once per critic step)."""
+        if int(self.updates) % self.update_every == 0:
+            mix = self.fraction
+            for src, dst in zip(critic.parameters(), self.critic.parameters()):
+                dst.mul_(1.0 - mix).add_(src.detach(), alpha=mix)
+        self.updates += 1
+
+    def reset(self, critic: Critic) -> None:
+        """Copy `critic` in wholesale (used when a checkpoint has no EMA state)."""
+        self.critic.load_state_dict(critic.state_dict(), strict=True)
+
+    @property
+    def bins(self) -> Tensor:
+        return self.critic.bins
+
+    def forward(self, feat: Tensor) -> Tensor:
+        """`feat` `[..., feat_dim]` → two-hot logits `[..., num_bins]`."""
+        return self.critic(feat)

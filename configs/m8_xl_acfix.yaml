@@ -1,0 +1,87 @@
+# M8 — XL ~198M from scratch on the fixed actor-critic. The score attempt.
+#
+# Only start this after configs/m8_s_acfix.yaml has held ac_H well above the
+# 0.08 unimix floor. XL from scratch already burned two runs (findings 15, 16)
+# and this one is 1M steps; do not spend it validating the fix.
+#
+# Same graph and seed recipe as m7_xl_workstation.yaml (2500 random prefill,
+# 100 WM pretrain, imag_gradient=reinforce, dyn/rep 0.5/0.1) plus the
+# actor-critic corrections in finding 17: V(s_t) baseline, aligned critic
+# target, discount weights, slow critic, detached actor input, per-module
+# grad clip.
+#
+# Still NOT the paper train_ratio. 512 on this box is ~2 env/s / ~5.4 days
+# (finding 15), so a 14.5 claim is not available here — caption any result as
+# "XL from scratch, seq 32, train_ratio 32".
+#
+# User-run: notebooks/10_train_paper_online.ipynb with CONFIG pointing here.
+# Do not resume checkpoints/m7_xl_paper or checkpoints/m7_xl_workstation:
+# those actors are already at the floor.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 32
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 500000
+  eval_every: 50000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 100000
+  checkpoint_every: 50000
+  replay_every: 100000
+  log_dir: runs/m8_xl_acfix
+  checkpoint_dir: checkpoints/m8_xl_acfix
+  results_dir: results/m8_xl_acfix
+  replay_out: data/m8_xl_acfix_replay.pt

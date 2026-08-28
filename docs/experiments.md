@@ -16,6 +16,42 @@ Held-out **1.694 → 0.499**. `ac_H` on the unimix floor from ~20k (mean
 0.09, finding 16). Same collapse as v1, faster wall clock. **Stop — do not
 grind to 1M.**
 
+## M8 actor-critic fix (2026-08-27)
+
+None of the three M7 runs tested XL or `train_ratio`: all three shared six
+actor-critic bugs against the DreamerV3 reference (finding 17).
+
+1. The advantage baseline was `V(s_{t+1})` for the action taken at `s_t`, so
+   `Q − V` was really `reward + (γc − 1)·V`.
+2. The critic head at `s_{t+1}` was trained against the λ-return for `V(s_t)`.
+3. No slow (EMA) critic (`slow_target_fraction: 0.02` is a paper default).
+4. No cumprod discount weights, so imagined steps after a predicted death
+   trained at full weight.
+5. The critic read non-detached features, leaking critic-loss gradient into the
+   actor through `img_step`.
+6. `notebooks/10_train_paper_online.ipynb` computed `imag_gradient` and never
+   passed it to `outer_cycle`, so every run used `"both"` — and our `"both"`
+   *summed* reinforce and the straight-through dynamics term. DreamerV3's
+   `both` is a convex mix with `imag_gradient_mix: 0.0`, i.e. the dynamics term
+   is weighted **zero** on Crafter, Atari100k, Minecraft and MemoryMaze.
+
+Also added `critic.outscale: 0.0` so the initial value is exactly 0.
+
+The alignment now lives in one place, `training.returns.imagined_targets`, with
+regression tests that use a *non-constant* value function — under a zero-init
+critic the wrong and right advantage formulas are identically equal, which is
+why no smoke test ever caught this.
+
+The notebook also skipped DreamerV3-torch `pretrain: 100` (joint WM+AC on the
+random prefill) and did not overlay paper KL scales onto the size YAML. That
+is wired now (`pretrain_dreamer`, `overlay_wm_train`).
+
+**Next, in order.** `configs/m8_s_acfix.yaml` (size-S on M6's 1M world model,
+fresh actor, 200k, ~1 h) to validate the fix cheaply, then
+`configs/m8_xl_acfix.yaml` (XL 198M from scratch, 1M) for the score attempt.
+Kill either run if `ac_H` is under 0.15 at 30k. Both smoke clean; neither has
+been trained.
+
 ## M6 Crafter baseline (2026-08-26, 1M done)
 
 Continue the M5 **100k** agent to **1M** env steps. Config:
