@@ -210,3 +210,22 @@ def test_m9_xl_is_a_new_dir_not_m8_resume() -> None:
         assert "m9_xl" in path, (key, path)
         assert "m8_xl_acfix" not in path, (key, path)
         assert "m7" not in path, (key, path)
+
+
+def test_m10_continues_m9_at_ratio_128() -> None:
+    import yaml
+
+    from training.outer_loop import loop_updates
+
+    cfg = yaml.safe_load(Path("configs/m10_xl_r128.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    assert cfg.get("reset_actor") is False
+    assert cfg["seed_joint_ckpt"] == "checkpoints/m9_xl/ckpt_step_400000.pt"
+    assert cfg["seed_replay"] == "data/m9_xl_replay.pt"
+    assert float(train["train_ratio"]) == 128.0
+    wm_u, ac_u = loop_updates(train)
+    assert wm_u == 4 and ac_u == 4
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m10_xl_r128" in path, (key, path)
+        assert "m8_xl_acfix" not in path, (key, path)

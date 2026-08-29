@@ -92,6 +92,7 @@
       <a href="#m5stub">M5 outer loop</a>
       <a href="#m6stub">M6 baseline</a>
       <a href="#m8gap">14.5 gap</a>
+      <a href="#m9island">400k island</a>
       <a href="#graphs">Two training graphs</a>
       <a href="#findings">Findings</a>
       <a href="#stills">Recon stills</a>
@@ -248,6 +249,19 @@
         <img src="figures/recipe_gap_table.png" alt="Knob-by-knob recipe table vs DreamerV3 Crafter 2023" />
         <figcaption>Remaining code: streaming replay + <code>is_first</code>, and CNN <code>blocks=1</code> vs 2. Everything else in this table is a workstation recipe, not a missing pixel loss.</figcaption>
       </figure>
+
+      <h2 id="m9island">M9 400k skill island (finding 21)</h2>
+      <p class="muted">Cumulative gmean 2.56 vs last-200 <strong>2.49</strong>. Held-out 2.82 at 400k is n=10 luck (350k was 1.39). Do not roll back the RSSM. Next run is ratio 128 on these weights.</p>
+      <div class="compare">
+        <figure>
+          <img src="figures/m9_unlock_windows_400k.png" alt="M9 collect unlock percent by 50k env window" />
+          <figcaption>Sapling / plant / wake saturate. Stone never sticks. Zombie peaked 21% then fell.</figcaption>
+        </figure>
+        <figure>
+          <img src="figures/m9_imagine_step_400000.png" alt="M9 15-step z_prior imagination at 400k" />
+          <figcaption>15-step z_prior of standing still. That is this policy, not a decoder bypass.</figcaption>
+        </figure>
+      </div>
 
       <h2 id="graphs">Why two weeks of extra losses could not work</h2>
       <p class="muted">The optimizer was solving a different problem than “train a DreamerV3 world model.”</p>
@@ -419,7 +433,10 @@ flowchart LR
         body:"No-combat starvation is step 338; at 200 health is still 9. Of 500 M8-XL lives at 80k, 66% end at 150–220 (38% at 150–180). Drinking buys mean 165→225 but drinkers still median 208. defeat_zombie is 0.6%. Last 80 lives: wake_up 92.5% — sleeping zombies deal 7. Do not add a hunger bonus. Watch zombie kills, not the 190 dotted line." },
       { id:"20", tags:["eval","compute","negative-result"], title:"The 14.5 gap is a different experiment, not a missing loss head",
         file:"findings/20-score-gap-is-recipe-not-a-missing-head.md",
-        body:"Published 14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. M8-XL was ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k. M9 (configs/m9_xl.yaml) starts from 0 with is_first + streaming replay. Still 16× less replay per env step. Do not resume m8_xl_acfix2 into M9." }
+        body:"Published 14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. M8-XL was ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k. M9 (configs/m9_xl.yaml) starts from 0 with is_first + streaming replay. Still 16× less replay per env step. Do not resume m8_xl_acfix2 into M9." },
+      { id:"21", tags:["eval","negative-result"], title:"The 400k flat gmean is a skill island, not a dead trainer",
+        file:"findings/21-m9-400k-is-a-skill-island.md",
+        body:"M9 at 405k: cumulative gmean 2.56, last-200 2.49. wake_up ~93%, sapling/plant saturated, stone 0, zombie peaked 21% then fell. Held-out 2.82 is n=10 luck (350k 1.39). ac_H ~0.6. Do not roll back the decoder. Next is train_ratio 128 on the 400k weights before FIFO drops the rare pickaxe rows." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -460,7 +477,10 @@ flowchart LR
       "Killing m8_xl_acfix2 to start the real paper recipe in the same checkpoint dir",
       "Matching 2026 jax dreamerv3 main (deter 8192, 64 classes) and calling it the 2023 14.5 recipe",
       "Raising train_ratio, seq, blocks, and deter_dim in one config so the next OOM has four causes",
-      "Resuming m8_xl_acfix2 into the M9 streaming-replay graph"
+      "Resuming m8_xl_acfix2 into the M9 streaming-replay graph",
+      "Rolling back the RSSM because M9 cumulative gmean sat at 2.56",
+      "Reading M9 held-out 2.82 at 400k as a tech-tree climb",
+      "Grinding M9 to 1M at train_ratio 32 to move a saturated cumulative gmean"
     ];
 
     let tag = "all";
