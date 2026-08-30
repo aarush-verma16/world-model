@@ -1,0 +1,78 @@
+# M11 — XL from scratch at train_ratio 128. Does not resume anyone.
+#
+# M10 continued M9's 400k sleep-island actor (finding 22): +120k env, mean
+# length still ~183, wake_up 97%, held-out 2.25 → 1.76. Do not load
+# checkpoints/m9_xl, checkpoints/m10_xl_r128, or seed_joint_ckpt.
+#
+# Same XL graph as M9, 4× M9's updates per env step. New dirs. Notebook 10:
+# RESUME=None, interrupt, restart kernel, run from the top. Status must
+# show 0/1M. Expect ~6–8 env/s, not 26. Paper 512 is still ~5 days
+# (finding 15). Caption as ratio 128 from scratch — not 14.5.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 128
+  wm_updates: 1
+  ac_updates: 1
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 500000
+  eval_every: 50000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 100000
+  checkpoint_every: 50000
+  replay_every: 100000
+  log_dir: runs/m11_xl_r128
+  checkpoint_dir: checkpoints/m11_xl_r128
+  results_dir: results/m11_xl_r128
+  replay_out: data/m11_xl_r128_replay.pt

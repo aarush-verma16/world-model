@@ -39,6 +39,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | ~200-step death is combat, not hunger | Results / Crafter mechanics: starvation clock is 338; modal 170 is zombies + sleep |
 | 14.5 gap is recipe + sampler, not a missing head | Compute/protocol: ratio 32 vs 512 is 16× less replay; remaining code is `is_first` and CNN `blocks=1` |
 | 400k flat gmean is a skill island | Eval: last-N vs cumulative; do not roll back the decoder |
+| Ratio 128 on the 400k actor did not buy survival | Negative: more replay on a sleep policy ≠ 512 from scratch |
 
 ## Index of findings
 
@@ -62,7 +63,8 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 18. [XL 5 env/s is 16 GiB paging](findings/18-xl-reinforce-graph-thrashes-16gib.md) — 15.7 GiB / 88 W, not a dead actor. `ac_H` 0.50 at 22k. Unused reinforce RSSM graph.
 19. [~200-step death is combat, not hunger](findings/19-length-is-combat-not-hunger.md) — starvation clock 338; 66% of M8 lives die at 150–220 with drink still left.
 20. [The 14.5 gap is a different experiment](findings/20-score-gap-is-recipe-not-a-missing-head.md) — ratio 32 vs 512, seq 32 vs 64, episode-bounded replay; do not put 1.36 next to 14.5.
-21. [The 400k flat gmean is a skill island](findings/21-m9-400k-is-a-skill-island.md) — last-200 is 2.49; stone 0; held-out 2.82 is n=10; M10 is ratio 128 on the 400k weights.
+21. [The 400k flat gmean is a skill island](findings/21-m9-400k-is-a-skill-island.md) — last-200 is 2.49; stone 0; held-out 2.82 is n=10. Continuing that actor is finding 22.
+22. [Continuing the sleep-island actor does not buy survival](findings/22-m10-continue-did-not-buy-survival.md) — M10 +120k at ratio 128, length still 183, wake_up 97%; `RESUME=auto` loaded 500k. Next is from-scratch M11.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -77,8 +79,9 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M6 baseline** (`configs/m6_baseline.yaml`): **1M env steps**, 2026-08-26. Protocol **PASS**. Held-out gmean **0.627 → 1.639**, online **1.941**. Collect mean length **190**, max **441** — 10k cap never binds (finding 13). Live: `notebooks/09_train_baseline.ipynb`.
 - **M7 paper-online** (`configs/m7_paper_online.yaml`): XL ~198M from scratch. v1 at **100k** (2026-08-27) held-out **1.298 → 0.233**, entropy on unimix floor by 20k, wake_up only (finding 14). v2 (`checkpoints/m7_xl_paper`) cancelled at **~40k**: **~2.14 env/s**, entropy still alive (finding 15). v3 (`configs/m7_xl_workstation.yaml`, ratio 32) at **100k**: **26 env/s**, held-out **1.694 → 0.499**, entropy on the floor from ~20k (finding 16). Do not grind v3 to 1M. `notebooks/10_train_paper_online.ipynb`.
 - **M8 actor-critic fix** (finding 17): `m8_s_acfix` **200k DONE**. Held-out **1.386 → 2.068**, last `ac_H` **0.89** (min 0.74). XL `m8_xl_acfix2` stopped ~80k (online ~1.46, held-out 1.36 @ 50k, combat wall, V2 sampler). **Do not resume it.**
-- **M9 streaming replay** (`configs/m9_xl.yaml`): XL from scratch to **~405k**. Cumulative gmean **2.56**, last-200 **2.49**, wake_up ~93%, stone ~0 (finding 21). **Stopped** for M10. Keep `ckpt_step_400000.pt`.
-- **M10 ratio 128** (`configs/m10_xl_r128.yaml`): continue those weights, 4× replay per env step, new dirs. `notebooks/10_train_paper_online.ipynb`.
+- **M9 streaming replay** (`configs/m9_xl.yaml`): XL from scratch to **~405k**. Cumulative gmean **2.56**, last-200 **2.49**, wake_up ~93%, stone ~0 (finding 21). Keep `ckpt_step_400000.pt`. **Do not resume it.**
+- **M10 ratio 128** (`configs/m10_xl_r128.yaml`): continued those weights to **~523k**. Mean length still **~183**, held-out **2.25 → 1.76**, `wake_up` **97%** (finding 22). **Do not resume it.**
+- **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128, `RESUME=None`, new dirs. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

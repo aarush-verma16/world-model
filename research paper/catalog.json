@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-28",
+  "updated": "2026-08-30",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -146,12 +146,24 @@
       "wake_up_last200": 92.5,
       "defeat_zombie_all": 12.4,
       "collect_stone_all": 0.13,
-      "note": "Skill island (finding 21). Stopped for M10 ratio 128. Do not roll back the RSSM. Keep the 400k ckpt."
+      "note": "Skill island (finding 21). Do not resume. Continuing at ratio 128 is finding 22. Keep the 400k ckpt as evidence."
     },
     "m10_xl_r128": {
       "config": "configs/m10_xl_r128.yaml",
-      "env_steps": 400000,
-      "note": "Continue M9 400k at train_ratio 128. New dirs. seed_joint_ckpt=ckpt_step_400000.pt. Notebook 10."
+      "env_steps": 523520,
+      "heldout_gmean_400k": 2.247,
+      "heldout_gmean_500k": 1.764,
+      "online_gmean": 2.812,
+      "last200_gmean": 2.773,
+      "collect_length_mean_last200": 183,
+      "wake_up_last200": 96.5,
+      "defeat_zombie_500k_window": 27.6,
+      "note": "Finding 22. Continued M9 400k at ratio 128. Length still ~183; held-out 2.25→1.76. Do not resume this dir. RESUME=auto loaded ckpt_latest at 500k after a restart."
+    },
+    "m11_xl_r128": {
+      "config": "configs/m11_xl_r128.yaml",
+      "env_steps": 0,
+      "note": "From scratch, train_ratio 128, no seed_joint_ckpt. Notebook 10 RESUME=None. Writes checkpoints/m11_xl_r128."
     }
   },
   "findings": [
@@ -321,8 +333,16 @@
       "file": "findings/21-m9-400k-is-a-skill-island.md",
       "title": "The 400k flat gmean is a skill island, not a dead trainer",
       "tags": ["eval", "negative-result"],
-      "one_liner": "M9 last-200 gmean 2.49 vs cumulative 2.56. wake_up ~93%, stone 0, zombie peaked 21% then fell. Held-out 2.82 is n=10 luck (350k was 1.39). Next is train_ratio 128 on the 400k weights, not a decoder rollback.",
+      "one_liner": "M9 last-200 gmean 2.49 vs cumulative 2.56. wake_up ~93%, stone 0, zombie peaked 21% then fell. Held-out 2.82 is n=10 luck (350k was 1.39). Continuing this actor at ratio 128 did not buy survival (finding 22).",
       "paper_spin": "Eval: cumulative Crafter gmean saturates; plot last-N lives. Sleep+plant island does not move mean length off ~180."
+    },
+    {
+      "id": "22",
+      "file": "findings/22-m10-continue-did-not-buy-survival.md",
+      "title": "Continuing the sleep-island actor does not buy survival",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M10 ratio 128 on M9 400k: +120k env, mean length still 183, wake_up 97%, held-out 2.25→1.76. RESUME=auto then loaded 500k. Next is from-scratch ratio 128, not another resume.",
+      "paper_spin": "Raising train_ratio mid-run on a policy that already sleeps every life is not the paper’s 512-from-scratch curve."
     }
   ],
   "do_not_revive": [
@@ -367,6 +387,9 @@
     "Rolling back the RSSM / extra recon heads because M9's cumulative gmean sat at 2.56",
     "Reading M9 held-out 2.82 at 400k as a tech-tree climb (350k was 1.39)",
     "Grinding M9 to 1M at train_ratio 32 to move a saturated cumulative gmean",
-    "Waiting until replay FIFO drops the remaining pickaxe rows before raising train_ratio"
+    "Waiting until replay FIFO drops the remaining pickaxe rows before raising train_ratio",
+    "Resuming M9 400k or M10 500k and calling it a from-scratch run",
+    "RESUME=auto on notebook 10 after the user said the run must never resume",
+    "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not"
   ]
 }

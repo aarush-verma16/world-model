@@ -82,7 +82,7 @@
 <body>
   <header>
     <h1>Findings archive</h1>
-    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-28.</p>
+    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-30.</p>
   </header>
   <div class="wrap">
     <nav>
@@ -251,7 +251,7 @@
       </figure>
 
       <h2 id="m9island">M9 400k skill island (finding 21)</h2>
-      <p class="muted">Cumulative gmean 2.56 vs last-200 <strong>2.49</strong>. Held-out 2.82 at 400k is n=10 luck (350k was 1.39). Do not roll back the RSSM. Next run is ratio 128 on these weights.</p>
+      <p class="muted">Cumulative gmean 2.56 vs last-200 <strong>2.49</strong>. Held-out 2.82 at 400k is n=10 luck (350k was 1.39). Continuing this actor at ratio 128 did not move length off ~180 (finding 22). Do not resume M9 or M10.</p>
       <div class="compare">
         <figure>
           <img src="figures/m9_unlock_windows_400k.png" alt="M9 collect unlock percent by 50k env window" />
@@ -436,7 +436,10 @@ flowchart LR
         body:"Published 14.5 is XL at 1M with train_ratio 512, seq 64, streaming replay, GRU 4096. M8-XL was ratio 32, seq 32, finished-episode replay, GRU 2560, at 80k. M9 (configs/m9_xl.yaml) starts from 0 with is_first + streaming replay. Still 16× less replay per env step. Do not resume m8_xl_acfix2 into M9." },
       { id:"21", tags:["eval","negative-result"], title:"The 400k flat gmean is a skill island, not a dead trainer",
         file:"findings/21-m9-400k-is-a-skill-island.md",
-        body:"M9 at 405k: cumulative gmean 2.56, last-200 2.49. wake_up ~93%, sapling/plant saturated, stone 0, zombie peaked 21% then fell. Held-out 2.82 is n=10 luck (350k 1.39). ac_H ~0.6. Do not roll back the decoder. Next is train_ratio 128 on the 400k weights before FIFO drops the rare pickaxe rows." }
+        body:"M9 at 405k: cumulative gmean 2.56, last-200 2.49. wake_up ~93%, sapling/plant saturated, stone 0, zombie peaked 21% then fell. Held-out 2.82 is n=10 luck (350k 1.39). ac_H ~0.6. Do not roll back the decoder. Continuing this actor is finding 22." },
+      { id:"22", tags:["eval","negative-result"], title:"Continuing the sleep-island actor does not buy survival",
+        file:"findings/22-m10-continue-did-not-buy-survival.md",
+        body:"M10 loaded M9 400k and ran train_ratio 128 to ~523k. Mean length still 183; last-200 wake_up 97%; held-out 2.25→1.76. Zombie % rose 13→28 but they still die before hunger. A kernel restart with RESUME=auto then loaded ckpt_latest at 500k. Do not resume M9/M10. Next is M11 from scratch at ratio 128." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -480,7 +483,10 @@ flowchart LR
       "Resuming m8_xl_acfix2 into the M9 streaming-replay graph",
       "Rolling back the RSSM because M9 cumulative gmean sat at 2.56",
       "Reading M9 held-out 2.82 at 400k as a tech-tree climb",
-      "Grinding M9 to 1M at train_ratio 32 to move a saturated cumulative gmean"
+      "Grinding M9 to 1M at train_ratio 32 to move a saturated cumulative gmean",
+      "Resuming M9 400k or M10 500k and calling it a from-scratch run",
+      "RESUME=auto on notebook 10 after the user said the run must never resume",
+      "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not"
     ];
 
     let tag = "all";
