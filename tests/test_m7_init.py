@@ -252,3 +252,28 @@ def test_m11_from_scratch_ratio_128() -> None:
         assert "m10_xl" not in path, (key, path)
         assert "m9_xl" not in path, (key, path)
         assert "m8_xl_acfix" not in path, (key, path)
+
+def test_m12_from_scratch_ratio_512() -> None:
+    import yaml
+
+    from training.outer_loop import loop_updates
+
+    cfg = yaml.safe_load(Path("configs/m12_xl_r512.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    assert cfg.get("reset_actor") is True
+    assert not cfg.get("seed_joint_ckpt")
+    assert cfg.get("seed_replay") in (None, "")
+    assert cfg.get("world_model_ckpt") in (None, "")
+    assert cfg.get("actor_critic_ckpt") in (None, "")
+    assert float(train["train_ratio"]) == 512.0
+    wm_u, ac_u = loop_updates(train)
+    assert wm_u == 16 and ac_u == 16
+    assert int(train["eval_every"]) == 25000
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m12_xl_r512" in path, (key, path)
+        assert "m7_" not in path, (key, path)
+        assert "m9_xl" not in path, (key, path)
+        assert "m10_xl" not in path, (key, path)
+        assert "m11_xl" not in path, (key, path)
+

@@ -81,7 +81,8 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M8 actor-critic fix** (finding 17): `m8_s_acfix` **200k DONE**. Held-out **1.386 → 2.068**, last `ac_H` **0.89** (min 0.74). XL `m8_xl_acfix2` stopped ~80k (online ~1.46, held-out 1.36 @ 50k, combat wall, V2 sampler). **Do not resume it.**
 - **M9 streaming replay** (`configs/m9_xl.yaml`): XL from scratch to **~405k**. Cumulative gmean **2.56**, last-200 **2.49**, wake_up ~93%, stone ~0 (finding 21). Keep `ckpt_step_400000.pt`. **Do not resume it.**
 - **M10 ratio 128** (`configs/m10_xl_r128.yaml`): continued those weights to **~523k**. Mean length still **~183**, held-out **2.25 → 1.76**, `wake_up` **97%** (finding 22). **Do not resume it.**
-- **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128, `RESUME=None`, new dirs. `notebooks/10_train_paper_online.ipynb`.
+- **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128, never started. Superseded by M12.
+- **M12 paper ratio** (`configs/m12_xl_r512.yaml`): from scratch, `train_ratio` 512, `RESUME=None`. One day ≈ 180k env steps. Leave the notebook cell running to continue; interrupt to stop. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 
