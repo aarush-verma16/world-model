@@ -277,3 +277,11 @@ def test_m12_from_scratch_ratio_512() -> None:
         assert "m10_xl" not in path, (key, path)
         assert "m11_xl" not in path, (key, path)
 
+
+def test_notebook_10_binds_m12_not_m11() -> None:
+    """Stale editor buffers kept launching M11 at 8 env/s. Pin the source."""
+    text = Path("notebooks/10_train_paper_online.ipynb").read_text(encoding="utf-8")
+    assert "configs/m12_xl_r512.yaml" in text
+    assert "configs/m11_xl_r128.yaml" not in text
+    assert "Need 512 and 16/16" in text
+
