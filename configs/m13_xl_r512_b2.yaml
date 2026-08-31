@@ -1,0 +1,75 @@
+# M13 — XL blocks=2 from scratch at train_ratio 512.
+#
+# Same replay rate as M12 (16 WM+AC / 16 env, ~2 env/s, 1M ≈ 5.4 days).
+# Only model change vs M12: encoder/decoder residual blocks 1→2
+# (Table B.1 / finding 04). Do not load m12 or any earlier joint ckpt.
+#
+# Notebook 10: RESUME=None, restart kernel, run from the top. Status 0/1M.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl_b2.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 500000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m13_xl_r512_b2
+  checkpoint_dir: checkpoints/m13_xl_r512_b2
+  results_dir: results/m13_xl_r512_b2
+  replay_out: data/m13_xl_r512_b2_replay.pt

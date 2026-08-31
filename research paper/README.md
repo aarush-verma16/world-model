@@ -38,6 +38,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | Six silent actor-critic divergences → one symptom | Implementation identifiability: off-by-one advantage is exactly 0-error at init; `imag_gradient_mix: 0.0` is load-bearing |
 | ~200-step death is combat, not hunger | Results / Crafter mechanics: starvation clock is 338; modal 170 is zombies + sleep |
 | 14.5 gap is recipe + sampler, not a missing head | Compute/protocol: ratio 32 vs 512 is 16× less replay; remaining code is `is_first` and CNN `blocks=1` |
+| XL `blocks=2` fits 16 GiB at seq 32 | Compute: +18M weights, smoke peak 11.3 GiB; M13 is that knob at ratio 512 |
 | 400k flat gmean is a skill island | Eval: last-N vs cumulative; do not roll back the decoder |
 | Ratio 128 on the 400k actor did not buy survival | Negative: more replay on a sleep policy ≠ 512 from scratch |
 
@@ -66,6 +67,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 21. [The 400k flat gmean is a skill island](findings/21-m9-400k-is-a-skill-island.md) — last-200 is 2.49; stone 0; held-out 2.82 is n=10. Continuing that actor is finding 22.
 22. [Continuing the sleep-island actor does not buy survival](findings/22-m10-continue-did-not-buy-survival.md) — M10 +120k at ratio 128, length still 183, wake_up 97%; `RESUME=auto` loaded 500k.
 23. [Ratio 128 from scratch is the island by 135k](findings/23-m11-128-is-the-island-at-135k.md) — last-200 ~2.0, length 177, wake 96.5%, zombie 1% vs M9’s 12.5% at the same env.
+24. [XL `blocks=2` fits 16 GiB](findings/24-xl-blocks2-fits-16gib.md) — 215.6M WM, smoke peak 11.3 GiB at 16×32; M13 is ratio 512 + Table B.1 residuals. Do not load M12.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -83,7 +85,8 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M9 streaming replay** (`configs/m9_xl.yaml`): XL from scratch to **~405k**. Cumulative gmean **2.56**, last-200 **2.49**, wake_up ~93%, stone ~0 (finding 21). Keep `ckpt_step_400000.pt`. **Do not resume it.**
 - **M10 ratio 128** (`configs/m10_xl_r128.yaml`): continued those weights to **~523k**. Mean length still **~183**, held-out **2.25 → 1.76**, `wake_up` **97%** (finding 22). **Do not resume it.**
 - **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128 to **~137k**. Last-200 **~2.0**, length **177**, `wake_up` **96.5%**, zombie **1%** (finding 23). **Stop — do not grind to 1M.**
-- **M12 paper ratio** (`configs/m12_xl_r512.yaml`): from scratch, `train_ratio` **512**, `RESUME=None`. ~2 env/s, 1M ≈ 5.4 days. Stop at ~180k (1 day) or ~500k (halfway) if you want. `notebooks/10_train_paper_online.ipynb`.
+- **M12 paper ratio** (`configs/m12_xl_r512.yaml`): from scratch, `train_ratio` **512**, `blocks=1`. ~2 env/s. Island-shaped at ~100–116k (last-200 ~1.4, wake saturated, stone 0). **Do not resume it into M13.**
+- **M13 blocks=2** (`configs/m13_xl_r512_b2.yaml`): same 512 schedule, encoder/decoder **blocks=2**. Smoke **11.3 GiB** (finding 24). `RESUME=None`. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

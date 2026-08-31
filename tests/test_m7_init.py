@@ -278,10 +278,43 @@ def test_m12_from_scratch_ratio_512() -> None:
         assert "m11_xl" not in path, (key, path)
 
 
-def test_notebook_10_binds_m12_not_m11() -> None:
-    """Stale editor buffers kept launching M11 at 8 env/s. Pin the source."""
+def test_m13_from_scratch_ratio_512_blocks2() -> None:
+    import yaml
+
+    from training.outer_loop import loop_updates
+
+    cfg = yaml.safe_load(Path("configs/m13_xl_r512_b2.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    size = yaml.safe_load(
+        Path(cfg["world_model_config"]).read_text(encoding="utf-8")
+    )
+    assert int(size["encoder"]["blocks"]) == 2
+    assert int(size["decoder"]["blocks"]) == 2
+    assert int(size["rssm"]["deter_dim"]) == 2560
+    assert cfg.get("reset_actor") is True
+    assert not cfg.get("seed_joint_ckpt")
+    assert cfg.get("seed_replay") in (None, "")
+    assert cfg.get("world_model_ckpt") in (None, "")
+    assert cfg.get("actor_critic_ckpt") in (None, "")
+    assert float(train["train_ratio"]) == 512.0
+    wm_u, ac_u = loop_updates(train)
+    assert wm_u == 16 and ac_u == 16
+    assert int(train["batch_size"]) == 16
+    assert int(train["seq_len"]) == 32
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m13_xl_r512_b2" in path, (key, path)
+        assert "m12_xl" not in path, (key, path)
+        assert "m11_xl" not in path, (key, path)
+        assert "m10_xl" not in path, (key, path)
+        assert "m9_xl" not in path, (key, path)
+
+
+def test_notebook_10_binds_m13_not_m12() -> None:
+    """Stale editor buffers kept launching M11/M12. Pin the source to M13."""
     text = Path("notebooks/10_train_paper_online.ipynb").read_text(encoding="utf-8")
-    assert "configs/m12_xl_r512.yaml" in text
-    assert "configs/m11_xl_r128.yaml" not in text
+    assert "configs/m13_xl_r512_b2.yaml" in text
+    assert 'CONFIG = Path(\\"configs/m12_xl_r512.yaml\\")' not in text
+    assert 'CONFIG = Path(\\"configs/m11_xl_r128.yaml\\")' not in text
     assert "Need 512 and 16/16" in text
 

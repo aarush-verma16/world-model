@@ -6,6 +6,7 @@ batch 16 × seq 32, especially imagination with start_mode=all.
 
     python scripts/count_params.py
     python scripts/count_params.py --smoke --size xl
+    python scripts/count_params.py --smoke --size xl_b2
     python scripts/count_params.py --smoke --size xl --start-mode last --batch-size 8
 """
 
@@ -38,6 +39,7 @@ SIZES = {
     "m": Path("configs/sizes/dreamer_m.yaml"),
     "l": Path("configs/sizes/dreamer_l.yaml"),
     "xl": Path("configs/sizes/dreamer_xl.yaml"),
+    "xl_b2": Path("configs/sizes/dreamer_xl_b2.yaml"),
 }
 
 ACTOR = {
@@ -45,9 +47,10 @@ ACTOR = {
     "m": (640, 3),
     "l": (768, 4),
     "xl": (1024, 5),
+    "xl_b2": (1024, 5),
 }
 
-PAPER_M = {"s": 18, "m": 37, "l": 77, "xl": 200}
+PAPER_M = {"s": 18, "m": 37, "l": 77, "xl": 200, "xl_b2": 200}
 
 
 def _n_m(module: torch.nn.Module) -> float:
@@ -146,11 +149,11 @@ def main() -> None:
     parser.add_argument("--seq-len", type=int, default=None)
     args = parser.parse_args()
     sizes = [args.size] if args.size else list(SIZES)
-    print(f"{'size':<4} {'ours WM':>10} {'paper WM':>10} {'+actor/critic':>14} {'total':>10}")
+    print(f"{'size':<8} {'ours WM':>10} {'paper WM':>10} {'+actor/critic':>14} {'total':>10}")
     for size in sizes:
         n = count_one(size)
         print(
-            f"{size:<4} {n['wm']:9.1f}M {n['paper_wm']:9.0f}M "
+            f"{size:<8} {n['wm']:9.1f}M {n['paper_wm']:9.0f}M "
             f"{n['actor_critic']:13.1f}M {n['total']:9.1f}M"
         )
     if args.smoke:

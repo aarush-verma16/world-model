@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-30",
+  "updated": "2026-08-31",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -363,6 +363,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M11 at 135k: last-200 gmean ~2.0, length 177, wake_up 96.5%, zombie 1%, stone 0. M9 at the same env had 12.5% zombie. ac_H ~0.4. Do not grind to 1M.",
       "paper_spin": "A 4× train_ratio from scratch can lock wake_up sooner rather than delay the island."
+    },
+    {
+      "id": "24",
+      "file": "findings/24-xl-blocks2-fits-16gib.md",
+      "title": "Table B.1 CNN blocks=2 fits 16 GiB at XL seq 32",
+      "tags": ["compute"],
+      "one_liner": "xl_b2 smoke: 215.6M WM (+17.6M vs blocks=1), peak 11.31/11.70 GiB at batch 16 × seq 32 × start_mode=all. blocks=1 was a conservative 16 GiB cut, not a measured OOM. M13 is that recipe at train_ratio 512; do not load M12.",
+      "paper_spin": "Compute appendix: after the unused reinforce graph was removed, cnn_blocks=2 is cheap on 16 GiB at seq 32. Remaining XL gaps are GRU 4096 and seq 64."
     }
   ],
   "do_not_revive": [
@@ -411,6 +419,10 @@
     "Resuming M9 400k or M10 500k and calling it a from-scratch run",
     "RESUME=auto on notebook 10 after the user said the run must never resume",
     "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not",
-    "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0"
+    "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0",
+    "Rewriting the RSSM because M12 last-200 sat at ~1.4 at 100k (island, not an untrainable CNN)",
+    "Flipping blocks in dreamer_xl.yaml while M12 is the live run (new size file, new dirs)",
+    "Loading checkpoints/m12_xl_r512 into M13 and calling it a blocks=2 from-scratch run",
+    "Jumping blocks=2, deter 4096, and seq 64 in one yaml so the next OOM has three causes"
   ]
 }

@@ -82,7 +82,7 @@
 <body>
   <header>
     <h1>Findings archive</h1>
-    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-30.</p>
+    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-31.</p>
   </header>
   <div class="wrap">
     <nav>
@@ -442,7 +442,10 @@ flowchart LR
         body:"M10 loaded M9 400k and ran train_ratio 128 to ~523k. Mean length still 183; last-200 wake_up 97%; held-out 2.25→1.76. Zombie % rose 13→28 but they still die before hunger. A kernel restart with RESUME=auto then loaded ckpt_latest at 500k. Do not resume M9/M10. From-scratch 128 is finding 23." },
       { id:"23", tags:["eval","negative-result"], title:"Ratio 128 from scratch is the sleep island by 135k",
         file:"findings/23-m11-128-is-the-island-at-135k.md",
-        body:"M11 at 135k: last-200 gmean ~2.0, mean length 177, wake_up 96.5%, stone 0, zombie 1%. Held-out 1.35→1.24. ac_H ~0.4 so the actor is not collapsed. M9 at the same env horizon already had 12.5% zombie. Do not grind to 1M hoping length inches off 180." }
+        body:"M11 at 135k: last-200 gmean ~2.0, mean length 177, wake_up 96.5%, stone 0, zombie 1%. Held-out 1.35→1.24. ac_H ~0.4 so the actor is not collapsed. M9 at the same env horizon already had 12.5% zombie. Do not grind to 1M hoping length inches off 180." },
+      { id:"24", tags:["compute"], title:"Table B.1 CNN blocks=2 fits 16 GiB at XL seq 32",
+        file:"findings/24-xl-blocks2-fits-16gib.md",
+        body:"xl_b2 smoke: WM 215.6M (+17.6M vs blocks=1), peak 11.31/11.70 GiB at batch 16 × seq 32 × start_mode=all. The blocks=1 XL yaml was a conservative 16 GiB cut after finding 18, not a measured OOM. M13 is that knob at train_ratio 512. Do not load M12. Do not jump GRU 4096 and seq 64 in the same yaml." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -490,7 +493,9 @@ flowchart LR
       "Resuming M9 400k or M10 500k and calling it a from-scratch run",
       "RESUME=auto on notebook 10 after the user said the run must never resume",
       "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not",
-      "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0"
+      "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0",
+      "Rewriting the RSSM because M12 last-200 sat at ~1.4 at 100k",
+      "Loading checkpoints/m12_xl_r512 into M13 and calling it blocks=2 from scratch"
     ];
 
     let tag = "all";
