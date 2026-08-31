@@ -1,9 +1,9 @@
-# M12 — XL from scratch at train_ratio 512. One-day look, then stop or continue.
+# M12 — XL from scratch at train_ratio 512 (DreamerV3 Crafter replay rate).
 #
-# This is the paper replay rate (finding 15: ~2 env/s, 1M ≈ 5.4 days).
-# One day is ~180k env steps — enough to see if last-200 gmean / length /
-# stone leave the ~1–2.5 island. Target stays 1M so leaving the cell
-# running *is* continue. Interrupt the notebook cell to stop.
+# Paper schedule: 16 WM+AC / 16 env. This box: ~2 env/s, 1M ≈ 5.4 days
+# (finding 15). 1 day ≈ 180k. Halfway ≈ 500k / ~2.5 days — interrupt there
+# if last-200 is moving and you want to stop. Leave the cell running to
+# continue. Do not load m7_xl_paper (broken AC), m9, m10, or m11.
 #
 # Do not load m7_xl_paper (broken AC graph), m9, m10, or m11.
 # Notebook 10: RESUME=None, restart kernel, run from the top. Status 0/1M.

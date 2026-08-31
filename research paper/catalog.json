@@ -175,7 +175,7 @@
     "m12_xl_r512": {
       "config": "configs/m12_xl_r512.yaml",
       "env_steps": 0,
-      "note": "From scratch, train_ratio 512, RESUME=None. 1 day ≈ 180k at ~2 env/s. Notebook 10 dashboard marks 180k; leave running to continue, interrupt to stop. Do not load m7_xl_paper."
+      "note": "Live notebook 10. From scratch, train_ratio 512, RESUME=None. 1 day ≈ 180k; halfway ≈ 500k. Do not load m7_xl_paper / m9 / m10 / m11."
     }
   },
   "findings": [
