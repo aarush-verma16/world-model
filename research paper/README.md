@@ -64,7 +64,8 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 19. [~200-step death is combat, not hunger](findings/19-length-is-combat-not-hunger.md) — starvation clock 338; 66% of M8 lives die at 150–220 with drink still left.
 20. [The 14.5 gap is a different experiment](findings/20-score-gap-is-recipe-not-a-missing-head.md) — ratio 32 vs 512, seq 32 vs 64, episode-bounded replay; do not put 1.36 next to 14.5.
 21. [The 400k flat gmean is a skill island](findings/21-m9-400k-is-a-skill-island.md) — last-200 is 2.49; stone 0; held-out 2.82 is n=10. Continuing that actor is finding 22.
-22. [Continuing the sleep-island actor does not buy survival](findings/22-m10-continue-did-not-buy-survival.md) — M10 +120k at ratio 128, length still 183, wake_up 97%; `RESUME=auto` loaded 500k. Next is from-scratch M11.
+22. [Continuing the sleep-island actor does not buy survival](findings/22-m10-continue-did-not-buy-survival.md) — M10 +120k at ratio 128, length still 183, wake_up 97%; `RESUME=auto` loaded 500k.
+23. [Ratio 128 from scratch is the island by 135k](findings/23-m11-128-is-the-island-at-135k.md) — last-200 ~2.0, length 177, wake 96.5%, zombie 1% vs M9’s 12.5% at the same env.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -81,8 +82,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M8 actor-critic fix** (finding 17): `m8_s_acfix` **200k DONE**. Held-out **1.386 → 2.068**, last `ac_H` **0.89** (min 0.74). XL `m8_xl_acfix2` stopped ~80k (online ~1.46, held-out 1.36 @ 50k, combat wall, V2 sampler). **Do not resume it.**
 - **M9 streaming replay** (`configs/m9_xl.yaml`): XL from scratch to **~405k**. Cumulative gmean **2.56**, last-200 **2.49**, wake_up ~93%, stone ~0 (finding 21). Keep `ckpt_step_400000.pt`. **Do not resume it.**
 - **M10 ratio 128** (`configs/m10_xl_r128.yaml`): continued those weights to **~523k**. Mean length still **~183**, held-out **2.25 → 1.76**, `wake_up` **97%** (finding 22). **Do not resume it.**
-- **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128, never started. Superseded by M12.
-- **M12 paper ratio** (`configs/m12_xl_r512.yaml`): from scratch, `train_ratio` 512, `RESUME=None`. One day ≈ 180k env steps. Leave the notebook cell running to continue; interrupt to stop. `notebooks/10_train_paper_online.ipynb`.
+- **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128 to **~137k**. Last-200 **~2.0**, length **177**, `wake_up` **96.5%**, zombie **1%** (finding 23). **Stop — do not grind to 1M.**
 
 ## Conventions
 

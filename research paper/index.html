@@ -439,7 +439,10 @@ flowchart LR
         body:"M9 at 405k: cumulative gmean 2.56, last-200 2.49. wake_up ~93%, sapling/plant saturated, stone 0, zombie peaked 21% then fell. Held-out 2.82 is n=10 luck (350k 1.39). ac_H ~0.6. Do not roll back the decoder. Continuing this actor is finding 22." },
       { id:"22", tags:["eval","negative-result"], title:"Continuing the sleep-island actor does not buy survival",
         file:"findings/22-m10-continue-did-not-buy-survival.md",
-        body:"M10 loaded M9 400k and ran train_ratio 128 to ~523k. Mean length still 183; last-200 wake_up 97%; held-out 2.25→1.76. Zombie % rose 13→28 but they still die before hunger. A kernel restart with RESUME=auto then loaded ckpt_latest at 500k. Do not resume M9/M10. Next is M11 from scratch at ratio 128." }
+        body:"M10 loaded M9 400k and ran train_ratio 128 to ~523k. Mean length still 183; last-200 wake_up 97%; held-out 2.25→1.76. Zombie % rose 13→28 but they still die before hunger. A kernel restart with RESUME=auto then loaded ckpt_latest at 500k. Do not resume M9/M10. From-scratch 128 is finding 23." },
+      { id:"23", tags:["eval","negative-result"], title:"Ratio 128 from scratch is the sleep island by 135k",
+        file:"findings/23-m11-128-is-the-island-at-135k.md",
+        body:"M11 at 135k: last-200 gmean ~2.0, mean length 177, wake_up 96.5%, stone 0, zombie 1%. Held-out 1.35→1.24. ac_H ~0.4 so the actor is not collapsed. M9 at the same env horizon already had 12.5% zombie. Do not grind to 1M hoping length inches off 180." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -486,7 +489,8 @@ flowchart LR
       "Grinding M9 to 1M at train_ratio 32 to move a saturated cumulative gmean",
       "Resuming M9 400k or M10 500k and calling it a from-scratch run",
       "RESUME=auto on notebook 10 after the user said the run must never resume",
-      "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not"
+      "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not",
+      "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0"
     ];
 
     let tag = "all";

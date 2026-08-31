@@ -162,8 +162,15 @@
     },
     "m11_xl_r128": {
       "config": "configs/m11_xl_r128.yaml",
-      "env_steps": 0,
-      "note": "From scratch, train_ratio 128. Never started. Notebook 10 now points at M12 ratio 512."
+      "env_steps": 137104,
+      "heldout_gmean_50k": 1.353,
+      "heldout_gmean_100k": 1.240,
+      "online_gmean": 1.637,
+      "last200_gmean": 1.993,
+      "collect_length_mean_last200": 177,
+      "wake_up_last200": 96.5,
+      "defeat_zombie_last200": 1.0,
+      "note": "Finding 23. From scratch ratio 128. Sleep island by 135k; zombie 1% vs M9 12% at same env. Do not grind to 1M."
     },
     "m12_xl_r512": {
       "config": "configs/m12_xl_r512.yaml",
@@ -346,8 +353,16 @@
       "file": "findings/22-m10-continue-did-not-buy-survival.md",
       "title": "Continuing the sleep-island actor does not buy survival",
       "tags": ["eval", "negative-result"],
-      "one_liner": "M10 ratio 128 on M9 400k: +120k env, mean length still 183, wake_up 97%, held-out 2.25→1.76. RESUME=auto then loaded 500k. Next is from-scratch ratio 128, not another resume.",
+      "one_liner": "M10 ratio 128 on M9 400k: +120k env, mean length still 183, wake_up 97%, held-out 2.25→1.76. RESUME=auto then loaded 500k. From-scratch 128 is finding 23.",
       "paper_spin": "Raising train_ratio mid-run on a policy that already sleeps every life is not the paper’s 512-from-scratch curve."
+    },
+    {
+      "id": "23",
+      "file": "findings/23-m11-128-is-the-island-at-135k.md",
+      "title": "Ratio 128 from scratch is the sleep island by 135k",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M11 at 135k: last-200 gmean ~2.0, length 177, wake_up 96.5%, zombie 1%, stone 0. M9 at the same env had 12.5% zombie. ac_H ~0.4. Do not grind to 1M.",
+      "paper_spin": "A 4× train_ratio from scratch can lock wake_up sooner rather than delay the island."
     }
   ],
   "do_not_revive": [
@@ -395,6 +410,7 @@
     "Waiting until replay FIFO drops the remaining pickaxe rows before raising train_ratio",
     "Resuming M9 400k or M10 500k and calling it a from-scratch run",
     "RESUME=auto on notebook 10 after the user said the run must never resume",
-    "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not"
+    "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not",
+    "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0"
   ]
 }
