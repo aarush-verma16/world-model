@@ -310,11 +310,36 @@ def test_m13_from_scratch_ratio_512_blocks2() -> None:
         assert "m9_xl" not in path, (key, path)
 
 
-def test_notebook_10_binds_m13_not_m12() -> None:
-    """Stale editor buffers kept launching M11/M12. Pin the source to M13."""
+def test_m14_from_scratch_ratio_32_blocks2() -> None:
+    import yaml
+
+    from training.outer_loop import loop_updates
+
+    cfg = yaml.safe_load(Path("configs/m14_xl_r32_b2.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    size = yaml.safe_load(
+        Path(cfg["world_model_config"]).read_text(encoding="utf-8")
+    )
+    assert int(size["encoder"]["blocks"]) == 2
+    assert int(size["decoder"]["blocks"]) == 2
+    assert cfg.get("reset_actor") is True
+    assert not cfg.get("seed_joint_ckpt")
+    assert float(train["train_ratio"]) == 32.0
+    wm_u, ac_u = loop_updates(train)
+    assert wm_u == 1 and ac_u == 1
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m14_xl_r32_b2" in path, (key, path)
+        assert "m13_xl" not in path, (key, path)
+        assert "m12_xl" not in path, (key, path)
+        assert "m9_xl" not in path, (key, path)
+
+
+def test_notebook_10_binds_m14_not_m13() -> None:
+    """Pin notebook 10 to workstation ratio 32, not the 5-day 512 loop."""
     text = Path("notebooks/10_train_paper_online.ipynb").read_text(encoding="utf-8")
-    assert "configs/m13_xl_r512_b2.yaml" in text
+    assert "configs/m14_xl_r32_b2.yaml" in text
+    assert 'CONFIG = Path(\\"configs/m13_xl_r512_b2.yaml\\")' not in text
     assert 'CONFIG = Path(\\"configs/m12_xl_r512.yaml\\")' not in text
-    assert 'CONFIG = Path(\\"configs/m11_xl_r128.yaml\\")' not in text
-    assert "Need 512 and 16/16" in text
+    assert "Need 32 and 1/1" in text
 

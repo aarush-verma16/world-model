@@ -423,6 +423,8 @@
     "Rewriting the RSSM because M12 last-200 sat at ~1.4 at 100k (island, not an untrainable CNN)",
     "Flipping blocks in dreamer_xl.yaml while M12 is the live run (new size file, new dirs)",
     "Loading checkpoints/m12_xl_r512 into M13 and calling it a blocks=2 from-scratch run",
-    "Jumping blocks=2, deter 4096, and seq 64 in one yaml so the next OOM has three causes"
+    "Jumping blocks=2, deter 4096, and seq 64 in one yaml so the next OOM has three causes",
+    "Loading checkpoints/m13_xl_r512_b2 into M14 and calling it a from-scratch ratio-32 run",
+    "Captioning an M14 ratio-32 1M next to DreamerV3 14.5"
   ]
 }
