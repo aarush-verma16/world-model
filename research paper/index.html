@@ -82,7 +82,7 @@
 <body>
   <header>
     <h1>Findings archive</h1>
-    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-08-31.</p>
+    <p>Not the arXiv draft. Original results from this Crafter world-model repo — updated 2026-09-02.</p>
   </header>
   <div class="wrap">
     <nav>
@@ -445,7 +445,10 @@ flowchart LR
         body:"M11 at 135k: last-200 gmean ~2.0, mean length 177, wake_up 96.5%, stone 0, zombie 1%. Held-out 1.35→1.24. ac_H ~0.4 so the actor is not collapsed. M9 at the same env horizon already had 12.5% zombie. Do not grind to 1M hoping length inches off 180." },
       { id:"24", tags:["compute"], title:"Table B.1 CNN blocks=2 fits 16 GiB at XL seq 32",
         file:"findings/24-xl-blocks2-fits-16gib.md",
-        body:"xl_b2 smoke: WM 215.6M (+17.6M vs blocks=1), peak 11.31/11.70 GiB at batch 16 × seq 32 × start_mode=all. The blocks=1 XL yaml was a conservative 16 GiB cut after finding 18, not a measured OOM. M13 is that knob at train_ratio 512. Do not load M12. Do not jump GRU 4096 and seq 64 in the same yaml." }
+        body:"xl_b2 smoke: WM 215.6M (+17.6M vs blocks=1), peak 11.31/11.70 GiB at batch 16 × seq 32 × start_mode=all. The blocks=1 XL yaml was a conservative 16 GiB cut after finding 18, not a measured OOM. M13 is that knob at train_ratio 512. Do not load M12. Do not jump GRU 4096 and seq 64 in the same yaml." },
+      { id:"25", tags:["eval","negative-result"], title:"Ratio 32 + blocks=2 is still the sleep island at 826k",
+        file:"findings/25-m14-826k-is-the-island.md",
+        body:"M14 at 826k: online 2.24, last-200 1.41 (2.45 at 180k), length 180, wake/sapling ~96–99%, plant/wood collapsed, stone 0. ac_H 0.79. Same island as M9. Do not grind to 1M for 14.5." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [

@@ -371,6 +371,14 @@
       "tags": ["compute"],
       "one_liner": "xl_b2 smoke: 215.6M WM (+17.6M vs blocks=1), peak 11.31/11.70 GiB at batch 16 × seq 32 × start_mode=all. blocks=1 was a conservative 16 GiB cut, not a measured OOM. M13 is that recipe at train_ratio 512; do not load M12.",
       "paper_spin": "Compute appendix: after the unused reinforce graph was removed, cnn_blocks=2 is cheap on 16 GiB at seq 32. Remaining XL gaps are GRU 4096 and seq 64."
+    },
+    {
+      "id": "25",
+      "file": "findings/25-m14-826k-is-the-island.md",
+      "title": "Ratio 32 + blocks=2 is still the sleep island at 826k",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M14 at 826k: online 2.24, last-200 1.41 (was 2.45 at 180k), length 180, wake/sapling ~96–99%, stone 0. ac_H 0.79. Same island as M9; plant/wood fell after 400k.",
+      "paper_spin": "blocks=2 at train_ratio 32 is not a substitute for paper replay or a mining policy. Last-N can fall after the island locks."
     }
   ],
   "do_not_revive": [
@@ -425,6 +433,7 @@
     "Loading checkpoints/m12_xl_r512 into M13 and calling it a blocks=2 from-scratch run",
     "Jumping blocks=2, deter 4096, and seq 64 in one yaml so the next OOM has three causes",
     "Loading checkpoints/m13_xl_r512_b2 into M14 and calling it a from-scratch ratio-32 run",
-    "Captioning an M14 ratio-32 1M next to DreamerV3 14.5"
+    "Captioning an M14 ratio-32 1M next to DreamerV3 14.5",
+    "Grinding M14 to 1M because online gmean is 2.2 while last-200 fell to 1.4 and stone is 0"
   ]
 }

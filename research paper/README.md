@@ -68,6 +68,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 22. [Continuing the sleep-island actor does not buy survival](findings/22-m10-continue-did-not-buy-survival.md) — M10 +120k at ratio 128, length still 183, wake_up 97%; `RESUME=auto` loaded 500k.
 23. [Ratio 128 from scratch is the island by 135k](findings/23-m11-128-is-the-island-at-135k.md) — last-200 ~2.0, length 177, wake 96.5%, zombie 1% vs M9’s 12.5% at the same env.
 24. [XL `blocks=2` fits 16 GiB](findings/24-xl-blocks2-fits-16gib.md) — 215.6M WM, smoke peak 11.3 GiB at 16×32; M13 is ratio 512 + Table B.1 residuals. Do not load M12.
+25. [Ratio 32 + blocks=2 is still the island at 826k](findings/25-m14-826k-is-the-island.md) — last-200 2.45→1.41, stone 0, length 180. Do not grind to 1M for 14.5.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -87,7 +88,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M11 from scratch** (`configs/m11_xl_r128.yaml`): ratio 128 to **~137k**. Last-200 **~2.0**, length **177**, `wake_up` **96.5%**, zombie **1%** (finding 23). **Stop — do not grind to 1M.**
 - **M12 paper ratio** (`configs/m12_xl_r512.yaml`): from scratch, `train_ratio` **512**, `blocks=1`. ~2 env/s. Island-shaped at ~100–116k (last-200 ~1.4, wake saturated, stone 0). **Do not resume it into M13.**
 - **M13 blocks=2** (`configs/m13_xl_r512_b2.yaml`): same 512 schedule, encoder/decoder **blocks=2**. Smoke **11.3 GiB** (finding 24). Interrupted around **106k** (last-200 ~1.5, stone 0) to leave the 5-day clock. **Do not resume it.**
-- **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. ~20–26 env/s. Caption as ratio-32, not 14.5. `notebooks/10_train_paper_online.ipynb`.
+- **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5.**
 
 ## Conventions
 
