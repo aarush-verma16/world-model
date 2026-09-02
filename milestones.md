@@ -19,9 +19,14 @@ Each milestone has the same six fields:
 - **Common failure modes** — what actually goes wrong at this stage, and the fix
 - **Artifact** — what you commit/tag/produce as proof this milestone is complete
 
-Ten milestones total, M0 through M9, roughly mapping to the 3-week timeline but described here
-as dependency-gated stages rather than fixed days — some will take longer than a day, some
-less, and that's fine as long as exit criteria are met before moving on.
+Phase 1 is ten milestones, M0 through M9: a working Dreamer-style agent on Crafter, an
+honest paper, and a public repo. That is the 3-week-shaped campaign.
+
+Phase 2 starts only after M9's exit criteria are met. It is a second campaign, not a
+stretch of the original three weeks: **beat published DreamerV3 on Crafter**, then take the
+same recipe into **3D games the agent can actually win**. Experiment YAML names
+`m8_*`–`m14_*` are Crafter training dirs from the M6/M7 chase. They are **not** the
+Phase 2 gates below. Do not resume those dirs as if they were M15–M18.
 
 ---
 
@@ -37,12 +42,18 @@ M0 (Setup)
                           └─> M6 (Baseline Result on Crafter)
                                ├─> M7 (Ablation Study)
                                └─> M8 (Analysis + Paper Writing)
-                                    └─> M9 (Docs, Repo Polish, Release)
+                                    └─> M9 (Docs, Repo Polish, Release)     ← Phase 1 done
+                                         └─> M15 (Beat DreamerV3 on Crafter)
+                                              └─> M16 (Own mechanism, not a clone)
+                                                   └─> M17 (First-person 3D win: VizDoom-class)
+                                                        └─> M18 (Minecraft-class 3D)
+                                                             └─> M19 (Stretch: commercial 3D interface)
 ```
 
-Nothing here is parallelizable in a meaningful way for a solo builder except M7 and M8, which
-can overlap once M6 is complete (you can start drafting the paper's intro/related-work while
-ablation runs are training in the background).
+Nothing in Phase 1 is parallelizable in a meaningful way for a solo builder except M7 and M8,
+which can overlap once M6 is complete (you can start drafting the paper's intro/related-work
+while ablation runs are training in the background). Phase 2 is strictly gated: do not open a
+3D env until Crafter is *ahead* of the published number under a named protocol.
 
 ---
 
@@ -389,7 +400,204 @@ cold — a reviewer, an admissions reader, a future employer.
   installed outside the conda env, a cached dataset) but fail on a truly clean clone — this is
   exactly why the clean-clone test in this milestone is not optional.
 
-**Artifact:** tag `v3.0-release`. Project complete.
+**Artifact:** tag `v3.0-release`. Phase 1 complete. Phase 2 (M15–M19) is a new campaign
+on top of that release, not a rewrite of the 3-week plan.
+
+---
+
+## Phase 2 — Beat DreamerV3, then play 3D games
+
+The original brief was a faithful small-scale Dreamer on Crafter. That stays Phase 1.
+Phase 2 is the opposite ambition: **this implementation should outperform published
+DreamerV3**, then the same world-model loop should **win real 3D games**, not only
+reconstruct Crafter tiles.
+
+Weights do not transfer. The recipe does: discrete RSSM, imagination actor-critic, the
+actor-critic identifiability fixes, last-N vs cumulative eval, and the skill-island
+read. A Crafter sleep policy dropped into VizDoom learns a new island (stand still,
+look at the floor).
+
+Do not put a 1.4–2.8 Crafter gmean next to 14.5 and call M15 started. Leave the wake /
+sapling / plant island first (findings 21, 25).
+
+---
+
+## Milestone 15 — Beat published DreamerV3 on Crafter
+
+**Goal:** a Crafter geometric mean **strictly above DreamerV3's published 14.5**, under a
+protocol you can write in one paragraph — same official achievement gmean, named env-step
+budget, named `train_ratio` / seq / size.
+
+**Depends on:** M9 (Phase 1 tagged). The live actor-critic graph must already match
+DreamerV3-torch `ImagBehavior` (finding 17). Do not start from `m8_xl_acfix`,
+`m9_xl`–`m14_xl_*`, or any other do-not-resume island dir.
+
+**Tasks:**
+- Write the comparison protocol *before* the run: official Crafter gmean, episode count,
+  env-step budget, and every recipe disagreement vs the paper (seq 32 vs 64, ratio vs
+  512, GRU width, replay). Caption those; do not hide them.
+- Leave the skill island: stone, table, and `defeat_zombie` must move. Wake / sapling /
+  plant saturation is not a 14.5 chase (findings 21, 25). Length ~190 is combat, not
+  hunger (finding 19).
+- Log last-200 gmean and per-achievement rates every eval. Cumulative online alone is
+  not the win condition.
+- New checkpoint dir only. Fresh or explicitly-justified resume. User-run training via
+  the notebooks; no agent-launched 1M.
+
+**Exit criteria:**
+- Official held-out Crafter geometric mean **> 14.5** at a named budget, raw jsonl +
+  config in `results/`.
+- Last-200 gmean is in the same band as the held-out number (not 1.4 last-200 next to
+  a 2.2 cumulative that never mined stone).
+- Stone and zombie achievements are non-zero in the last-200 window.
+- The writeup states every protocol difference vs Hafner et al. If the budget or ratio
+  is not the paper's, the caption says so — the *score* still has to beat 14.5.
+
+**Common failure modes:**
+- Treating M14's 2.24 cumulative / 1.41 last-200 as "close." It is the island.
+- Restoring `train_ratio` 512 as "the paper 1M overnight" on 16 GiB (finding 15: ~5 days).
+- Blaming XL size or adding another decoder before the policy leaves sleep (findings 01,
+  16, 20).
+- n=10 held-out lottery (finding 13) quoted as the beat.
+
+**Artifact:** tag `v4.0-crafter-beats-dreamerv3`, score table + last-200 achievement
+bars in `results/`.
+
+---
+
+## Milestone 16 — Own mechanism, not a DreamerV3 clone
+
+**Goal:** a result people cite because it is **ours** — a mechanism or eval that
+DreamerV3 did not name — and that is load-bearing for the M15 win, not a footnote
+after a lucky seed.
+
+**Depends on:** M15.
+
+**Tasks:**
+- Pick one axis that actually moved the score off the island (examples we already
+  measured: advantage / `imag_gradient_mix` identifiability; last-N vs cumulative
+  gmean; combat clock vs hunger; unused reinforce graph on 16 GiB). Run the controlled
+  on/off that proves it.
+- Write it as a finding first (`research paper/findings/`), then a paper section:
+  claim, evidence, failed alternatives, what a reimplementer should do.
+- Keep Crafter as the measurement env. Do not open 3D here.
+
+**Exit criteria:**
+- One sentence a reviewer can repeat: "without X, the agent stays on the skill island /
+  collapses entropy / cannot beat 14.5."
+- An ablation table with X on vs off, same compute, same eval protocol as M15.
+- Negative results we already paid for stay in the paper (extra decoder bypass, mean
+  pixel loss, crop/HUD heads, imagined λ-return as skill). Do not revive them.
+
+**Common failure modes:**
+- Shipping "we copied DreamerV3 and scored 15" with no mechanism. That is a leaderboard
+  note, not the research goal.
+- Sweeping hyperparameters until 14.5 breaks and calling the last knob the invention.
+- Starting VizDoom because Crafter is boring. That invalidates the "better than
+  DreamerV3" claim — you never finished the comparison.
+
+**Artifact:** tag `v4.1-own-result`, ablation table + finding file linked from the paper
+draft.
+
+---
+
+## Milestone 17 — First-person 3D win (VizDoom-class)
+
+**Goal:** the same world-model loop **wins a first-person 3D game** with a binary,
+filmable outcome (exit the map, frag, health-pack scenario) — not a reconstruction
+demo.
+
+**Depends on:** M15 and M16. A Crafter sleep policy does not transfer.
+
+**Tasks:**
+- Add a Gymnasium wrapper for **VizDoom** (or an equally small first-person gym: one
+  scenario, discrete or small discrete-ized actions, downscaled pixels into the
+  existing CNN).
+- Reuse the RSSM + imagination actor-critic. New encoder stem only if 64×64
+  grayscale/RGB is wrong for that obs; do not invent a second agent stack.
+- Define win before training: success rate on a named scenario, episode budget, same
+  last-N honesty as Crafter.
+- Record evaluation videos. The artifact is the agent winning, not a loss curve.
+
+**Exit criteria:**
+- Held-out success rate on the named scenario is **above a published or scripted
+  baseline you wrote down first** (random policy is not enough unless you also beat a
+  known VizDoom RL number).
+- Videos in `results/` show the win, not a corridor stare.
+- Entropy / skill-island diagnostics still logged. A new island (always +move, never
+  shoot) is a failed exit, even if return ticks up.
+
+**Common failure modes:**
+- Native 1080p into the Crafter CNN — OOM or a 4×4 latent that cannot see enemies
+  (finding 04, worse in 3D).
+- Continuous mouse look with no discretization plan.
+- Calling "it ran" a win. 3D is only interesting if it **beats the scenario**.
+
+**Artifact:** tag `v5.0-vizdoom-win`, eval videos + success table.
+
+---
+
+## Milestone 18 — Minecraft-class 3D
+
+**Goal:** a 3D voxel / open-world gym on the Dreamer line (MineRL or equivalent) where
+the agent hits a **named item or achievement** people already use as a benchmark
+(wood → stone → later diamond if compute allows).
+
+**Depends on:** M17. First-person pixels and a win condition must already work.
+
+**Tasks:**
+- Wrapper + action set documented. Prefer a published Minecraft gym over a custom
+  client hook.
+- Same last-N / achievement-bar eval as Crafter. Open world is an island factory.
+- Caption compute honestly. Diamond at DreamerV3 cluster scale is not a 16 GiB
+  overnight; pick the first published milestone this box can finish, then the next.
+
+**Exit criteria:**
+- A named Minecraft-class achievement rate that is non-zero in the last-N window and
+  above the random / scripted baseline you logged first.
+- Same protocol paragraph as M15: budget, ratio, resolution, action set.
+- No Steam / AAA title in this milestone.
+
+**Common failure modes:**
+- Jumping to diamond because that is the celebrity metric, then dying in the first
+  night for 2M steps.
+- Human-demo cloning (VPT-style) silently replacing the world-model claim. If you use
+  demos, the paper says so; the default path is still imagination RL.
+
+**Artifact:** tag `v5.1-minecraft-class`, achievement bars + videos.
+
+---
+
+## Milestone 19 — Stretch: commercial 3D interface (not the next weekend)
+
+**Goal:** a **documented action and observation interface** for a real shipped 3D game
+the machine can legally hook (window capture + key/mouse), plus a toy win inside that
+interface — not "beats Elden Ring."
+
+**Depends on:** M18. Do not start this because Crafter is stuck.
+
+**Tasks:**
+- Observation: crop + downscale, not native 1080p into the current CNN.
+- Actions: discrete key set or binned mouse. Write the mapping before any train step.
+- One filmable toy objective in that game (walk to a marker, open a door, survive N
+  seconds) with the same eval honesty as M17.
+- VRAM coexistence: training and a max-settings game do not share 16 GiB (finding 08).
+  Collect and train are separate processes / sessions.
+
+**Exit criteria:**
+- The toy objective's success rate beats a written random/scripted baseline on held-out
+  seeds, with video.
+- README / docs say what game, what window hook, what is *not* claimed (no AAA
+  campaign clear).
+- This milestone is optional. Phase 2 is already a success at M17 if M15–M16 held.
+
+**Common failure modes:**
+- "Finish the world model then plug in Steam." Weights are Crafter-specific; this is a
+  new env.
+- ToS / anti-cheat: only games and hooks you are allowed to automate. If that is
+  none, stop at M18 — that is still the 3D research line.
+
+**Artifact:** tag `v6.0-commercial-3d-interface` if, and only if, the toy win is real.
 
 ---
 
@@ -407,10 +615,16 @@ cold — a reviewer, an admissions reader, a future employer.
 | M7 — Ablation study | 3 days | Day 15-17 |
 | M8 — Paper (overlaps M7) | 3 days | Day 17-19 |
 | M9 — Docs & release | 2 days | Day 20-21 |
+| M15 — Beat DreamerV3 on Crafter | after `v3.0-release`; weeks, not days | Phase 2 |
+| M16 — Own mechanism | gated on M15 | Phase 2 |
+| M17 — VizDoom-class 3D win | gated on M15+M16 | Phase 2 |
+| M18 — Minecraft-class 3D | gated on M17 | Phase 2 |
+| M19 — Commercial 3D interface | stretch only | optional |
 
-This lines up with the earlier 3-week day-by-day guide — that document tells you what to do
-each day; this document tells you what must be true before you're allowed to consider a stage
-finished, regardless of which day you happen to hit it on.
+Phase 1 lines up with the earlier 3-week day-by-day guide — that document tells you what to
+do each day; this document tells you what must be true before you're allowed to consider a
+stage finished. Phase 2 is not on that calendar. Do not compress M15 into "the last two
+days of week 3."
 
 ---
 
@@ -422,14 +636,17 @@ finished, regardless of which day you happen to hit it on.
 | Posterior collapse in RSSM | Medium | High | KL balancing, monitor KL term separately in logs, not just summed loss |
 | CUDA OOM on 16 GiB during the XL CNN + 3 decode heads | Medium | Medium | Default is batch 16 × seq 32 + bf16; drop batch_size if a smoke step OOMs. Desktop compositor already uses ~1.5 GiB. Replay stays in system RAM. |
 | Ablation invalidated by accidentally changing 2+ variables | Medium | High | Config-diff check before launching each ablation run — literally diff the yaml files |
-| Running out of time before M8/M9 | Medium | Medium | M6 (baseline) is the non-negotiable milestone — if time runs short, a working baseline with a smaller/simpler ablation is a better outcome than an unfinished larger one |
-| Overclaiming results in the paper | Low | High | Limitations section written honestly, framed as a controlled small-scale study throughout |
+| Running out of time before M8/M9 | Medium | Medium | M6 (baseline) is the non-negotiable Phase 1 milestone — if time runs short, a working baseline with a smaller/simpler ablation is a better outcome than an unfinished larger one. Phase 2 waits. |
+| Overclaiming results in the Phase 1 paper | Low | High | Limitations section written honestly, framed as a controlled small-scale study. "We beat DreamerV3" is an M15 claim only. |
+| Captioning island gmean (1.4–2.8) next to 14.5 | High | High | Last-200 + stone/zombie rates required. Finding 20. |
+| Opening VizDoom/Steam before Crafter leaves sleep | Medium | High | M17 depends on M15. A sleep policy in 3D is a new island. |
+| 16 GiB + native 3D resolution / train_ratio 512 | High | High | Downscale obs; findings 08, 15, 18. Collect and a max-settings game do not share the card. |
 
 ---
 
-## Definition of Done (Whole Project)
+## Definition of Done
 
-The project is complete when all of the following are simultaneously true:
+**Phase 1** is complete when all of the following are simultaneously true:
 
 1. `v3.0-release` is tagged and the repo is public.
 2. A clean clone + README instructions produces a working environment with no undocumented steps.
@@ -438,3 +655,13 @@ The project is complete when all of the following are simultaneously true:
 4. The paper (M8) makes no claim unsupported by a plot or number in `results/`.
 5. The docs site (M9) is live and a stranger could understand the project from it alone,
    without reading the code.
+
+**Phase 2** is a new campaign after that tag. It is successful when:
+
+6. Official Crafter gmean **> 14.5** under a named protocol (`v4.0-crafter-beats-dreamerv3`).
+7. One load-bearing mechanism that is not "we copied the paper" is ablated (`v4.1-own-result`).
+8. The same loop **wins** a named first-person 3D scenario on video (`v5.0-vizdoom-win`).
+
+M18 and M19 are further 3D, not required for Phase 2 to count as a success. Beating
+DreamerV3 on Crafter without a filmable 3D win is a partial Phase 2; a 3D win without
+beating 14.5 is not the goal — that is a different project.
