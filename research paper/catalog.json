@@ -434,6 +434,7 @@
     "Jumping blocks=2, deter 4096, and seq 64 in one yaml so the next OOM has three causes",
     "Loading checkpoints/m13_xl_r512_b2 into M14 and calling it a from-scratch ratio-32 run",
     "Captioning an M14 ratio-32 1M next to DreamerV3 14.5",
-    "Grinding M14 to 1M because online gmean is 2.2 while last-200 fell to 1.4 and stone is 0"
+    "Grinding M14 to 1M because online gmean is 2.2 while last-200 fell to 1.4 and stone is 0",
+    "Loading checkpoints/m14_xl_r32_b2 or m13_xl_r512_b2 into M15 and calling it a from-scratch 512 run"
   ]
 }
