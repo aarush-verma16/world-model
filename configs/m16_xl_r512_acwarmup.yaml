@@ -1,0 +1,79 @@
+# M16 — XL blocks=2, train_ratio 512, actor warmup (island fix).
+#
+# Same WM recipe as M15 (16 WM / 16 env). Actor stays off until
+# env_steps >= ac_warmup_env so 25k random prefill + 25k frozen-actor
+# collect can put wood/table in replay before 16 AC updates/cycle start.
+#
+# New dirs: do not load m15 (island by 136k), m14, m13, or m12.
+#
+# Notebook 10: RESUME=None, restart kernel, run from the top. Status 0/1M.
+# Leave a live M15 kernel alone — this yaml is the next run, not a resume.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl_b2.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 16
+  seq_len: 32
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  ac_warmup_env: 25000
+  max_episode_steps: 10000
+  prefill_steps: 25000
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 500000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m16_xl_r512_acwarmup
+  checkpoint_dir: checkpoints/m16_xl_r512_acwarmup
+  results_dir: results/m16_xl_r512_acwarmup
+  replay_out: data/m16_xl_r512_acwarmup_replay.pt

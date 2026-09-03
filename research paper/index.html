@@ -448,7 +448,10 @@ flowchart LR
         body:"xl_b2 smoke: WM 215.6M (+17.6M vs blocks=1), peak 11.31/11.70 GiB at batch 16 × seq 32 × start_mode=all. The blocks=1 XL yaml was a conservative 16 GiB cut after finding 18, not a measured OOM. M13 is that knob at train_ratio 512. Do not load M12. Do not jump GRU 4096 and seq 64 in the same yaml." },
       { id:"25", tags:["eval","negative-result"], title:"Ratio 32 + blocks=2 is still the sleep island at 826k",
         file:"findings/25-m14-826k-is-the-island.md",
-        body:"M14 at 826k: online 2.24, last-200 1.41 (2.45 at 180k), length 180, wake/sapling ~96–99%, plant/wood collapsed, stone 0. ac_H 0.79. Same island as M9. Do not grind to 1M for 14.5." }
+        body:"M14 at 826k: online 2.24, last-200 1.41 (2.45 at 180k), length 180, wake/sapling ~96–99%, plant/wood collapsed, stone 0. ac_H 0.79. Same island as M9. Do not grind to 1M for 14.5." },
+      { id:"26", tags:["eval","negative-result"], title:"Paper-ratio 512 + blocks=2 locked the island by 136k",
+        file:"findings/26-m15-512-is-the-island-at-136k.md",
+        body:"M15 at 136k: recon_l1 0.003, last-200 ~1.17, wood 13%→4%, stone 0, ac_H 0.25–0.30. Held-out at env 0 had wood/table 20%. Do not grind to 1M. Next is actor warmup (M16), not a resume." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -498,7 +501,10 @@ flowchart LR
       "Grinding M10 to 1M because collect zombie % ticked up while length and wake_up did not",
       "Grinding M11 to 1M because last-200 ticked 1.6→2.0 while length stayed ~180 and stone was 0",
       "Rewriting the RSSM because M12 last-200 sat at ~1.4 at 100k",
-      "Loading checkpoints/m12_xl_r512 into M13 and calling it blocks=2 from scratch"
+      "Loading checkpoints/m12_xl_r512 into M13 and calling it blocks=2 from scratch",
+      "Grinding M15 to 1M because recon_l1 is 0.003 while last-200 wood is 4%",
+      "Loading checkpoints/m15_xl_r512_b2 into M16 and calling it actor-warmup from scratch",
+      "Adding a stone / hunger / achievement bonus because 512 locked the island"
     ];
 
     let tag = "all";

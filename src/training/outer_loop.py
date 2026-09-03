@@ -23,13 +23,18 @@ from training.returns import PercentileReturnNorm
 from training.wm_step import world_model_step
 
 
-def loop_updates(train: dict[str, Any]) -> tuple[int, int]:
+def loop_updates(train: dict[str, Any], env_steps: int | None = None) -> tuple[int, int]:
     """World-model / actor-critic updates per collect cycle.
 
     DreamerV3 `train_ratio` is replayed transitions trained per env step.
     Crafter uses 512 (`NM512/dreamerv3-torch`). With batch 16 × seq 32 that
     is 16 WM + 16 AC steps per 16 env steps. If `train_ratio` is omitted,
     `wm_updates` / `ac_updates` are used (M5/M6 16/1/1).
+
+    `ac_warmup_env` (M16): when `env_steps` is set and still below that
+    threshold, return `ac_updates=0` so the 512 WM keeps training while the
+    actor cannot overwrite random-prefill wood/table. Omit `env_steps` to
+    read the post-warmup 16/16 pair (config checks).
     """
     collect_every = int(train["collect_every"])
     batch = int(train["batch_size"])
@@ -37,8 +42,14 @@ def loop_updates(train: dict[str, Any]) -> tuple[int, int]:
     raw_ratio = train.get("train_ratio")
     if raw_ratio is not None:
         n = max(1, int(round(float(raw_ratio) * collect_every / (batch * seq))))
-        return n, n
-    return int(train.get("wm_updates", 1)), int(train.get("ac_updates", 1))
+        wm_n, ac_n = n, n
+    else:
+        wm_n = int(train.get("wm_updates", 1))
+        ac_n = int(train.get("ac_updates", 1))
+    warmup = int(train.get("ac_warmup_env", 0) or 0)
+    if warmup > 0 and env_steps is not None and int(env_steps) < warmup:
+        return wm_n, 0
+    return wm_n, ac_n
 
 
 def crossed_interval(prev: int, now: int, every: int) -> bool:

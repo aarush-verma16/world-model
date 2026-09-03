@@ -41,6 +41,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | XL `blocks=2` fits 16 GiB at seq 32 | Compute: +18M weights, smoke peak 11.3 GiB; M13 is that knob at ratio 512 |
 | 400k flat gmean is a skill island | Eval: last-N vs cumulative; do not roll back the decoder |
 | Ratio 128 on the 400k actor did not buy survival | Negative: more replay on a sleep policy ≠ 512 from scratch |
+| 512 + blocks=2 locked the island by 136k | Results: recon 0.003, wood 13%→4%; delay the actor, do not add a stone head |
 
 ## Index of findings
 
@@ -69,6 +70,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 23. [Ratio 128 from scratch is the island by 135k](findings/23-m11-128-is-the-island-at-135k.md) — last-200 ~2.0, length 177, wake 96.5%, zombie 1% vs M9’s 12.5% at the same env.
 24. [XL `blocks=2` fits 16 GiB](findings/24-xl-blocks2-fits-16gib.md) — 215.6M WM, smoke peak 11.3 GiB at 16×32; M13 is ratio 512 + Table B.1 residuals. Do not load M12.
 25. [Ratio 32 + blocks=2 is still the island at 826k](findings/25-m14-826k-is-the-island.md) — last-200 2.45→1.41, stone 0, length 180. Do not grind to 1M for 14.5.
+26. [512 + blocks=2 locked the island by 136k](findings/26-m15-512-is-the-island-at-136k.md) — recon 0.003, wood 13%→4%, env-0 had wood/table 20%. Next is actor warmup, not a 1M grind.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -89,7 +91,8 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M12 paper ratio** (`configs/m12_xl_r512.yaml`): from scratch, `train_ratio` **512**, `blocks=1`. ~2 env/s. Island-shaped at ~100–116k (last-200 ~1.4, wake saturated, stone 0). **Do not resume it into M13.**
 - **M13 blocks=2** (`configs/m13_xl_r512_b2.yaml`): same 512 schedule, encoder/decoder **blocks=2**. Smoke **11.3 GiB** (finding 24). Interrupted around **106k** (last-200 ~1.5, stone 0) to leave the 5-day clock. **Do not resume it.**
 - **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5. Do not resume it.**
-- **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. New dirs. ~2 env/s, 1M ≈ 5.4 days. Do not load M14/M13. `notebooks/10_train_paper_online.ipynb`.
+- **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
+- **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): same 512 + `blocks=2`, **`prefill_steps` 25000**, **`ac_warmup_env` 25000**. New dirs. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

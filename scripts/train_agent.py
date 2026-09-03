@@ -536,7 +536,7 @@ def main() -> None:
 
     target = int(train["env_steps"])
     collect_every = int(train["collect_every"])
-    wm_updates, ac_updates = loop_updates(train)
+    wm_updates, ac_updates = loop_updates(train, env_steps=env_steps)
     imag_gradient = str(train.get("imag_gradient", "both"))
     eval_every = int(train["eval_every"])
     log_every = int(train["log_every"])
@@ -547,7 +547,9 @@ def main() -> None:
 
     print(
         f"outer loop to {target} env steps  collect_every={collect_every}  "
-        f"wm/ac_updates={wm_updates}/{ac_updates}  imag_gradient={imag_gradient}  "
+        f"wm/ac_updates={wm_updates}/{ac_updates}  "
+        f"ac_warmup_env={int(train.get('ac_warmup_env', 0) or 0)}  "
+        f"imag_gradient={imag_gradient}  "
         f"start_mode={start_mode}  (start={env_steps})",
         flush=True,
     )
@@ -589,6 +591,7 @@ def main() -> None:
         last_log_env = env_steps
 
         while env_steps < target:
+            wm_updates, ac_updates = loop_updates(train, env_steps=env_steps)
             cycle = outer_cycle(
                 collector,
                 world_model,

@@ -360,11 +360,49 @@ def test_m15_from_scratch_ratio_512_blocks2() -> None:
         assert "m12_xl" not in path, (key, path)
 
 
-def test_notebook_10_binds_m15_not_m14() -> None:
-    """Pin notebook 10 to the paper 512 loop, not M14 ratio 32."""
+def test_m16_from_scratch_ratio_512_ac_warmup() -> None:
+    import yaml
+
+    from training.outer_loop import loop_updates
+
+    cfg = yaml.safe_load(Path("configs/m16_xl_r512_acwarmup.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    size = yaml.safe_load(Path(cfg["world_model_config"]).read_text(encoding="utf-8"))
+    assert int(size["encoder"]["blocks"]) == 2
+    assert int(size["decoder"]["blocks"]) == 2
+    assert cfg.get("reset_actor") is True
+    assert not cfg.get("seed_joint_ckpt")
+    assert cfg.get("seed_replay") in (None, "")
+    assert cfg.get("world_model_ckpt") in (None, "")
+    assert cfg.get("actor_critic_ckpt") in (None, "")
+    assert float(train["train_ratio"]) == 512.0
+    assert int(train["prefill_steps"]) == 25_000
+    assert int(train["ac_warmup_env"]) == 25_000
+    wm_u, ac_u = loop_updates(train)
+    assert wm_u == 16 and ac_u == 16
+    wm_w, ac_w = loop_updates(train, env_steps=0)
+    assert wm_w == 16 and ac_w == 0
+    wm_mid, ac_mid = loop_updates(train, env_steps=24_992)
+    assert wm_mid == 16 and ac_mid == 0
+    wm_go, ac_go = loop_updates(train, env_steps=25_000)
+    assert wm_go == 16 and ac_go == 16
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m16_xl_r512_acwarmup" in path, (key, path)
+        assert "m15_xl" not in path, (key, path)
+        assert "m14_xl" not in path, (key, path)
+        assert "m13_xl" not in path, (key, path)
+        assert "m12_xl" not in path, (key, path)
+
+
+def test_notebook_10_binds_m16_not_m15() -> None:
+    """Pin notebook 10 to the actor-warmup 512 loop, not M15."""
     text = Path("notebooks/10_train_paper_online.ipynb").read_text(encoding="utf-8")
-    assert "configs/m15_xl_r512_b2.yaml" in text
+    assert "configs/m16_xl_r512_acwarmup.yaml" in text
+    assert 'CONFIG = Path(\\"configs/m15_xl_r512_b2.yaml\\")' not in text
     assert 'CONFIG = Path(\\"configs/m14_xl_r32_b2.yaml\\")' not in text
     assert 'CONFIG = Path(\\"configs/m13_xl_r512_b2.yaml\\")' not in text
     assert "Need 512 and 16/16" in text
+    assert "success_percents" in text
+    assert "last-200 collect" in text or "last-200 unlocks" in text
 

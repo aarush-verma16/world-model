@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-08-31",
+  "updated": "2026-09-03",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -379,6 +379,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M14 at 826k: online 2.24, last-200 1.41 (was 2.45 at 180k), length 180, wake/sapling ~96–99%, stone 0. ac_H 0.79. Same island as M9; plant/wood fell after 400k.",
       "paper_spin": "blocks=2 at train_ratio 32 is not a substitute for paper replay or a mining policy. Last-N can fall after the island locks."
+    },
+    {
+      "id": "26",
+      "file": "findings/26-m15-512-is-the-island-at-136k.md",
+      "title": "Paper-ratio 512 + blocks=2 locked the island by 136k",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M15 at 136k: recon_l1 0.003, last-200 ~1.17, wood 13%→4%, stone 0, ac_H 0.25–0.30. Env-0 eval had wood/table 20%. Do not grind to 1M. Next is actor warmup (M16), not a resume.",
+      "paper_spin": "512 on this graph locks the cheap +1 loop faster than ratio 32 while the world model is already good. Delay the actor; do not add a stone head."
     }
   ],
   "do_not_revive": [
@@ -435,6 +443,10 @@
     "Loading checkpoints/m13_xl_r512_b2 into M14 and calling it a from-scratch ratio-32 run",
     "Captioning an M14 ratio-32 1M next to DreamerV3 14.5",
     "Grinding M14 to 1M because online gmean is 2.2 while last-200 fell to 1.4 and stone is 0",
-    "Loading checkpoints/m14_xl_r32_b2 or m13_xl_r512_b2 into M15 and calling it a from-scratch 512 run"
+    "Loading checkpoints/m14_xl_r32_b2 or m13_xl_r512_b2 into M15 and calling it a from-scratch 512 run",
+    "Grinding M15 to 1M because recon_l1 is 0.003 while last-200 wood is 4% and stone is 0",
+    "Loading checkpoints/m15_xl_r512_b2 into M16 and calling it actor-warmup from scratch",
+    "Adding a stone / hunger / achievement bonus because 512 locked the island",
+    "Raising entropy_scale above 3e-4 as the first island fix before measuring actor warmup"
   ]
 }
