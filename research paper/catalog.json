@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-03",
+  "updated": "2026-09-04",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -387,6 +387,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M15 at 136k: recon_l1 0.003, last-200 ~1.17, wood 13%→4%, stone 0, ac_H 0.25–0.30. Env-0 eval had wood/table 20%. Do not grind to 1M. Next is actor warmup (M16), not a resume.",
       "paper_spin": "512 on this graph locks the cheap +1 loop faster than ratio 32 while the world model is already good. Delay the actor; do not add a stone head."
+    },
+    {
+      "id": "27",
+      "file": "findings/27-m16-warmup-wood-held-at-180k.md",
+      "title": "Actor warmup held wood at 180k; table still 0 so gmean cannot leave ~1.5",
+      "tags": ["eval"],
+      "one_liner": "M16 at 186k: last-200 wood 24.5% (M15 3.5%), table 0, stone 0, last-200 1.78→1.42. Wood climbed after AC-on. Not 14.5. Watch table next.",
+      "paper_spin": "A 25k actor delay can keep wood in the 512 loop. Crafting can still vanish. Last-N gmean dips when a rare fourth achievement leaves the window while a third is rising."
     }
   ],
   "do_not_revive": [
@@ -447,6 +455,8 @@
     "Grinding M15 to 1M because recon_l1 is 0.003 while last-200 wood is 4% and stone is 0",
     "Loading checkpoints/m15_xl_r512_b2 into M16 and calling it actor-warmup from scratch",
     "Adding a stone / hunger / achievement bonus because 512 locked the island",
-    "Raising entropy_scale above 3e-4 as the first island fix before measuring actor warmup"
+    "Raising entropy_scale above 3e-4 as the first island fix before measuring actor warmup",
+    "Killing M16 at 180k because last-200 gmean dipped 1.78→1.42 while wood was still climbing",
+    "Waiting for last-200 gmean to spike above 1.8 before table/pickaxe/stone rates leave zero"
   ]
 }

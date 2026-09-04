@@ -71,6 +71,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 24. [XL `blocks=2` fits 16 GiB](findings/24-xl-blocks2-fits-16gib.md) — 215.6M WM, smoke peak 11.3 GiB at 16×32; M13 is ratio 512 + Table B.1 residuals. Do not load M12.
 25. [Ratio 32 + blocks=2 is still the island at 826k](findings/25-m14-826k-is-the-island.md) — last-200 2.45→1.41, stone 0, length 180. Do not grind to 1M for 14.5.
 26. [512 + blocks=2 locked the island by 136k](findings/26-m15-512-is-the-island-at-136k.md) — recon 0.003, wood 13%→4%, env-0 had wood/table 20%. Next is actor warmup, not a 1M grind.
+27. [Actor warmup held wood at 180k](findings/27-m16-warmup-wood-held-at-180k.md) — last-200 wood 24.5% vs M15 3.5%; table 0 so gmean 1.78→1.42. Not 14.5.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -92,7 +93,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M13 blocks=2** (`configs/m13_xl_r512_b2.yaml`): same 512 schedule, encoder/decoder **blocks=2**. Smoke **11.3 GiB** (finding 24). Interrupted around **106k** (last-200 ~1.5, stone 0) to leave the 5-day clock. **Do not resume it.**
 - **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5. Do not resume it.**
 - **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
-- **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): same 512 + `blocks=2`, **`prefill_steps` 25000**, **`ac_warmup_env` 25000**. New dirs. `notebooks/10_train_paper_online.ipynb`.
+- **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~186k**: last-200 wood **24.5%** (M15 was 3.5%), table **0**, last-200 gmean **1.42** (finding 27). Leave it; watch table. `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

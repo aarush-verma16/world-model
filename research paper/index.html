@@ -451,7 +451,10 @@ flowchart LR
         body:"M14 at 826k: online 2.24, last-200 1.41 (2.45 at 180k), length 180, wake/sapling ~96–99%, plant/wood collapsed, stone 0. ac_H 0.79. Same island as M9. Do not grind to 1M for 14.5." },
       { id:"26", tags:["eval","negative-result"], title:"Paper-ratio 512 + blocks=2 locked the island by 136k",
         file:"findings/26-m15-512-is-the-island-at-136k.md",
-        body:"M15 at 136k: recon_l1 0.003, last-200 ~1.17, wood 13%→4%, stone 0, ac_H 0.25–0.30. Held-out at env 0 had wood/table 20%. Do not grind to 1M. Next is actor warmup (M16), not a resume." }
+        body:"M15 at 136k: recon_l1 0.003, last-200 ~1.17, wood 13%→4%, stone 0, ac_H 0.25–0.30. Held-out at env 0 had wood/table 20%. Do not grind to 1M. Next is actor warmup (M16), not a resume." },
+      { id:"27", tags:["eval"], title:"Actor warmup held wood at 180k; table still 0 so gmean cannot leave ~1.5",
+        file:"findings/27-m16-warmup-wood-held-at-180k.md",
+        body:"M16 at 186k: last-200 wood 24.5% vs M15 3.5%. Wood climbed 10%→19% after AC-on. Table 0 in last-200 so gmean 1.78→1.42. Stone 0. Not 14.5. Do not kill because teal dipped." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -504,7 +507,8 @@ flowchart LR
       "Loading checkpoints/m12_xl_r512 into M13 and calling it blocks=2 from scratch",
       "Grinding M15 to 1M because recon_l1 is 0.003 while last-200 wood is 4%",
       "Loading checkpoints/m15_xl_r512_b2 into M16 and calling it actor-warmup from scratch",
-      "Adding a stone / hunger / achievement bonus because 512 locked the island"
+      "Adding a stone / hunger / achievement bonus because 512 locked the island",
+      "Killing M16 at 180k because last-200 gmean dipped while wood was still climbing"
     ];
 
     let tag = "all";
