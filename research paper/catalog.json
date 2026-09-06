@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-04",
+  "updated": "2026-09-06",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -395,6 +395,22 @@
       "tags": ["eval"],
       "one_liner": "M16 at 186k: last-200 wood 24.5% (M15 3.5%), table 0, stone 0, last-200 1.78→1.42. Wood climbed after AC-on. Not 14.5. Watch table next.",
       "paper_spin": "A 25k actor delay can keep wood in the 512 loop. Crafting can still vanish. Last-N gmean dips when a rare fourth achievement leaves the window while a third is rising."
+    },
+    {
+      "id": "28",
+      "file": "findings/28-m16-350k-wood-held-orange-lottery.md",
+      "title": "M16 350k: orange 2.2 was n=10 luck; wood still 24.5%; table never left ~1%",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Held-out 2.24 at 275k had wood 70 / table 20; next bag wood 0, score 1.06. Last-200 wood still 24.5% (same as 186k), table 1%, stone 0, teal 1.83→1.49. ac_entropy 0.44. Leave to 500k; do not kill for the orange dip.",
+      "paper_spin": "Warmup can hold wood for 350k on paper-ratio 512. Crafting can still sit at ~1%. n=10 held-out is not a learning curve on a four-achievement island."
+    },
+    {
+      "id": "29",
+      "file": "findings/29-m16-462k-dip-recovered-table-4.md",
+      "title": "M16 462k: 350k dip recovered; table 4% is not a tree; stone still 0",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Last-200 1.49→2.08→1.90. Wood 22% (peak 35% at 425k), table 4%, stone 0, length 178. Held-out 2.07 at 425k is n=10. ac_entropy 0.53. Leave to 500k; do not grind 1.9 to 1M.",
+      "paper_spin": "A last-N dip on paper-ratio warmup can reverse without a new achievement class. Table at 4% is lottery-scale. Stone 0 near half of 1M is the binding constraint."
     }
   ],
   "do_not_revive": [
@@ -457,6 +473,13 @@
     "Adding a stone / hunger / achievement bonus because 512 locked the island",
     "Raising entropy_scale above 3e-4 as the first island fix before measuring actor warmup",
     "Killing M16 at 180k because last-200 gmean dipped 1.78→1.42 while wood was still climbing",
-    "Waiting for last-200 gmean to spike above 1.8 before table/pickaxe/stone rates leave zero"
+    "Waiting for last-200 gmean to spike above 1.8 before table/pickaxe/stone rates leave zero",
+    "Killing M16 at 350k because held-out fell 2.24→1.06 (that bag had wood 0; last-200 wood is still 24.5%)",
+    "Reading last-200 1.83→1.49 as wood unlearn; plant/drink mixed, wood held",
+    "Waiting for teal to recapture orange 2.2 — last-200 never was 2.2",
+    "Grinding M16 to 1M at 350k because recon_l1 is 0.004 while table is 1% and stone is 0; decide at 500k",
+    "Reading M16 last-200 1.49→2.08 as leaving the island (stone still 0, length 178)",
+    "Captioning held-out 2.07 at 425k next to DreamerV3 14.5",
+    "Killing M16 at 462k before the planned 500k look because table is only 4%"
   ]
 }
