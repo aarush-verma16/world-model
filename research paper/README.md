@@ -42,6 +42,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | 400k flat gmean is a skill island | Eval: last-N vs cumulative; do not roll back the decoder |
 | Ratio 128 on the 400k actor did not buy survival | Negative: more replay on a sleep policy ≠ 512 from scratch |
 | 512 + blocks=2 locked the island by 136k | Results: recon 0.003, wood 13%→4%; delay the actor, do not add a stone head |
+| Actor warmup holds wood to 544k; stone stays 0 | Results: 25k AC delay is a wood-hold, not a 14.5 recipe; gmean cannot leave ~2 without stone |
 
 ## Index of findings
 
@@ -74,6 +75,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 27. [Actor warmup held wood at 180k](findings/27-m16-warmup-wood-held-at-180k.md) — last-200 wood 24.5% vs M15 3.5%; table 0 so gmean 1.78→1.42. Not 14.5.
 28. [M16 350k orange 2.2 was n=10](findings/28-m16-350k-wood-held-orange-lottery.md) — wood still 24.5%; table 1%; teal 1.83→1.49. Leave to 500k.
 29. [M16 462k dip recovered](findings/29-m16-462k-dip-recovered-table-4.md) — last-200 1.49→2.08→1.90; table 4%; stone 0. Leave to 500k.
+30. [M16 544k will not walk to 14.5](findings/30-m16-544k-gmean-cannot-walk-to-14.5.md) — last-200 1.78, wood 29%, table 1.5%, stone 0. Do not grind 456k for 14.5.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -95,7 +97,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M13 blocks=2** (`configs/m13_xl_r512_b2.yaml`): same 512 schedule, encoder/decoder **blocks=2**. Smoke **11.3 GiB** (finding 24). Interrupted around **106k** (last-200 ~1.5, stone 0) to leave the 5-day clock. **Do not resume it.**
 - **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5. Do not resume it.**
 - **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
-- **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~186k**: last-200 wood **24.5%**, table **0** (finding 27). At **~351k**: wood still **24.5%**, table **1%**, teal **1.49** (finding 28). At **~462k**: last-200 **1.90**, wood **22%**, table **4%**, stone **0**, held-out **1.87** (finding 29). Still running; leave to **500k**. `notebooks/10_train_paper_online.ipynb`.
+- **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~186k**: wood **24.5%**, table **0** (finding 27). At **~351k**: wood **24.5%**, table **1%** (finding 28). At **~462k**: last-200 **1.90**, table **4%**, stone **0** (finding 29). At **~544k**: last-200 **1.78**, wood **29%**, table **1.5%**, stone **0**, held-out **2.03** is n=10 (finding 30). **Do not grind to 1M for 14.5.** `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

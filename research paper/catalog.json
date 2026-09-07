@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-06",
+  "updated": "2026-09-07",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -411,6 +411,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "Last-200 1.49→2.08→1.90. Wood 22% (peak 35% at 425k), table 4%, stone 0, length 178. Held-out 2.07 at 425k is n=10. ac_entropy 0.53. Leave to 500k; do not grind 1.9 to 1M.",
       "paper_spin": "A last-N dip on paper-ratio warmup can reverse without a new achievement class. Table at 4% is lottery-scale. Stone 0 near half of 1M is the binding constraint."
+    },
+    {
+      "id": "30",
+      "file": "findings/30-m16-544k-gmean-cannot-walk-to-14.5.md",
+      "title": "M16 544k: score is flat because stone is still 0; it will not walk to 14.5",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Last-200 1.78 at 544k: wood 29%, table 1.5%, stone 0, pick 0. Online 1.71. Held-out 2.03 is n=10. ac_H 0.43. Warmup held wood vs M15; geometric mean cannot leave ~2 without stone. Do not grind 456k for 14.5.",
+      "paper_spin": "25k actor delay holds wood through 544k at train_ratio 512 and still never opens stone. A flat ~2 gmean is mid-tree occupancy, not a late-tree climb."
     }
   ],
   "do_not_revive": [
@@ -480,6 +488,10 @@
     "Grinding M16 to 1M at 350k because recon_l1 is 0.004 while table is 1% and stone is 0; decide at 500k",
     "Reading M16 last-200 1.49→2.08 as leaving the island (stone still 0, length 178)",
     "Captioning held-out 2.07 at 425k next to DreamerV3 14.5",
-    "Killing M16 at 462k before the planned 500k look because table is only 4%"
+    "Killing M16 at 462k before the planned 500k look because table is only 4%",
+    "Waiting for M16 teal to climb to 14.5 after 500k while stone and pickaxe stay 0",
+    "Captioning M16 online 1.71 or held-out 2.03 at 544k next to DreamerV3 14.5",
+    "Reading held-out 2.03 at 525k as the start of the 14.5 climb (475k was 1.00)",
+    "Grinding M16 to 1M after the 500k control showed table 1.5% and stone 0"
   ]
 }

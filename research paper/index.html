@@ -460,7 +460,10 @@ flowchart LR
         body:"Held-out 2.24 at 275k had wood 70 / table 20; next bag wood 0, score 1.06. Last-200 wood still 24.5% (same as 186k), table 1%, stone 0, teal 1.83→1.49 from plant/drink mix. ac_entropy 0.44. Leave to 500k. Do not kill for the orange dip." },
       { id:"29", tags:["eval","negative-result"], title:"M16 462k: 350k dip recovered; table 4% is not a tree; stone still 0",
         file:"findings/29-m16-462k-dip-recovered-table-4.md",
-        body:"Last-200 1.49→2.08→1.90. Wood 22% (peak 35% at 425k), table 4%, stone 0, length 178. Held-out 2.07 at 425k is n=10 luck. ac_entropy 0.53. Leave to 500k. Do not grind 1.9 to 1M." }
+        body:"Last-200 1.49→2.08→1.90. Wood 22% (peak 35% at 425k), table 4%, stone 0, length 178. Held-out 2.07 at 425k is n=10 luck. ac_entropy 0.53. Leave to 500k. Do not grind 1.9 to 1M." },
+      { id:"30", tags:["eval","negative-result"], title:"M16 544k: score is flat because stone is still 0; it will not walk to 14.5",
+        file:"findings/30-m16-544k-gmean-cannot-walk-to-14.5.md",
+        body:"Last-200 1.78 at 544k: wood 29%, table 1.5%, stone 0, pick 0. Online 1.71. Held-out 2.03 is n=10 (475k was 1.00). ac_H 0.43. Warmup held wood vs M15 4%. Geometric mean cannot leave ~2 without stone. Do not grind the remaining 456k for 14.5." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -519,7 +522,10 @@ flowchart LR
       "Waiting for teal to recapture orange 2.2 — last-200 never was 2.2",
       "Grinding M16 to 1M at 350k because recon is 0.004 while table is 1%",
       "Reading M16 last-200 1.49→2.08 as leaving the island (stone still 0)",
-      "Killing M16 at 462k before the planned 500k look because table is only 4%"
+      "Killing M16 at 462k before the planned 500k look because table is only 4%",
+      "Waiting for M16 teal to climb to 14.5 after 500k while stone and pickaxe stay 0",
+      "Captioning M16 online 1.71 or held-out 2.03 at 544k next to DreamerV3 14.5",
+      "Grinding M16 to 1M after the 500k control showed table 1.5% and stone 0"
     ];
 
     let tag = "all";
