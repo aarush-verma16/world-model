@@ -1,0 +1,87 @@
+# M17 — closest Table B.1 / NM512-torch Crafter recipe this box can run.
+#
+# vs M16: seq 64 (was 32), GRU 4096 + hidden 1024 (was 2560/2560),
+# replay 1e6 (was 5e5), paper free_nats on both KL terms (was dyn floor 0),
+# actor on from step 0 (no ac_warmup), prefill 2500 (paper, was 25k).
+# train_ratio stays 512 → 8 WM+AC / 16 env at batch 16 × seq 64.
+#
+# batch 16 × seq 64 × start_mode=all pages 16 GiB (15.9 GiB / ~74 W).
+# Smoke 2026-09-07: batch 8 × seq 64 bf16 11.4/11.8 GiB PASS; fp32 13.3/14.2
+# GiB PASS but too tight for eval+dashboard+desktop. Live amp is bf16.
+# Paper-torch was fp32; jax Crafter is also bf16. Do not flip amp: off
+# on this card without a live-loop smoke.
+#
+# New dirs: do not load m16 (wood-hold island), m15, or any prior XL.
+# This is not a resume. Matching these knobs does not guarantee 14.5.
+#
+# Notebook 10: RESUME=None, restart kernel, run from the top. Status 0/1M.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl_paper.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 8
+  seq_len: 64
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  ac_warmup_env: 0
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 1000000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m17_xl_paper
+  checkpoint_dir: checkpoints/m17_xl_paper
+  results_dir: results/m17_xl_paper
+  replay_out: data/m17_xl_paper_replay.pt

@@ -1,0 +1,57 @@
+# DreamerV3 Table B.1 XL on this graph: residual blocks=2, GRU 4096,
+# RSSM MLP hidden 1024 (paper dyn_hidden), 32x32 latent unchanged.
+#
+# deter=2560 was our ~200M cut (finding 20). Table B.1 is 4096.
+# free_nats floors both KL terms (paper default). Do not set
+# free_nats_dyn: 0 here — that was our frozen-replay workaround (finding 03).
+#
+# Smoke: python scripts/count_params.py --smoke --size xl_paper --seq-len 64
+# If it OOMs, drop batch 16→8 in the train yaml — never shrink the latent.
+
+seed: 0
+
+encoder:
+  embed_dim: 12288
+  channels: [96, 192, 384, 768]
+  blocks: 2
+
+rssm:
+  deter_dim: 4096
+  stoch: 32
+  classes: 32
+  hidden: 1024
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [768, 384, 192, 96]
+  blocks: 2
+  output_activation: linear
+
+heads:
+  hidden: 1024
+  layers: 5
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 64
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0

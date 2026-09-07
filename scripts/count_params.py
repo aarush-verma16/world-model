@@ -40,6 +40,7 @@ SIZES = {
     "l": Path("configs/sizes/dreamer_l.yaml"),
     "xl": Path("configs/sizes/dreamer_xl.yaml"),
     "xl_b2": Path("configs/sizes/dreamer_xl_b2.yaml"),
+    "xl_paper": Path("configs/sizes/dreamer_xl_paper.yaml"),
 }
 
 ACTOR = {
@@ -48,9 +49,10 @@ ACTOR = {
     "l": (768, 4),
     "xl": (1024, 5),
     "xl_b2": (1024, 5),
+    "xl_paper": (1024, 5),
 }
 
-PAPER_M = {"s": 18, "m": 37, "l": 77, "xl": 200, "xl_b2": 200}
+PAPER_M = {"s": 18, "m": 37, "l": 77, "xl": 200, "xl_b2": 200, "xl_paper": 200}
 
 
 def _n_m(module: torch.nn.Module) -> float:

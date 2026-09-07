@@ -419,6 +419,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "Last-200 1.78 at 544k: wood 29%, table 1.5%, stone 0, pick 0. Online 1.71. Held-out 2.03 is n=10. ac_H 0.43. Warmup held wood vs M15; geometric mean cannot leave ~2 without stone. Do not grind 456k for 14.5.",
       "paper_spin": "25k actor delay holds wood through 544k at train_ratio 512 and still never opens stone. A flat ~2 gmean is mid-tree occupancy, not a late-tree climb."
+    },
+    {
+      "id": "31",
+      "file": "findings/31-paper-xl-seq64-needs-batch-8.md",
+      "title": "Table B.1 GRU 4096 + seq 64 fits 16 GiB only at batch 8",
+      "tags": ["compute"],
+      "one_liner": "4096 + hidden 1024 + blocks=2 is 227.4M WM. Batch 16 × seq 64 pages (15.9 GiB / 74 W). Batch 8 bf16 11.4/11.8 GiB PASS; fp32 13.3/14.2 too tight live. train_ratio 512 stays 16 updates/cycle.",
+      "paper_spin": "Remaining Table B.1 knobs fit at seq 64 if batch drops 16→8. M17 is that recipe, captioned."
     }
   ],
   "do_not_revive": [
@@ -492,6 +500,9 @@
     "Waiting for M16 teal to climb to 14.5 after 500k while stone and pickaxe stay 0",
     "Captioning M16 online 1.71 or held-out 2.03 at 544k next to DreamerV3 14.5",
     "Reading held-out 2.03 at 525k as the start of the 14.5 climb (475k was 1.00)",
-    "Grinding M16 to 1M after the 500k control showed table 1.5% and stone 0"
+    "Grinding M16 to 1M after the 500k control showed table 1.5% and stone 0",
+    "Setting M17 batch 16 × seq 64 — that pages 16 GiB at 74 W",
+    "Loading checkpoints/m16_xl_r512_acwarmup into the 4096 / seq 64 graph",
+    "Flipping M17 amp to fp32 for a live 1M because the smoke passed at 13.3 GiB"
   ]
 }
