@@ -427,6 +427,14 @@
       "tags": ["compute"],
       "one_liner": "4096 + hidden 1024 + blocks=2 is 227.4M WM. Batch 16 × seq 64 pages (15.9 GiB / 74 W). Batch 8 bf16 11.4/11.8 GiB PASS; fp32 13.3/14.2 too tight live. train_ratio 512 stays 16 updates/cycle.",
       "paper_spin": "Remaining Table B.1 knobs fit at seq 64 if batch drops 16→8. M17 is that recipe, captioned."
+    },
+    {
+      "id": "32",
+      "file": "findings/32-m17-100k-acH-low-wood-held.md",
+      "title": "M17 100k: ac_H 0.21 is not collapse; wood held, stone still 0",
+      "tags": ["eval"],
+      "one_liner": "Last-200 wood 39%, table 4.5%, stone 0, gmean 1.85. ac_H 0.21 (min 0.19) drifted from 0.32; collect_H 0.08. Not the 0.08 floor. M15 at this horizon had wood 4%. Leave to 180k.",
+      "paper_spin": "Paper knobs can hold wood at 100k with imag entropy in the 0.20s. That is a greedy island, not a dead actor. Stone is still the missing 14.5 piece."
     }
   ],
   "do_not_revive": [
@@ -503,6 +511,8 @@
     "Grinding M16 to 1M after the 500k control showed table 1.5% and stone 0",
     "Setting M17 batch 16 × seq 64 — that pages 16 GiB at 74 W",
     "Loading checkpoints/m16_xl_r512_acwarmup into the 4096 / seq 64 graph",
-    "Flipping M17 amp to fp32 for a live 1M because the smoke passed at 13.3 GiB"
+    "Flipping M17 amp to fp32 for a live 1M because the smoke passed at 13.3 GiB",
+    "Killing M17 at 100k because ac_H is 0.21 — that is not the 0.08 floor; wood is 39%",
+    "Reading the M17 unlock bars as stone 40% (last-200 collect_stone is 0)"
   ]
 }
