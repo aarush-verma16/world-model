@@ -469,7 +469,10 @@ flowchart LR
         body:"4096 + hidden 1024 + blocks=2 is 227.4M WM. Batch 16 × seq 64 pages (15.9 GiB / 74 W). Batch 8 bf16 11.4/11.8 GiB PASS; fp32 13.3/14.2 too tight live. train_ratio 512 stays 16 updates/cycle. Do not load M16." },
       { id:"32", tags:["eval"], title:"M17 100k: ac_H 0.21 is not collapse; wood held, stone still 0",
         file:"findings/32-m17-100k-acH-low-wood-held.md",
-        body:"Last-200 wood 39%, table 4.5%, stone 0, gmean 1.85. ac_H 0.21 (min 0.19) drifted from 0.32; collect_H 0.08. Not the 0.08 floor. M15 at this horizon had wood 4%. Leave to 180k." }
+        body:"Last-200 wood 39%, table 4.5%, stone 0, gmean 1.85. ac_H 0.21 (min 0.19) drifted from 0.32; collect_H 0.08. Not the 0.08 floor. M15 at this horizon had wood 4%. Leave to 180k." },
+      { id:"33", tags:["eval","negative-result"], title:"M17 200k: teal 1.83 is the same island; paper knobs did not open stone",
+        file:"findings/33-m17-200k-same-island.md",
+        body:"Last-200 1.82 at 200k: wood 34%, table 4%, stone 0. Same set as 100k. ac_H 0.19 not the 0.08 floor. Held-out 1.17 is n=10. Paper seq/GRU/replay held wood vs M15 and still did not open stone. Do not grind 1.8 to 1M for 14.5." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [

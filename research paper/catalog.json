@@ -435,6 +435,14 @@
       "tags": ["eval"],
       "one_liner": "Last-200 wood 39%, table 4.5%, stone 0, gmean 1.85. ac_H 0.21 (min 0.19) drifted from 0.32; collect_H 0.08. Not the 0.08 floor. M15 at this horizon had wood 4%. Leave to 180k.",
       "paper_spin": "Paper knobs can hold wood at 100k with imag entropy in the 0.20s. That is a greedy island, not a dead actor. Stone is still the missing 14.5 piece."
+    },
+    {
+      "id": "33",
+      "file": "findings/33-m17-200k-same-island.md",
+      "title": "M17 200k: teal 1.83 is the same island; paper knobs did not open stone",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Last-200 1.82 at 200k: wood 34%, table 4%, stone 0. Same set as 100k (1.85). ac_H 0.19 not the 0.08 floor. Held-out 1.17 is n=10. Do not grind 1.8 to 1M for 14.5.",
+      "paper_spin": "Table B.1 knobs on 16 GiB reproduce the wood-hold, not the 14.5 tree. The 200k plateau is four cheap +1s. Stone is still the missing mechanism."
     }
   ],
   "do_not_revive": [
@@ -513,6 +521,9 @@
     "Loading checkpoints/m16_xl_r512_acwarmup into the 4096 / seq 64 graph",
     "Flipping M17 amp to fp32 for a live 1M because the smoke passed at 13.3 GiB",
     "Killing M17 at 100k because ac_H is 0.21 — that is not the 0.08 floor; wood is 39%",
-    "Reading the M17 unlock bars as stone 40% (last-200 collect_stone is 0)"
+    "Reading the M17 unlock bars as stone 40% (last-200 collect_stone is 0)",
+    "Waiting for M17 teal to leave 1.8 after 200k while stone stays 0",
+    "Killing M17 at 200k because held-out is 1.17 (n=10; wood still 34%)",
+    "Grinding M17 to 1M so 1.8 can sit next to DreamerV3 14.5"
   ]
 }
