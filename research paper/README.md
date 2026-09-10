@@ -80,6 +80,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 31. [Paper XL seq 64 needs batch 8](findings/31-paper-xl-seq64-needs-batch-8.md) — 4096+seq64 pages at batch 16; batch 8 bf16 is 11.4 GiB.
 32. [M17 100k ac_H 0.21 is not collapse](findings/32-m17-100k-acH-low-wood-held.md) — wood 39%, stone 0; leave to 180k.
 33. [M17 200k is the same island](findings/33-m17-200k-same-island.md) — last-200 1.82, wood 34%, stone 0. Paper knobs did not open the tree.
+34. [M17 318k teal 2.10 is mix not tree](findings/34-m17-318k-teal-2-is-mix-not-tree.md) — drink/table/cow up; stone still 0.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -102,7 +103,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5. Do not resume it.**
 - **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
 - **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~544k**: last-200 **1.78**, wood **29%**, table **1.5%**, stone **0** (finding 30). **Do not grind to 1M for 14.5. Do not resume it into M17.**
-- **M17 paper knobs** (`configs/m17_xl_paper.yaml`): seq **64**, GRU **4096**, replay **1e6**, paper free-nats, actor on from 0, batch **8** bf16 (finding 31). At **~106k**: wood **39%**, `ac_H` **0.21** (finding 32). At **~200k**: last-200 **1.82**, wood **34%**, table **4%**, stone **0**, `ac_H` **0.19** (finding 33). **Do not grind to 1M for 14.5.** `notebooks/10_train_paper_online.ipynb`.
+- **M17 paper knobs** (`configs/m17_xl_paper.yaml`): seq **64**, GRU **4096**, replay **1e6**, paper free-nats, actor on from 0, batch **8** bf16 (finding 31). At **~200k**: last-200 **1.82**, wood **34%**, stone **0** (finding 33). At **~318k**: last-200 **2.10**, table **7.5%**, drink **15%**, stone **0**, `ac_H` **0.18** (finding 34). **Do not grind to 1M for 14.5.** `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 
