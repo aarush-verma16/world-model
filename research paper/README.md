@@ -82,6 +82,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 33. [M17 200k is the same island](findings/33-m17-200k-same-island.md) — last-200 1.82, wood 34%, stone 0. Paper knobs did not open the tree.
 34. [M17 318k teal 2.10 is mix not tree](findings/34-m17-318k-teal-2-is-mix-not-tree.md) — drink/table/cow up; stone still 0.
 35. [M17 356k teal dip is mix leaving](findings/35-m17-356k-teal-dip-is-mix.md) — 2.12→1.67; wood 28%; orange 0.88 is n=10.
+36. [M17 400k wood sliding](findings/36-m17-400k-wood-sliding.md) — 39%→21%, last-50 12%. Teal will not walk to 14.5.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -104,7 +105,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5. Do not resume it.**
 - **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
 - **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~544k**: last-200 **1.78**, wood **29%**, table **1.5%**, stone **0** (finding 30). **Do not grind to 1M for 14.5. Do not resume it into M17.**
-- **M17 paper knobs** (`configs/m17_xl_paper.yaml`): At **~318k**: last-200 **2.10**, stone **0** (finding 34). At **~356k**: last-200 **1.67**, wood **28%**, held-out **0.88** is n=10 (finding 35). **Do not grind to 1M for 14.5.** `notebooks/10_train_paper_online.ipynb`.
+- **M17 paper knobs** (`configs/m17_xl_paper.yaml`): At **~356k**: last-200 **1.67**, wood **28%** (finding 35). At **~400k**: last-200 **1.60**, wood **21%**, last-50 wood **12%** (finding 36). **Do not grind to 1M for 14.5.** `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

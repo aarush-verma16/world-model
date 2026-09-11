@@ -459,6 +459,14 @@
       "tags": ["eval"],
       "one_liner": "Teal 2.12→1.67: drink/table/cow/wood rolled off. Wake/sapling/plant held. Held-out 0.88 is n=10 wood 0. ac_H 0.17. Watch last-50 wood 22% at 400k; not collapse.",
       "paper_spin": "Last-N gmean on a cheap-achievement island is a window statistic. Caption wood% next to teal."
+    },
+    {
+      "id": "36",
+      "file": "findings/36-m17-400k-wood-sliding.md",
+      "title": "M17 400k: wood is sliding 39%→21% (last-50 12%); teal will not walk to 14.5",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Last-200 gmean 2.09→1.60. Wood 39%→21%, last-50 12%, table 1%. ac_H 0.19. Held-out 0.88→1.57 is n=10. Paper knobs delayed M15's unlearn; they did not stop it.",
+      "paper_spin": "Table B.1 knobs held wood through 300k then the same unlearn, stretched in env steps. Teal cannot leave ~2 without stone."
     }
   ],
   "do_not_revive": [
@@ -542,6 +550,7 @@
     "Killing M17 at 200k because held-out is 1.17 (n=10; wood still 34%)",
     "Grinding M17 to 1M so 1.8 can sit next to DreamerV3 14.5",
     "Reading M17 last-200 1.82→2.10 as leaving the island (stone still 0)",
-    "Killing M17 at 356k because teal fell 2.1→1.7 or held-out is 0.88 (wood still 28%)"
+    "Killing M17 at 356k because teal fell 2.1→1.7 or held-out is 0.88 (wood still 28%)",
+    "Waiting for M17 teal to start climbing after 400k while stone is 0 and wood is sliding"
   ]
 }
