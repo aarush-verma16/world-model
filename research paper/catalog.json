@@ -8,7 +8,22 @@
       "m6_1m_fixed": {"mean": 0.049, "std": 0.490, "frac_pos": 0.463, "r2_state_only": 0.685},
       "m6_1m_old": {"mean": 0.057, "std": 0.449, "frac_pos": 0.485, "r2_state_only": 0.730},
       "m7_xl_100k_fixed": {"mean": 0.005, "std": 0.146, "frac_pos": 0.546, "r2_state_only": 0.516},
-      "m7_xl_100k_old": {"mean": 0.008, "std": 0.121, "frac_pos": 0.575, "r2_state_only": 0.563}
+      "m7_xl_100k_old": {"mean": 0.008, "std": 0.121, "frac_pos": 0.575, "r2_state_only": 0.563},
+      "m17_500k_fixed": {"mean": 0.016, "std": 0.145, "frac_pos": 0.55, "r2_state_only": 0.616},
+      "m17_500k_old": {"mean": 0.016, "std": 0.145, "frac_pos": 0.55, "r2_state_only": 0.424}
+    },
+    "policy_mass": {
+      "script": "scripts/diag_policy_mass.py",
+      "note": "Mean actor P(a) on replay posterior states. Frozen baseline: seed 0, batch 8, 32 windows, ckpt_step_500000.pt. Unimix floor = 0.01/17 ≈ 0.000588. Finding 38.",
+      "m17_500k_seed0": {
+        "n_states": 2048,
+        "entropy": 0.162,
+        "place_table": 0.068,
+        "make_wood_pickaxe": 0.0035,
+        "do": 0.117,
+        "sleep": 0.059,
+        "place_plant": 0.046
+      }
     }
   },
   "runs": {
@@ -475,6 +490,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "Halfway: wm/ac 500k, recon_l1 0.0046, ac_H 0.17, last-200 1.61, wood 27%, stone 0/2951. Imagination still Crafter. Do not grind to 1M.",
       "paper_spin": "Table B.1 knobs on 16 GiB at paper replay rate are a wood-hold island, not 14.5. Halfway is the stop. Next is why mining never enters replay."
+    },
+    {
+      "id": "38",
+      "file": "findings/38-m17-cheap-gate-no-five-day.md",
+      "title": "Cheap gate: M17 500k still has table mass; AC graph matches NM512; do not start another 5-day run",
+      "tags": ["eval", "negative-result", "compute"],
+      "one_liner": "P(place_table)=0.068 (116× unimix), P(pickaxe)=0.0035, R2_state_only=0.616. NM512 AC graph matches. No 5-day run without a same-replay pickaxe-mass move then a 25k probe.",
+      "paper_spin": "Frozen-checkpoint action mass is the cheap falsifier for 'the actor never crafts.' Crafter gmean can sit at ~1.6 while table is 7% of steps."
     }
   ],
   "do_not_revive": [
@@ -563,6 +586,11 @@
     "Reading a flat M17 teal at 500k as a frozen trainer (wm/ac_steps 500k, recon_l1 0.0046)",
     "Grinding M17 to 1M after the 500k control showed stone 0 in 2951 lives",
     "Captioning M17 last-200 1.61 or held-out 1.09 at 500k next to DreamerV3 14.5",
-    "Adding a stone / zombie bonus on M17 weights because paper knobs did not open the tree"
+    "Adding a stone / zombie bonus on M17 weights because paper knobs did not open the tree",
+    "Starting a 5-day M18 because recon is 0.004 after Phase 1 showed live AC and table mass 116× unimix",
+    "Treating collect entropy 0.079 as proof the actor has no place_table mass (P=0.068 on replay posteriors)",
+    "Raising entropy_scale and grinding 500k without a same-replay P(make_wood_pickaxe) ≥2× move",
+    "Calling R2_state_only=0.616 a finding-17 dead advantage (M6 1M fixed was 0.685)",
+    "Flipping to NM512 .mode() / fp32 / batch 16 as the 14.5 secret without a 25k probe that moves pickaxe"
   ]
 }

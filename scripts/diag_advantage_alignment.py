@@ -11,6 +11,7 @@ action signal, so REINFORCE just pushes whatever action it drew.
 
     conda activate worldmodel
     python scripts/diag_advantage_alignment.py --config configs/m8_s_acfix.yaml
+    python scripts/diag_advantage_alignment.py --config configs/m17_xl_paper.yaml --joint-ckpt checkpoints/m17_xl_paper/ckpt_step_500000.pt --batch 8 --steps 2000
 """
 
 from __future__ import annotations
