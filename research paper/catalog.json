@@ -24,6 +24,21 @@
         "sleep": 0.059,
         "place_plant": 0.046
       }
+    },
+    "craft_legality": {
+      "script": "scripts/diag_craft_legality.py",
+      "note": "HUD ItemView decode of wood / wood_pickaxe on replay frames. Success = inventory delta, not jsonl. Finding 39.",
+      "m17_replay_515k": {
+        "episodes": 2922,
+        "steps": 515124,
+        "place_table_n": 18820,
+        "place_table_illegal_pct": 98.46,
+        "place_table_success": 90,
+        "pickaxe_n": 7583,
+        "pickaxe_success": 2,
+        "steps_wood_ge2_pct": 2.51,
+        "steps_pickaxe_ge1_pct": 0.02
+      }
     }
   },
   "runs": {
@@ -498,6 +513,14 @@
       "tags": ["eval", "negative-result", "compute"],
       "one_liner": "P(place_table)=0.068 (116× unimix), P(pickaxe)=0.0035, R2_state_only=0.616. NM512 AC graph matches. No 5-day run without a same-replay pickaxe-mass move then a 25k probe.",
       "paper_spin": "Frozen-checkpoint action mass is the cheap falsifier for 'the actor never crafts.' Crafter gmean can sit at ~1.6 while table is 7% of steps."
+    },
+    {
+      "id": "39",
+      "file": "findings/39-m17-craft-mass-is-illegal.md",
+      "title": "M17 craft mass is almost all illegal: 98% of place_table has wood < 2",
+      "tags": ["eval", "negative-result", "geometry"],
+      "one_liner": "18820 place_table presses, 98.5% with wood<2; 90 real tables. 7583 pickaxe presses, 2 succeed. Stone cannot enter replay.",
+      "paper_spin": "Discrete Crafter crafts are almost always illegal on an island policy, so REINFORCE on place_table trains a no-op. Report HUD legal rate, not softmax mass."
     }
   ],
   "do_not_revive": [
@@ -591,6 +614,9 @@
     "Treating collect entropy 0.079 as proof the actor has no place_table mass (P=0.068 on replay posteriors)",
     "Raising entropy_scale and grinding 500k without a same-replay P(make_wood_pickaxe) ≥2× move",
     "Calling R2_state_only=0.616 a finding-17 dead advantage (M6 1M fixed was 0.685)",
-    "Flipping to NM512 .mode() / fp32 / batch 16 as the 14.5 secret without a 25k probe that moves pickaxe"
+    "Flipping to NM512 .mode() / fp32 / batch 16 as the 14.5 secret without a 25k probe that moves pickaxe",
+    "Reading P(place_table)=0.068 as crafting skill (98.5% of those presses have wood<2)",
+    "Raising entropy so M17 presses place_table more — that is more illegal no-ops",
+    "Grinding M17 because 90 successful tables in 2922 lives 'started the tree' (2 pickaxes)"
   ]
 }

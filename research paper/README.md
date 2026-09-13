@@ -45,6 +45,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | Actor warmup holds wood to 544k; stone stays 0 | Results: 25k AC delay is a wood-hold, not a 14.5 recipe; gmean cannot leave ~2 without stone |
 | Table B.1 4096 + seq 64 needs batch 8 | Compute: batch 16 pages 16 GiB; M17 is the paper knobs that fit |
 | Frozen 500k still has table mass; AC matches NM512 | Eval/compute: P(table)=0.068, pickaxe starved; no 5-day run without a same-replay pickaxe ≥2× then a 25k probe |
+| 98% of place_table has wood < 2 | Results: craft softmax mass is illegal no-ops; 90 real tables, 2 pickaxes in 2922 lives |
 
 ## Index of findings
 
@@ -86,6 +87,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 36. [M17 400k wood sliding](findings/36-m17-400k-wood-sliding.md) — 39%→21%, last-50 12%. Teal will not walk to 14.5.
 37. [M17 500k trainer live, stone 0](findings/37-m17-500k-trainer-live-stone-zero.md) — last-200 1.61, wood 27%, 0/2951 stone. Stop. Do not grind to 1M.
 38. [Cheap gate: table mass, NM512 match, no 5-day run](findings/38-m17-cheap-gate-no-five-day.md) — P(table)=0.068, P(pickaxe)=0.0035, R2=0.616. Kill: same-replay pickaxe ≥2× then 25k probe.
+39. [Craft mass is illegal](findings/39-m17-craft-mass-is-illegal.md) — 98.5% of place_table has wood<2; 90 real tables, 2 pickaxes in 2922 lives.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -108,7 +110,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M14 workstation** (`configs/m14_xl_r32_b2.yaml`): from scratch, `train_ratio` **32**, `blocks=2`. At **~826k**: online **2.24**, last-200 **1.41**, length **180**, stone **0** (finding 25). Same island as M9. **Do not put this next to 14.5. Do not resume it.**
 - **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
 - **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~544k**: last-200 **1.78**, wood **29%**, table **1.5%**, stone **0** (finding 30). **Do not grind to 1M for 14.5. Do not resume it into M17.**
-- **M17 paper knobs** (`configs/m17_xl_paper.yaml`): Halfway **~512k**: last-200 **1.61**, wood **27%**, stone **0/2951**, `recon_l1` **0.0046**, `ac_H` **0.17** (finding 37). Frozen ckpt: `P(place_table)=0.068`, `P(make_wood_pickaxe)=0.0035`, advantage `R2_state_only=0.616`; AC graph matches NM512 Crafter (finding 38). **Stop. Do not grind to 1M. Do not start M18 until a same-replay pickaxe-mass move and a 25k probe.** `notebooks/10_train_paper_online.ipynb`.
+- **M17 paper knobs** (`configs/m17_xl_paper.yaml`): Halfway **~512k**: last-200 **1.61**, wood **27%**, stone **0/2951**, `recon_l1` **0.0046**, `ac_H` **0.17** (finding 37). Frozen ckpt: `P(place_table)=0.068` but **98.5%** of table presses have wood<2; **90** real tables, **2** pickaxes in 2922 lives (findings 38–39). **Stop. Do not grind to 1M.** `notebooks/10_train_paper_online.ipynb`.
 
 ## Conventions
 

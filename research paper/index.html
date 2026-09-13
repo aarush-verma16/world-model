@@ -487,7 +487,10 @@ flowchart LR
         body:"Halfway: wm/ac 500k, recon_l1 0.0046, ac_H 0.17, last-200 1.61, wood 27%, stone 0/2951. Imagination still Crafter. Do not grind to 1M." },
       { id:"38", tags:["eval","negative-result","compute"], title:"Cheap gate: M17 500k still has table mass; AC graph matches NM512; do not start another 5-day run",
         file:"findings/38-m17-cheap-gate-no-five-day.md",
-        body:"P(place_table)=0.068 (116× unimix), P(pickaxe)=0.0035, R2_state_only=0.616. NM512 AC graph matches. No 5-day run without a same-replay pickaxe-mass move then a 25k probe." }
+        body:"P(place_table)=0.068 (116× unimix), P(pickaxe)=0.0035, R2_state_only=0.616. NM512 AC graph matches. No 5-day run without a same-replay pickaxe-mass move then a 25k probe." },
+      { id:"39", tags:["eval","negative-result","geometry"], title:"M17 craft mass is almost all illegal: 98% of place_table has wood < 2",
+        file:"findings/39-m17-craft-mass-is-illegal.md",
+        body:"18820 place_table presses, 98.5% with wood<2; 90 real tables. 7583 pickaxe presses, 2 succeed. Stone cannot enter replay." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -560,7 +563,10 @@ flowchart LR
       "Treating collect entropy 0.079 as proof the actor has no place_table mass (P=0.068 on replay posteriors)",
       "Raising entropy_scale and grinding 500k without a same-replay P(make_wood_pickaxe) ≥2× move",
       "Calling R2_state_only=0.616 a finding-17 dead advantage (M6 1M fixed was 0.685)",
-      "Flipping to NM512 .mode() / fp32 / batch 16 as the 14.5 secret without a 25k probe that moves pickaxe"
+      "Flipping to NM512 .mode() / fp32 / batch 16 as the 14.5 secret without a 25k probe that moves pickaxe",
+      "Reading P(place_table)=0.068 as crafting skill (98.5% of those presses have wood<2)",
+      "Raising entropy so M17 presses place_table more — that is more illegal no-ops",
+      "Grinding M17 because 90 successful tables in 2922 lives started the tree (2 pickaxes)"
     ];
 
     let tag = "all";
