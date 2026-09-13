@@ -481,7 +481,10 @@ flowchart LR
         body:"Teal 2.12→1.67: drink/table/cow/wood rolled off. Wake/sapling/plant held. Held-out 0.88 is n=10 wood 0. ac_H 0.17. Watch last-50 wood 22% at 400k; not collapse." },
       { id:"36", tags:["eval","negative-result"], title:"M17 400k: wood is sliding 39%→21% (last-50 12%); teal will not walk to 14.5",
         file:"findings/36-m17-400k-wood-sliding.md",
-        body:"Last-200 gmean 2.09→1.60. Wood 39%→21%, last-50 12%, table 1%. ac_H 0.19. Held-out 0.88→1.57 is n=10. Paper knobs delayed M15's unlearn; they did not stop it." }
+        body:"Last-200 gmean 2.09→1.60. Wood 39%→21%, last-50 12%, table 1%. ac_H 0.19. Held-out 0.88→1.57 is n=10. Paper knobs delayed M15's unlearn; they did not stop it." },
+      { id:"37", tags:["eval","negative-result"], title:"M17 500k: the trainer is live; 2951 lives never mined stone; paper knobs are not 14.5",
+        file:"findings/37-m17-500k-trainer-live-stone-zero.md",
+        body:"Halfway: wm/ac 500k, recon_l1 0.0046, ac_H 0.17, last-200 1.61, wood 27%, stone 0/2951. Imagination still Crafter. Do not grind to 1M." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -546,7 +549,10 @@ flowchart LR
       "Grinding M16 to 1M after the 500k control showed table 1.5% and stone 0",
       "Setting M17 batch 16 × seq 64 — that pages 16 GiB at 74 W",
       "Loading checkpoints/m16_xl_r512_acwarmup into the 4096 / seq 64 graph",
-      "Flipping M17 amp to fp32 for a live 1M because the smoke passed at 13.3 GiB"
+      "Flipping M17 amp to fp32 for a live 1M because the smoke passed at 13.3 GiB",
+      "Reading a flat M17 teal at 500k as a frozen trainer",
+      "Grinding M17 to 1M after stone 0 in 2951 lives",
+      "Adding a stone / zombie bonus on M17 weights"
     ];
 
     let tag = "all";
