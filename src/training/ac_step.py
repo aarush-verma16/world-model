@@ -150,7 +150,7 @@ def actor_critic_step(
         if slow_critic is not None:
             with torch.no_grad():
                 slow_target = symlog_twohot_mean(
-                    slow_critic(rollout.feat[:, :-1].detach()), slow_critic.bins
+                    slow_critic(rollout.feat_actor[:, :-1].detach()), slow_critic.bins
                 )
             slow_value = float(slow_target.mean())
             critic_nll = critic_nll + symlog_twohot_loss(

@@ -57,6 +57,18 @@ def build_model(cfg: dict) -> WorldModel:
     rssm = cfg["rssm"]
     dec = cfg.get("decoder", {})
     heads = cfg.get("heads", {})
+    # Optional (finding 40, m18 only): an `inventory:` block builds the
+    # InventoryHead. Every m6/m17-style world_model_config has no such key,
+    # so `inventory_n_items` stays `None` and `WorldModel.inventory_head` is
+    # `None` — byte-identical to before this existed.
+    inv_cfg = cfg.get("inventory")
+    inventory_n_items = None
+    inventory_num_classes = 10
+    if inv_cfg:
+        from training.crafter_rules import ITEM_NAMES
+
+        inventory_n_items = int(inv_cfg.get("n_items", len(ITEM_NAMES)))
+        inventory_num_classes = int(inv_cfg.get("num_classes", 10))
     return WorldModel.from_config_dims(
         embed_dim=int(enc["embed_dim"]),
         encoder_channels=tuple(int(c) for c in enc["channels"]),
@@ -79,6 +91,8 @@ def build_model(cfg: dict) -> WorldModel:
         reward_num_bins=int(heads.get("reward_bins", 255)),
         reward_low=float(heads.get("reward_low", -20.0)),
         reward_high=float(heads.get("reward_high", 20.0)),
+        inventory_n_items=inventory_n_items,
+        inventory_num_classes=inventory_num_classes,
     )
 
 

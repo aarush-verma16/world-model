@@ -152,6 +152,38 @@ def image_mse_loss(pred: Tensor, target: Tensor) -> Tensor:
     return se.flatten(start_dim=pred.ndim - 3).sum(dim=-1).mean()
 
 
+def inventory_head_loss(
+    logits: Tensor,
+    counts: Tensor,
+    has_inventory: Tensor,
+) -> Tensor:
+    """Masked cross-entropy for `InventoryHead` (finding 40, not vanilla
+    DreamerV3 — additive/optional, never mixed into `world_model_loss`'s
+    total so m6/m17 stay byte-for-byte the same DreamerV3 recipe).
+
+    Args:
+        logits: `[..., n_items, num_classes]` from `InventoryHead`.
+        counts: `[..., n_items]` int64 ground-truth counts in `[0, num_classes)`.
+        has_inventory: `[...]` in `{0, 1}` — 0 for steps loaded from replay
+            written before this head existed (`ReplayBuffer` backward
+            compat). Those steps contribute 0 loss instead of training the
+            head to predict a fake all-zero inventory as if it were real.
+
+    Returns:
+        Scalar mean cross-entropy over steps with `has_inventory == 1`. If no
+        step in the batch has real inventory, returns `0.0` (no gradient).
+    """
+    ce = F.cross_entropy(
+        logits.reshape(-1, logits.shape[-1]),
+        counts.reshape(-1).clamp(0, logits.shape[-1] - 1),
+        reduction="none",
+    ).view(*counts.shape)  # [..., n_items]
+    per_step = ce.mean(dim=-1)  # [...]
+    mask = has_inventory.to(per_step.dtype)
+    denom = mask.sum().clamp_min(1.0)
+    return (per_step * mask).sum() / denom
+
+
 def world_model_loss(
     *,
     obs: Tensor,

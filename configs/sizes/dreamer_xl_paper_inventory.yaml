@@ -1,0 +1,62 @@
+# Same graph as dreamer_xl_paper.yaml (Table B.1 XL), plus the optional
+# InventoryHead (finding 40). This is a deviation from vanilla DreamerV3 —
+# see research paper/findings/40-*.md. Do not point m6/m17/m16 at this file;
+# they must keep loading dreamer_xl_paper.yaml with no `inventory:` key so
+# `WorldModel.inventory_head` stays `None` and their checkpoints are
+# unaffected.
+#
+# n_items/num_classes match training.crafter_rules.ITEM_NAMES (16 items,
+# every Crafter inventory count capped at 9 -> 10 classes, no clipping).
+
+seed: 0
+
+encoder:
+  embed_dim: 12288
+  channels: [96, 192, 384, 768]
+  blocks: 2
+
+rssm:
+  deter_dim: 4096
+  stoch: 32
+  classes: 32
+  hidden: 1024
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [768, 384, 192, 96]
+  blocks: 2
+  output_activation: linear
+
+heads:
+  hidden: 1024
+  layers: 5
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+inventory:
+  n_items: 16
+  num_classes: 10
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 64
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0
+  inventory_scale: 1.0

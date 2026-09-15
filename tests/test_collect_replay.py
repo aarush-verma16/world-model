@@ -131,6 +131,63 @@ def test_replay_add_step_is_trainable_before_death() -> None:
     assert buf.num_steps == 8
 
 
+def test_replay_add_step_inventory_and_has_inventory_flag() -> None:
+    from training.replay_buffer import N_ITEMS as _N_ITEMS
+
+    buf = ReplayBuffer(seed=0)
+    inv = np.zeros(_N_ITEMS, dtype=np.int64)
+    inv[0] = 3
+    buf.add_step(np.zeros((64, 64, 3), dtype=np.uint8), 1, 0.0, 1.0, is_first=True, inventory=inv)
+    buf.add_step(np.zeros((64, 64, 3), dtype=np.uint8), 2, 0.0, 1.0, is_first=False)
+    buf.close_episode()
+    ep = buf._episodes[0]
+    assert ep.inventory is not None and ep.has_inventory is not None
+    assert int(ep.inventory[0, 0]) == 3
+    assert float(ep.has_inventory[0]) == 1.0
+    assert float(ep.has_inventory[1]) == 0.0  # second add_step omitted inventory
+
+
+def test_replay_sample_includes_inventory_fields() -> None:
+    from training.replay_buffer import N_ITEMS as _N_ITEMS
+
+    buf = ReplayBuffer(seed=0)
+    inv = np.stack([np.full(_N_ITEMS, i, dtype=np.int64) for i in range(6)])
+    buf.add_episode(
+        torch.zeros(6, 64, 64, 3, dtype=torch.uint8),
+        torch.zeros(6, dtype=torch.int64),
+        torch.zeros(6),
+        torch.ones(6),
+        inventory=inv,
+    )
+    batch = buf.sample(2, 4)
+    assert batch["inventory"].shape == (2, 4, _N_ITEMS)
+    assert batch["has_inventory"].shape == (2, 4)
+    assert bool((batch["has_inventory"] == 1.0).all())
+
+
+def test_replay_load_state_dict_without_inventory_defaults_to_zero() -> None:
+    """Backward compat: an old dump has no `inventory` key at all."""
+    from training.replay_buffer import N_ITEMS as _N_ITEMS
+
+    buf = ReplayBuffer(seed=0)
+    state = {
+        "episodes": [
+            {
+                "obs": torch.zeros(4, 64, 64, 3, dtype=torch.uint8),
+                "actions": torch.zeros(4, dtype=torch.int64),
+                "rewards": torch.zeros(4),
+                "cont": torch.ones(4),
+            }
+        ],
+        "total_steps": 4,
+    }
+    buf.load_state_dict(state)
+    batch = buf.sample(1, 4)
+    assert batch["inventory"].shape == (1, 4, _N_ITEMS)
+    assert bool((batch["has_inventory"] == 0.0).all())
+    assert bool((batch["inventory"] == 0).all())
+
+
 def test_replay_state_dict_roundtrip() -> None:
     buf = ReplayBuffer(seed=0, max_steps=1000)
     buf.add_episode(

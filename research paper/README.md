@@ -46,6 +46,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 | Table B.1 4096 + seq 64 needs batch 8 | Compute: batch 16 pages 16 GiB; M17 is the paper knobs that fit |
 | Frozen 500k still has table mass; AC matches NM512 | Eval/compute: P(table)=0.068, pickaxe starved; no 5-day run without a same-replay pickaxe ≥2× then a 25k probe |
 | 98% of place_table has wood < 2 | Results: craft softmax mass is illegal no-ops; 90 real tables, 2 pickaxes in 2922 lives |
+| Masking + inventory head cost ~0.2 GiB; masked prefill is 0% illegal | Compute/methods appendix: legality masking is cheap; validate a mask with a masked-random prefill, not just a unit test |
 
 ## Index of findings
 
@@ -88,6 +89,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 37. [M17 500k trainer live, stone 0](findings/37-m17-500k-trainer-live-stone-zero.md) — last-200 1.61, wood 27%, 0/2951 stone. Stop. Do not grind to 1M.
 38. [Cheap gate: table mass, NM512 match, no 5-day run](findings/38-m17-cheap-gate-no-five-day.md) — P(table)=0.068, P(pickaxe)=0.0035, R2=0.616. Kill: same-replay pickaxe ≥2× then 25k probe.
 39. [Craft mass is illegal](findings/39-m17-craft-mass-is-illegal.md) — 98.5% of place_table has wood<2; 90 real tables, 2 pickaxes in 2922 lives.
+40. [M18 masking/inventory VRAM and legal rate](findings/40-m18-masking-inventory-vram-and-legal-rate.md) — same-script VRAM delta +0.11/+0.23 GiB; masked-random prefill has 0% illegal place_table (4/4) in a 3k-step sample; pickaxe prerequisite still unreached.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -111,6 +113,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M15 paper ratio** (`configs/m15_xl_r512_b2.yaml`): from scratch, `train_ratio` **512**, `blocks=2`. At **~136k**: `recon_l1` **0.003**, last-200 **~1.17**, wood **4%**, stone **0** (finding 26). Leave only for the 180k look; **do not resume it into M16.**
 - **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~544k**: last-200 **1.78**, wood **29%**, table **1.5%**, stone **0** (finding 30). **Do not grind to 1M for 14.5. Do not resume it into M17.**
 - **M17 paper knobs** (`configs/m17_xl_paper.yaml`): Halfway **~512k**: last-200 **1.61**, wood **27%**, stone **0/2951**, `recon_l1` **0.0046**, `ac_H` **0.17** (finding 37). Frozen ckpt: `P(place_table)=0.068` but **98.5%** of table presses have wood<2; **90** real tables, **2** pickaxes in 2922 lives (findings 38–39). **Stop. Do not grind to 1M.** `notebooks/10_train_paper_online.ipynb`.
+- **M18 masked + inventory-conditioned** (`configs/m18_masked_inventory.yaml`): **labeled deviation from vanilla DreamerV3** (findings 38–39's fix) — ground-truth legality mask in real collect/prefill, an `InventoryHead`, and inventory-conditioned actor/critic with a predicted-inventory mask in imagination. Full outer-loop CUDA smoke **PASS** at 12.76/14.70 GiB (+0.11/+0.23 GiB vs. M17 same-script control; +9.62M params). Masked-random 3k-step prefill: `place_table` 4/4 legal and successful, `make_wood_pickaxe` never reached its prerequisite (finding 40). **No env-step training has run yet** — smoke-tested only. Do not caption its eventual score next to M6/M17.
 
 ## Conventions
 

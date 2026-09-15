@@ -19,6 +19,8 @@ from agents.actor_critic import Actor
 from models.heads import rssm_features
 from models.rssm import RSSMState
 from models.world_model import WorldModel
+from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
+from training.crafter_rules import inventory_vector, legal_action_mask
 from training.crafter_score import achievement_counts_from_info
 from training.device import autocast_context
 from training.replay_buffer import ReplayBuffer
@@ -52,6 +54,7 @@ def rssm_policy_step(
     *,
     device: torch.device,
     amp_dtype: torch.dtype | None,
+    info: dict | None = None,
 ) -> tuple[RSSMState, Tensor, int, float]:
     """One real observe + stochastic actor sample.
 
@@ -59,6 +62,11 @@ def rssm_policy_step(
         obs_u8: `[H, W, C]` uint8 current frame.
         state: previous `h` / `z_posterior` (`rssm.initial` at episode start).
         prev_action: one-hot `[1, action_dim]` (zeros at t=0).
+        info: `CrafterEnv` info dict describing the state `obs_u8` was taken
+            from (facing/nearby/inventory). Feeds `legal_action_mask`
+            (finding 39) so the actor never samples a real `place_*`/`make_*`
+            it cannot execute. `None` legalizes everything (e.g. non-Crafter
+            envs, or callers that predate the mask).
 
     Returns:
         `(new_state, action_oh, action_int, entropy)` — `action_oh` is `[1, A]`.
@@ -67,13 +75,27 @@ def rssm_policy_step(
     actor.eval()
     obs_t = torch.from_numpy(np.ascontiguousarray(obs_u8, dtype=np.uint8)).unsqueeze(0)
     obs_t = obs_t.to(device, non_blocking=True)
+    # Only the real 17-action Crafter task has a legality table; test doubles
+    # / other action spaces skip the mask (`policy` treats `mask=None` as
+    # "everything legal").
+    mask = None
+    if int(world_model.rssm.action_dim) == CRAFTER_ACTION_DIM:
+        mask = torch.from_numpy(legal_action_mask(info)).to(device).unsqueeze(0)
     with autocast_context(device, amp_dtype):
         embed = world_model.encode(obs_t)
         new_state, _z_prior, _prior_logits, _post_logits = world_model.rssm.obs_step(
             state, prev_action, embed
         )
         feat = rssm_features(new_state.h, new_state.z_posterior)
-        action_oh, _log_prob, entropy, _probs = actor.policy(feat)
+        feat_actor = feat
+        if world_model.inventory_head is not None:
+            # Ground-truth inventory (finding 40): real collect has actual
+            # `info`, unlike imagination, so it never needs the predicted
+            # head here — only `training.imagine` does.
+            inv = inventory_vector(info.get("inventory") if info else None)
+            inv_t = torch.from_numpy(inv).to(device=device, dtype=feat.dtype).unsqueeze(0) / 9.0
+            feat_actor = torch.cat([feat, inv_t], dim=-1)
+        action_oh, _log_prob, entropy, _probs = actor.policy(feat_actor, mask=mask)
     action_i = ste_action_to_int(action_oh)
     return new_state, action_oh.float(), action_i, float(entropy.reshape(-1)[0].item())
 
@@ -102,6 +124,7 @@ class Collector:
         self.amp_dtype = amp_dtype
         self.next_seed = int(seed)
         self._obs: np.ndarray | None = None
+        self._info: dict[str, Any] | None = None
         self._state: RSSMState | None = None
         self._prev_action: Tensor | None = None
         self._obs_buf: list[np.ndarray] = []
@@ -116,8 +139,9 @@ class Collector:
         if seed is None:
             seed = self.next_seed
             self.next_seed += 1
-        obs, _info = self.env.reset(seed=int(seed))
+        obs, info = self.env.reset(seed=int(seed))
         self._obs = np.asarray(obs, dtype=np.uint8)
+        self._info = info if isinstance(info, dict) else None
         rssm = self.world_model.rssm
         self._state = rssm.initial(1, device=self.device)
         self._prev_action = torch.zeros(1, rssm.action_dim, device=self.device)
@@ -134,6 +158,11 @@ class Collector:
             self.reset()
         assert self._obs is not None and self._state is not None
         assert self._prev_action is not None
+        # Inventory stored alongside obs_t (finding 40) must describe the
+        # state obs_t was taken from, i.e. `self._info` *before* this env
+        # step — the same info the mask above was built from — not the
+        # post-step info that describes next_obs.
+        pre_info = self._info
 
         new_state, action_oh, action_i, entropy = rssm_policy_step(
             self.world_model,
@@ -143,8 +172,10 @@ class Collector:
             self._prev_action,
             device=self.device,
             amp_dtype=self.amp_dtype,
+            info=pre_info,
         )
         next_obs, reward, terminated, truncated, info = self.env.step(action_i)
+        self._info = info if isinstance(info, dict) else None
         terminated = bool(terminated)
         truncated = bool(truncated)
         self._ep_steps += 1
@@ -157,12 +188,16 @@ class Collector:
         self._act_buf.append(action_i)
         self._rew_buf.append(float(reward))
         self._cont_buf.append(cont)
+        inv_vec = (
+            inventory_vector(pre_info.get("inventory")) if pre_info is not None else None
+        )
         self.buffer.add_step(
             self._obs_buf[-1],
             action_i,
             float(reward),
             cont,
             is_first=len(self._obs_buf) == 1,
+            inventory=inv_vec,
         )
 
         self._state = new_state

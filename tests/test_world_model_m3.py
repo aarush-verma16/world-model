@@ -379,6 +379,192 @@ def test_replay_buffer_samples_contiguous_windows() -> None:
             assert int(acts[t]) == int(acts[t - 1]) + 1
 
 
+def _tiny_wm_with_inventory(n_items: int = 6, num_classes: int = 10) -> WorldModel:
+    return WorldModel.from_config_dims(
+        embed_dim=64,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=5,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+        encoder_blocks=1,
+        decoder_blocks=0,
+        inventory_n_items=n_items,
+        inventory_num_classes=num_classes,
+    )
+
+
+def test_world_model_default_has_no_inventory_head() -> None:
+    """m6/m17 must load `strict=True`: no inventory_head key exists at all."""
+    wm = _tiny_wm()
+    assert wm.inventory_head is None
+    try:
+        wm.predict_inventory(torch.zeros(1, wm.feat_dim))
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("expected RuntimeError with no inventory_head")
+    assert "inventory_head" not in wm.state_dict()
+
+
+def test_inventory_head_predicts_shape() -> None:
+    wm = _tiny_wm_with_inventory(n_items=6, num_classes=10)
+    assert wm.inventory_head is not None
+    feat = torch.randn(3, 5, wm.feat_dim)
+    logits = wm.predict_inventory(feat)
+    assert logits.shape == (3, 5, 6, 10)
+
+
+def test_inventory_head_loss_masks_stale_steps() -> None:
+    from training.losses import inventory_head_loss
+
+    logits = torch.randn(2, 4, 6, 10, requires_grad=True)
+    counts = torch.zeros(2, 4, 6, dtype=torch.int64)
+    has_inventory = torch.zeros(2, 4)
+    loss_all_stale = inventory_head_loss(logits, counts, has_inventory)
+    assert float(loss_all_stale.detach()) == 0.0
+    has_inventory[:, 0] = 1.0
+    loss_partial = inventory_head_loss(logits, counts, has_inventory)
+    assert float(loss_partial.detach()) > 0.0
+    loss_partial.backward()
+    assert logits.grad is not None
+    # Gradient must be zero on the stale (has_inventory=0) steps.
+    assert torch.equal(logits.grad[:, 1:], torch.zeros_like(logits.grad[:, 1:]))
+    assert bool((logits.grad[:, 0] != 0).any())
+
+
+def test_world_model_step_with_inventory_head_trains_it_and_skips_stale_steps() -> None:
+    from training.device import make_grad_scaler
+    from training.wm_step import world_model_step
+
+    device = torch.device("cpu")
+    wm = _tiny_wm_with_inventory(n_items=6, num_classes=10).to(device)
+    before = wm.inventory_head.net[-1].weight.detach().clone()
+    optim = torch.optim.Adam(wm.parameters(), lr=1e-2)
+    train_cfg = {
+        "dyn_scale": 0.5,
+        "rep_scale": 0.1,
+        "free_nats": 1.0,
+        "free_nats_dyn": None,
+        "recon_scale": 1.0,
+        "reward_scale": 1.0,
+        "continue_scale": 1.0,
+        "kl_scale": 1.0,
+        "inventory_scale": 1.0,
+    }
+    batch = {
+        "obs": torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8),
+        "actions": torch.randint(0, 5, (2, 4), dtype=torch.int64),
+        "rewards": torch.zeros(2, 4),
+        "cont": torch.ones(2, 4),
+        "inventory": torch.randint(0, 10, (2, 4, 6), dtype=torch.int64),
+        "has_inventory": torch.ones(2, 4),
+    }
+    scaler = make_grad_scaler(device, None)
+    loss, metrics = world_model_step(
+        wm, optim, batch, device=device, train_cfg=train_cfg, amp_dtype=None, scaler=scaler
+    )
+    assert "inventory" in metrics
+    assert torch.isfinite(torch.tensor(metrics["inventory"]))
+    assert not torch.equal(before, wm.inventory_head.net[-1].weight.detach())
+
+
+def test_world_model_step_without_inventory_head_ignores_inventory_batch_key() -> None:
+    """A batch with `inventory`/`has_inventory` must not affect a model with
+    no head — m6/m17 configs never build one, so this is the byte-identical
+    guarantee."""
+    from training.device import make_grad_scaler
+    from training.wm_step import world_model_step
+
+    device = torch.device("cpu")
+    wm = _tiny_wm().to(device)
+    optim = torch.optim.Adam(wm.parameters(), lr=1e-3)
+    train_cfg = {
+        "dyn_scale": 0.5,
+        "rep_scale": 0.1,
+        "free_nats": 1.0,
+        "free_nats_dyn": None,
+        "recon_scale": 1.0,
+        "reward_scale": 1.0,
+        "continue_scale": 1.0,
+        "kl_scale": 1.0,
+    }
+    batch = {
+        "obs": torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8),
+        "actions": torch.randint(0, 5, (2, 4), dtype=torch.int64),
+        "rewards": torch.zeros(2, 4),
+        "cont": torch.ones(2, 4),
+        "inventory": torch.randint(0, 10, (2, 4, 6), dtype=torch.int64),
+        "has_inventory": torch.ones(2, 4),
+    }
+    scaler = make_grad_scaler(device, None)
+    loss, metrics = world_model_step(
+        wm, optim, batch, device=device, train_cfg=train_cfg, amp_dtype=None, scaler=scaler
+    )
+    assert "inventory" not in metrics
+    assert metrics["total"] == float(loss.total.detach())
+
+
+def test_imagine_ahead_with_inventory_head_extends_feat_actor_and_masks() -> None:
+    """finding 40 end-to-end: `feat_actor` gets the +N_ITEMS columns, `feat`
+    stays the decoder-sized base, and the imagined actor never gets nonzero
+    probability on a place_*/make_* the predicted inventory rules out."""
+    from agents.actor_critic import Actor, Critic
+    from training.crafter_rules import ACTION_INDEX, ITEM_NAMES
+    from training.imagine import freeze_world_model, imagine_ahead
+
+    n_items = len(ITEM_NAMES)
+    wm = WorldModel.from_config_dims(
+        embed_dim=64,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=17,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+        encoder_blocks=1,
+        decoder_blocks=0,
+        inventory_n_items=n_items,
+        inventory_num_classes=10,
+    )
+    freeze_world_model(wm)
+    feat_dim = wm.feat_dim + n_items
+    actor = Actor(feat_dim, 17, hidden=16, layers=1)
+    critic = Critic(feat_dim, hidden=16, layers=1, num_bins=21)
+    obs = torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.randint(0, 17, (2, 4), dtype=torch.int64)
+
+    rollout = imagine_ahead(wm, actor, critic, obs, actions, horizon=3, start_mode="last")
+
+    assert rollout.feat.shape == (2, 4, wm.feat_dim)
+    assert rollout.feat_actor.shape == (2, 4, feat_dim)
+    assert not rollout.feat_actor.requires_grad
+
+    # Force the predicted inventory to look empty (argmax -> bin 0 for every
+    # item) by zeroing the inventory head, then confirm the imagined policy
+    # never puts probability on a place_*/make_* action.
+    for p in wm.inventory_head.parameters():
+        torch.nn.init.zeros_(p)
+    rollout2 = imagine_ahead(wm, actor, critic, obs, actions, horizon=3, start_mode="last")
+    with torch.no_grad():
+        feat0 = rollout2.feat_actor[:, 0]
+        _action, _log_prob, _entropy, probs = actor.policy(feat0)
+        from training.crafter_rules import legal_mask_from_counts_torch
+
+        inv_counts = feat0[:, wm.feat_dim :] * 9.0
+        mask = legal_mask_from_counts_torch(inv_counts)
+        _action_masked, _lp, _ent, probs_masked = actor.policy(feat0, mask=mask)
+    for name in ("place_table", "place_furnace", "make_wood_pickaxe"):
+        assert float(probs_masked[:, ACTION_INDEX[name]].max()) == 0.0
+
+
 def test_world_model_step_updates_weights() -> None:
     from training.device import make_grad_scaler
     from training.wm_step import world_model_step

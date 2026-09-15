@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-13",
+  "updated": "2026-09-15",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -38,7 +38,24 @@
         "pickaxe_success": 2,
         "steps_wood_ge2_pct": 2.51,
         "steps_pickaxe_ge1_pct": 0.02
+      },
+      "m18_masked_prefill_3k": {
+        "episodes": 16,
+        "steps": 3000,
+        "place_table_n": 4,
+        "place_table_illegal_pct": 0.0,
+        "place_table_success": 4,
+        "pickaxe_n": 0,
+        "note": "prefill_random_steps(mask_illegal=True). Mechanism check, not a trained policy. Finding 40."
       }
+    }
+  },
+  "compute": {
+    "m17_vs_m18_smoke_vram": {
+      "script": "scripts/smoke_outer_loop.py",
+      "note": "Same script, batch=8, seq=64, bf16, --env-steps 32. Controlled delta from adding InventoryHead + masking. Finding 40.",
+      "m17_dreamer_xl_paper": {"params_m": 227.40, "peak_vram_alloc_gib": 12.65, "peak_vram_reserved_gib": 14.47},
+      "m18_dreamer_xl_paper_inventory": {"params_m": 237.02, "inventory_head_params_m": 9.62, "peak_vram_alloc_gib": 12.76, "peak_vram_reserved_gib": 14.70}
     }
   },
   "runs": {
@@ -521,6 +538,14 @@
       "tags": ["eval", "negative-result", "geometry"],
       "one_liner": "18820 place_table presses, 98.5% with wood<2; 90 real tables. 7583 pickaxe presses, 2 succeed. Stone cannot enter replay.",
       "paper_spin": "Discrete Crafter crafts are almost always illegal on an island policy, so REINFORCE on place_table trains a no-op. Report HUD legal rate, not softmax mass."
+    },
+    {
+      "id": "40",
+      "file": "findings/40-m18-masking-inventory-vram-and-legal-rate.md",
+      "title": "M18 masking + inventory head cost ~0.2 GiB; masked-random prefill is 0% illegal place_table in a 3k-step sample",
+      "tags": ["compute", "eval"],
+      "one_liner": "Same-script VRAM diff: 227.40M->237.02M params, 12.65/14.47->12.76/14.70 GiB (+0.11/+0.23). Masked-random prefill: 4/4 place_table legal and successful; pickaxe prerequisite still never reached in 3000 steps.",
+      "paper_spin": "Compute appendix: legality masking + a small aux head is cheap on 16 GiB. Methods: validate a legality mask with a masked-random prefill diagnostic before a 1M run, and report prerequisite-reachability, not just illegal-press rate."
     }
   ],
   "do_not_revive": [
@@ -617,6 +642,8 @@
     "Flipping to NM512 .mode() / fp32 / batch 16 as the 14.5 secret without a 25k probe that moves pickaxe",
     "Reading P(place_table)=0.068 as crafting skill (98.5% of those presses have wood<2)",
     "Raising entropy so M17 presses place_table more — that is more illegal no-ops",
-    "Grinding M17 because 90 successful tables in 2922 lives 'started the tree' (2 pickaxes)"
+    "Grinding M17 because 90 successful tables in 2922 lives 'started the tree' (2 pickaxes)",
+    "Comparing an M18 (masked + inventory-conditioned) Crafter score to M6/M17 as if it were the same algorithm — it is a labeled deviation",
+    "Reading M18's 0% illegal place_table on a 3k-step masked-random sample as evidence the trained actor will reach 14.5; masking only removes illegal presses, not the wood+table-in-range exploration problem"
   ]
 }

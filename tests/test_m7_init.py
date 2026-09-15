@@ -406,3 +406,37 @@ def test_notebook_10_binds_m16_not_m15() -> None:
     assert "success_percents" in text
     assert "last-200 collect" in text or "last-200 unlocks" in text
 
+
+def test_m18_masked_inventory_is_an_isolated_deviation() -> None:
+    """M18 (findings 39/40) must not touch m6/m16/m17's dirs/checkpoints/size
+    file, and must have every deviation knob explicitly turned on."""
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m18_masked_inventory.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    size = yaml.safe_load(Path(cfg["world_model_config"]).read_text(encoding="utf-8"))
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl_paper_inventory.yaml"
+    assert int(size["inventory"]["n_items"]) == 16
+    assert int(size["inventory"]["num_classes"]) == 10
+    assert cfg.get("reset_actor") is True
+    assert cfg.get("world_model_ckpt") in (None, "")
+    assert cfg.get("actor_critic_ckpt") in (None, "")
+    assert train.get("prefill_mask_illegal") is True
+    assert float(train.get("inventory_scale", 0.0)) > 0.0
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m18_masked_inventory" in path, (key, path)
+        assert "m17_xl" not in path, (key, path)
+        assert "m16_xl" not in path, (key, path)
+
+
+def test_m17_config_has_no_inventory_block() -> None:
+    """The faithful-recipe configs must never build an InventoryHead."""
+    import yaml
+
+    for path in ("configs/m17_xl_paper.yaml", "configs/m16_xl_r512_acwarmup.yaml"):
+        cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        size = yaml.safe_load(Path(cfg["world_model_config"]).read_text(encoding="utf-8"))
+        assert "inventory" not in size, path
+        assert not cfg.get("train", {}).get("prefill_mask_illegal", False), path
+

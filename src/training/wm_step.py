@@ -14,13 +14,24 @@ from torch import Tensor
 from models.preprocess import nhwc_uint8_to_nchw_unit
 from models.world_model import WorldModel
 from training.device import autocast_context, to_device
-from training.losses import WorldModelLossBreakdown, world_model_loss
+from training.losses import WorldModelLossBreakdown, inventory_head_loss, world_model_loss
 
 
-def loss_to_metrics(loss: WorldModelLossBreakdown) -> dict[str, float]:
-    """Detach per-term losses to plain floats for logging."""
-    return {
-        "total": float(loss.total.detach()),
+def loss_to_metrics(
+    loss: WorldModelLossBreakdown,
+    *,
+    total_override: Tensor | None = None,
+    inventory: Tensor | None = None,
+) -> dict[str, float]:
+    """Detach per-term losses to plain floats for logging.
+
+    `total_override` / `inventory`: when the optional inventory head
+    (finding 40, m18 only) is active, `total` here is the actual backward
+    tensor (DreamerV3 total + `inventory_scale * inventory_loss`), not just
+    `loss.total`, so the logged total matches what was backpropagated.
+    """
+    out = {
+        "total": float((total_override if total_override is not None else loss.total).detach()),
         "recon": float(loss.recon.detach()),
         "recon_l1": float(loss.recon_l1.detach()),
         "reward": float(loss.reward.detach()),
@@ -32,6 +43,9 @@ def loss_to_metrics(loss: WorldModelLossBreakdown) -> dict[str, float]:
         "kl_dyn_raw": float(loss.kl_dyn_raw.detach()),
         "kl_rep_raw": float(loss.kl_rep_raw.detach()),
     }
+    if inventory is not None:
+        out["inventory"] = float(inventory.detach())
+    return out
 
 
 def _train_float(train_cfg: dict[str, Any], *keys: str) -> float:
@@ -103,6 +117,21 @@ def world_model_step(
         )
         total = loss.total
 
+        # Optional (finding 40, m18 only): `model.inventory_head` is `None`
+        # for every m6/m17-style config, so this branch is dead weight for
+        # the faithful-Dreamer recipe, not a silently-added extra term on it.
+        inv_loss: Tensor | None = None
+        if model.inventory_head is not None and "inventory" in batch:
+            inv_logits = model.inventory_head(out.feat)
+            inv_loss = inventory_head_loss(
+                inv_logits,
+                batch["inventory"],
+                batch.get("has_inventory", torch.zeros_like(batch["rewards"])),
+            )
+            inventory_scale = _train_optional_float(train_cfg, "inventory_scale")
+            inventory_scale = 1.0 if inventory_scale is None else inventory_scale
+            total = total + inventory_scale * inv_loss
+
     if scaler.is_enabled():
         scaler.scale(total).backward()
         scaler.unscale_(optim)
@@ -114,4 +143,4 @@ def world_model_step(
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optim.step()
 
-    return loss, loss_to_metrics(loss)
+    return loss, loss_to_metrics(loss, total_override=total, inventory=inv_loss)

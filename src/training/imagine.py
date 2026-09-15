@@ -19,6 +19,7 @@ from models.heads import rssm_features
 from models.rssm import one_hot_action
 from models.symlog import symlog_twohot_mean
 from models.world_model import WorldModel
+from training.crafter_rules import legal_mask_from_counts_torch
 
 
 @dataclass
@@ -30,9 +31,16 @@ class ImaginedRollout:
     `img_step`s), while **action-indexed** quantities cover the `H` actions
     taken *at* `s_0 .. s_{H-1}`.
 
-    State-indexed `[N, H+1, ...]`: `h`, `z_prior`, `feat`, `reward`, `cont`,
-    `value`, `value_logits`.
+    State-indexed `[N, H+1, ...]`: `h`, `z_prior`, `feat`, `feat_actor`,
+    `reward`, `cont`, `value`, `value_logits`.
     Action-indexed `[N, H, ...]`: `action`, `log_prob`, `entropy`.
+
+    `feat_actor` (finding 40, m18 only) is the actor/critic input: `feat`
+    plus predicted-inventory columns when `world_model.inventory_head` is
+    set, otherwise it is exactly `feat.detach()` — the vanilla m6/m17 path
+    is unchanged. `decode_imagination` and anything that needs the raw RSSM
+    feature (matching the decoder's `feat_dim`) must use `feat`, not
+    `feat_actor`.
 
     So `value[:, i]` is `V(s_i)` — the baseline for `log_prob[:, i]` — and
     `reward[:, i]` is the reward predicted *at* `s_i`. Mixing the two is how
@@ -43,6 +51,7 @@ class ImaginedRollout:
     h: Tensor
     z_prior: Tensor
     feat: Tensor
+    feat_actor: Tensor
     action: Tensor
     log_prob: Tensor
     entropy: Tensor
@@ -68,6 +77,25 @@ def unfreeze_world_model(model: WorldModel) -> None:
     model.train()
     for p in model.parameters():
         p.requires_grad_(True)
+
+
+def _actor_input(world_model: WorldModel, feat_detached: Tensor) -> tuple[Tensor, Tensor | None]:
+    """`(feat_actor, inv_counts)` for one imagined step's actor/critic input.
+
+    finding 40 (m18 only): `world_model.inventory_head is None` for every
+    m6/m17-style config, so this returns `(feat_detached, None)` unchanged —
+    the exact tensor `critic`/`actor.policy` already received before this
+    existed. Otherwise it argmax-decodes the predicted inventory (the head
+    is trained on real replay in `wm_step.py`; the argmax is why this never
+    needs its own `.detach()` beyond the one the caller already applied to
+    `feat_detached`) and appends it as `count / 9` columns.
+    """
+    if world_model.inventory_head is None:
+        return feat_detached, None
+    inv_logits = world_model.predict_inventory(feat_detached)
+    inv_counts = inv_logits.argmax(dim=-1).float()
+    feat_actor = torch.cat([feat_detached, inv_counts / 9.0], dim=-1)
+    return feat_actor, inv_counts
 
 
 def _start_states(
@@ -155,6 +183,7 @@ def imagine_ahead(
     hs: list[Tensor] = []
     zs: list[Tensor] = []
     feats: list[Tensor] = []
+    feats_actor: list[Tensor] = []
     acts: list[Tensor] = []
     logps: list[Tensor] = []
     ents: list[Tensor] = []
@@ -174,11 +203,13 @@ def imagine_ahead(
                 reward_logits = world_model.reward_head(feat)
                 cont_logit = world_model.continue_head(feat).squeeze(-1)
             feat = feat.detach()
-        value_logits = critic(feat.detach())
+        feat_actor, inv_counts = _actor_input(world_model, feat.detach())
+        value_logits = critic(feat_actor)
 
         hs.append(h)
         zs.append(z_prior)
         feats.append(feat)
+        feats_actor.append(feat_actor)
         rewards.append(symlog_twohot_mean(reward_logits, world_model.reward_head.bins))
         conts.append(torch.sigmoid(cont_logit) * discount)
         v_logits.append(value_logits)
@@ -186,7 +217,10 @@ def imagine_ahead(
 
         if step == horizon:
             break
-        action, log_prob, entropy, _probs = actor.policy(feat.detach())
+        mask = None
+        if inv_counts is not None:
+            mask = legal_mask_from_counts_torch(inv_counts)
+        action, log_prob, entropy, _probs = actor.policy(feat_actor, mask=mask)
         acts.append(action)
         logps.append(log_prob)
         ents.append(entropy)
@@ -200,6 +234,7 @@ def imagine_ahead(
         h=torch.stack(hs, dim=1),
         z_prior=torch.stack(zs, dim=1),
         feat=torch.stack(feats, dim=1),
+        feat_actor=torch.stack(feats_actor, dim=1),
         action=torch.stack(acts, dim=1),
         log_prob=torch.stack(logps, dim=1),
         entropy=torch.stack(ents, dim=1),

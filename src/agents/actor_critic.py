@@ -47,8 +47,18 @@ class Actor(nn.Module):
         """`feat` `[..., feat_dim]` → logits `[..., action_dim]`."""
         return self.net(feat)
 
-    def policy(self, feat: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    def policy(
+        self, feat: Tensor, mask: Tensor | None = None
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         """Sample an action and return log-prob / entropy for the actor loss.
+
+        Args:
+            feat: `[..., feat_dim]`.
+            mask: optional bool `[..., action_dim]`, `True` = legal. Illegal
+                actions get exactly zero probability (not just the unimix
+                floor) — the unimix floor is redistributed over legal actions
+                only, so it still guarantees every *legal* category keeps
+                gradient. At least one action per row must be legal.
 
         Returns:
             `action` `[..., action_dim]` STE one-hot (hard forward, soft backward),
@@ -57,7 +67,16 @@ class Actor(nn.Module):
             `probs` `[..., action_dim]`.
         """
         logits = self.forward(feat)
-        probs = unimix_probs(logits, self.unimix)
+        if mask is not None:
+            if mask.shape != logits.shape:
+                raise ValueError(f"mask shape {tuple(mask.shape)} != logits shape {tuple(logits.shape)}")
+            if not bool(mask.any(dim=-1).all()):
+                raise ValueError("mask leaves at least one row with no legal action")
+            probs = unimix_probs(logits, self.unimix)
+            probs = probs * mask.to(probs.dtype)
+            probs = probs / probs.sum(dim=-1, keepdim=True)
+        else:
+            probs = unimix_probs(logits, self.unimix)
         action = sample_onehot_ste(probs)
         log_prob = (action.detach() * probs.clamp_min(1e-8).log()).sum(dim=-1)
         entropy = -(probs * probs.clamp_min(1e-8).log()).sum(dim=-1)

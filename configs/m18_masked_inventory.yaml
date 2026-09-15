@@ -1,0 +1,93 @@
+# M18 — labeled deviation from vanilla DreamerV3, NOT a faithful-recipe run.
+#
+# Findings 38/39 showed the M17 500k checkpoint's craft actions have real
+# (non-floor) policy mass, but ~98.5% of real place_table/make_wood_pickaxe
+# presses are illegal (wood < 2 / no table nearby) — an execution problem,
+# not a missing-intent one. This config adds three mechanisms on top of the
+# same DreamerV3 outer loop, each independently gated off for m6/m16/m17:
+#
+#   1. Ground-truth action legality mask in real collect + masked-random
+#      prefill (training.crafter_rules, prefill_mask_illegal: true).
+#   2. An InventoryHead trained on real replay (world_model_config below).
+#   3. Actor/critic conditioned on inventory (ground truth in real collect,
+#      the head's prediction in imagination) + an inventory-sufficiency
+#      mask on imagined place_*/make_* actions.
+#
+# Do NOT compare this run's Crafter score to m6/m17 as if it were the same
+# algorithm — it isn't. See research paper/findings/40-*.md before citing
+# a number from this config. Matching these knobs is not a guarantee of a
+# higher score either; this is untested at scale, only smoke-tested.
+#
+# New dirs: do not load m16/m17/any prior XL. This is not a resume.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl_paper_inventory.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 8
+  seq_len: 64
+  amp: bf16
+  env_steps: 1000000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  ac_warmup_env: 0
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  prefill_mask_illegal: true
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 1000000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  inventory_scale: 1.0
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m18_masked_inventory
+  checkpoint_dir: checkpoints/m18_masked_inventory
+  results_dir: results/m18_masked_inventory
+  replay_out: data/m18_masked_inventory_replay.pt

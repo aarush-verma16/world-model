@@ -33,11 +33,40 @@ def split_crafter_done(
     return terminated, truncated
 
 
+def _extra_legality_info(env: "crafter.Env") -> dict[str, Any]:
+    """Ground-truth facing/nearby facts `training.crafter_rules` needs.
+
+    Reads Crafter's own engine state directly (`_player`, `_world`) instead
+    of decoding pixels, so this is exact, not learned. `player.facing` is the
+    same `(dx, dy)` Crafter's `Player.update` adds to `pos` before every
+    `do` / `place_*` / `_do_material` check; `world.nearby(pos, 1)` is the
+    same call `Player._make` uses for the `nearby: [table]` requirement.
+    """
+    player = env._player
+    world = env._world
+    pos = (int(player.pos[0]), int(player.pos[1]))
+    facing = (int(player.facing[0]), int(player.facing[1]))
+    target = (pos[0] + facing[0], pos[1] + facing[1])
+    facing_material, facing_obj = world[target]
+    nearby_materials, _nearby_objs = world.nearby(pos, 1)
+    return {
+        "facing": facing,
+        "facing_material": facing_material,
+        "facing_object_present": facing_obj is not None,
+        "nearby_materials": tuple(nearby_materials),
+    }
+
+
 class CrafterEnv(gym.Env):
     """Thin Gymnasium adapter around `crafter.Env`.
 
     Observation: uint8 image of shape (64, 64, 3).
     Actions: Discrete(17) matching Crafter's action set.
+
+    `info` on both `reset` and `step` carries `inventory` (native Crafter)
+    plus `facing` / `facing_material` / `facing_object_present` /
+    `nearby_materials` (added here) so `training.crafter_rules` can compute
+    an exact legality mask without decoding pixels (finding 39).
     """
 
     metadata = {"render_modes": []}
@@ -63,13 +92,17 @@ class CrafterEnv(gym.Env):
             )
             self.action_space = spaces.Discrete(int(self._env.action_space.n))
         obs = self._env.reset()
-        return np.asarray(obs, dtype=np.uint8), {}
+        info: dict[str, Any] = {"inventory": dict(self._env._player.inventory)}
+        info.update(_extra_legality_info(self._env))
+        return np.asarray(obs, dtype=np.uint8), info
 
     def step(
         self, action: int
     ) -> tuple[np.ndarray, SupportsFloat, bool, bool, dict[str, Any]]:
         obs, reward, done, info = self._env.step(action)
         terminated, truncated = split_crafter_done(bool(done), info if isinstance(info, dict) else None)
+        if isinstance(info, dict):
+            info.update(_extra_legality_info(self._env))
         return np.asarray(obs, dtype=np.uint8), float(reward), terminated, truncated, info
 
     def close(self) -> None:

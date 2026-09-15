@@ -129,3 +129,40 @@ class ContinueHead(MLPHead):
 
     def __init__(self, in_dim: int, hidden: int = 512, layers: int = 2) -> None:
         super().__init__(in_dim=in_dim, out_dim=1, hidden=hidden, layers=layers)
+
+
+class InventoryHead(MLPHead):
+    """Predict per-item inventory counts from `[h, z]` (finding 40, not vanilla
+    DreamerV3 — a labeled deviation, gated off by default everywhere it is
+    wired in).
+
+    Output `[..., n_items, num_classes]`: each item is a `num_classes`-way
+    classification over its count. Crafter caps every inventory item at 9
+    (`crafter.constants.items[*]['max'] == 9`), so `num_classes=10` covers
+    every item with no clipping.
+
+    Trained the same way `RewardHead`/`ContinueHead` are: supervised on real
+    replay, from the same `feat = concat(h, z_posterior)`. The only reason it
+    exists is that imagination has no ground-truth inventory to condition the
+    actor/critic on (`training.imagine`), so something has to predict it from
+    `z_prior` alone.
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        n_items: int,
+        num_classes: int = 10,
+        hidden: int = 512,
+        layers: int = 2,
+    ) -> None:
+        super().__init__(
+            in_dim=in_dim, out_dim=n_items * num_classes, hidden=hidden, layers=layers
+        )
+        self.n_items = int(n_items)
+        self.num_classes = int(num_classes)
+
+    def forward(self, feat: Tensor) -> Tensor:
+        """`feat` `[..., in_dim]` -> logits `[..., n_items, num_classes]`."""
+        flat = super().forward(feat)
+        return flat.view(*flat.shape[:-1], self.n_items, self.num_classes)

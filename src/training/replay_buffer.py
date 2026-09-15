@@ -14,6 +14,11 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
+from training.crafter_rules import ITEM_NAMES, inventory_vector, legal_action_mask
+
+N_ITEMS = len(ITEM_NAMES)
+
 
 @dataclass
 class EpisodeBatch:
@@ -24,6 +29,8 @@ class EpisodeBatch:
     rewards: Tensor  # float32 [T]
     cont: Tensor  # float32 [T]  — 1 if episode continues after this step
     is_first: Tensor | None = None  # float32 [T] — 1 at the episode start
+    inventory: Tensor | None = None  # int64 [T, N_ITEMS], fixed order ITEM_NAMES
+    has_inventory: Tensor | None = None  # float32 [T] — 1 if `inventory` is real
 
 
 def _episode_is_first(ep: EpisodeBatch) -> Tensor:
@@ -35,6 +42,26 @@ def _episode_is_first(ep: EpisodeBatch) -> Tensor:
     if t:
         flags[0] = 1.0
     return flags
+
+
+def _episode_inventory(ep: EpisodeBatch) -> tuple[Tensor, Tensor]:
+    """`(inventory [T, N_ITEMS] int64, has_inventory [T] float32)`.
+
+    Episodes loaded from a replay dump written before finding 40 (inventory
+    head) have neither field — they get zeros / `has_inventory=0` so the
+    inventory-head loss (Phase 3) skips them instead of training on a fake
+    all-zero inventory as if it were ground truth.
+    """
+    t = int(ep.obs.shape[0])
+    if ep.inventory is not None:
+        inv = ep.inventory.to(dtype=torch.int64)
+    else:
+        inv = torch.zeros(t, N_ITEMS, dtype=torch.int64)
+    if ep.has_inventory is not None:
+        has = ep.has_inventory.to(dtype=torch.float32)
+    else:
+        has = torch.zeros(t, dtype=torch.float32)
+    return inv, has
 
 
 class ReplayBuffer:
@@ -57,6 +84,8 @@ class ReplayBuffer:
         self._live_rew: list[float] = []
         self._live_cont: list[float] = []
         self._live_first: list[float] = []
+        self._live_inventory: list[np.ndarray] = []
+        self._live_has_inventory: list[float] = []
 
     def __len__(self) -> int:
         return len(self._episodes) + (1 if self._live_obs else 0)
@@ -79,6 +108,10 @@ class ReplayBuffer:
             rewards=torch.as_tensor(self._live_rew, dtype=torch.float32),
             cont=torch.as_tensor(self._live_cont, dtype=torch.float32),
             is_first=torch.as_tensor(self._live_first, dtype=torch.float32),
+            inventory=torch.as_tensor(
+                np.stack(self._live_inventory, axis=0), dtype=torch.int64
+            ),
+            has_inventory=torch.as_tensor(self._live_has_inventory, dtype=torch.float32),
         )
 
     def _parts(self) -> list[EpisodeBatch]:
@@ -94,6 +127,8 @@ class ReplayBuffer:
         self._live_rew = []
         self._live_cont = []
         self._live_first = []
+        self._live_inventory = []
+        self._live_has_inventory = []
 
     def close_episode(self) -> None:
         """Freeze the in-progress life so FIFO eviction can drop it later."""
@@ -125,8 +160,15 @@ class ReplayBuffer:
         reward: float | Tensor,
         cont: float | Tensor,
         is_first: bool,
+        inventory: np.ndarray | None = None,
     ) -> None:
-        """Append one transition. `is_first` starts a new life in the stream."""
+        """Append one transition. `is_first` starts a new life in the stream.
+
+        `inventory` (finding 40): fixed-order `[N_ITEMS]` counts from
+        `training.crafter_rules.inventory_vector`. Omit it (non-Crafter env,
+        or a caller that predates this) to store zeros with
+        `has_inventory=0`, which the Phase 3 inventory-head loss skips.
+        """
         if bool(is_first) and self._live_obs:
             self.close_episode()
         frame = np.asarray(obs, dtype=np.uint8)
@@ -137,6 +179,15 @@ class ReplayBuffer:
         self._live_rew.append(float(reward))
         self._live_cont.append(float(cont))
         self._live_first.append(1.0 if bool(is_first) or not self._live_obs[:-1] else 0.0)
+        if inventory is None:
+            self._live_inventory.append(np.zeros(N_ITEMS, dtype=np.int64))
+            self._live_has_inventory.append(0.0)
+        else:
+            vec = np.asarray(inventory, dtype=np.int64)
+            if vec.shape != (N_ITEMS,):
+                raise ValueError(f"inventory must be [{N_ITEMS}], got {tuple(vec.shape)}")
+            self._live_inventory.append(vec)
+            self._live_has_inventory.append(1.0)
         self._evict()
 
     def add_episode(
@@ -145,8 +196,12 @@ class ReplayBuffer:
         actions: Tensor | np.ndarray,
         rewards: Tensor | np.ndarray,
         cont: Tensor | np.ndarray,
+        inventory: Tensor | np.ndarray | None = None,
     ) -> None:
-        """Append one finished episode. All arrays length `T` along dim 0."""
+        """Append one finished episode. All arrays length `T` along dim 0.
+
+        `inventory` `[T, N_ITEMS]`: omit for `has_inventory=0` (zeros).
+        """
         if self._live_obs:
             self.close_episode()
         obs_t = torch.as_tensor(np.asarray(obs, dtype=np.uint8), dtype=torch.uint8)
@@ -164,9 +219,23 @@ class ReplayBuffer:
         first = torch.zeros(t, dtype=torch.float32)
         if t:
             first[0] = 1.0
+        if inventory is None:
+            inv_t = torch.zeros(t, N_ITEMS, dtype=torch.int64)
+            has_inv_t = torch.zeros(t, dtype=torch.float32)
+        else:
+            inv_t = torch.as_tensor(np.asarray(inventory), dtype=torch.int64)
+            if inv_t.shape != (t, N_ITEMS):
+                raise ValueError(f"inventory must be [{t},{N_ITEMS}], got {tuple(inv_t.shape)}")
+            has_inv_t = torch.ones(t, dtype=torch.float32)
         self._episodes.append(
             EpisodeBatch(
-                obs=obs_t, actions=act_t, rewards=rew_t, cont=cont_t, is_first=first
+                obs=obs_t,
+                actions=act_t,
+                rewards=rew_t,
+                cont=cont_t,
+                is_first=first,
+                inventory=inv_t,
+                has_inventory=has_inv_t,
             )
         )
         self._total_steps += t
@@ -174,7 +243,7 @@ class ReplayBuffer:
 
     def _gather(
         self, parts: list[EpisodeBatch], start: int, seq_len: int
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         lengths = [int(ep.obs.shape[0]) for ep in parts]
         idx = 0
         offset = start
@@ -186,6 +255,8 @@ class ReplayBuffer:
         rew_c: list[Tensor] = []
         cont_c: list[Tensor] = []
         first_c: list[Tensor] = []
+        inv_c: list[Tensor] = []
+        has_inv_c: list[Tensor] = []
         remaining = seq_len
         while remaining > 0:
             ep = parts[idx]
@@ -196,6 +267,9 @@ class ReplayBuffer:
             rew_c.append(ep.rewards[offset:end])
             cont_c.append(ep.cont[offset:end])
             first_c.append(_episode_is_first(ep)[offset:end])
+            inv, has_inv = _episode_inventory(ep)
+            inv_c.append(inv[offset:end])
+            has_inv_c.append(has_inv[offset:end])
             remaining -= take
             idx += 1
             offset = 0
@@ -205,6 +279,8 @@ class ReplayBuffer:
             torch.cat(rew_c, dim=0),
             torch.cat(cont_c, dim=0),
             torch.cat(first_c, dim=0),
+            torch.cat(inv_c, dim=0),
+            torch.cat(has_inv_c, dim=0),
         )
 
     def sample(self, batch_size: int, seq_len: int) -> dict[str, Tensor]:
@@ -216,6 +292,8 @@ class ReplayBuffer:
             rewards `[B, L]` float32
             cont `[B, L]` float32
             is_first `[B, L]` float32
+            inventory `[B, L, N_ITEMS]` int64 (finding 40; zeros where stale)
+            has_inventory `[B, L]` float32 — 1 where `inventory` is real
         """
         if not self.can_sample(seq_len):
             raise RuntimeError(
@@ -230,40 +308,53 @@ class ReplayBuffer:
         rew_list: list[Tensor] = []
         cont_list: list[Tensor] = []
         first_list: list[Tensor] = []
+        inv_list: list[Tensor] = []
+        has_inv_list: list[Tensor] = []
         for _ in range(batch_size):
             start = int(self._rng.integers(0, n_starts))
-            obs, act, rew, cont, first = self._gather(parts, start, int(seq_len))
+            obs, act, rew, cont, first, inv, has_inv = self._gather(parts, start, int(seq_len))
             obs_list.append(obs)
             act_list.append(act)
             rew_list.append(rew)
             cont_list.append(cont)
             first_list.append(first)
+            inv_list.append(inv)
+            has_inv_list.append(has_inv)
         return {
             "obs": torch.stack(obs_list, dim=0),
             "actions": torch.stack(act_list, dim=0),
             "rewards": torch.stack(rew_list, dim=0),
             "cont": torch.stack(cont_list, dim=0),
             "is_first": torch.stack(first_list, dim=0),
+            "inventory": torch.stack(inv_list, dim=0),
+            "has_inventory": torch.stack(has_inv_list, dim=0),
         }
 
     def state_dict(self) -> dict:
         if self._live_obs:
             self.close_episode()
-        return {
-            "episodes": [
+        rows = []
+        for ep in self._episodes:
+            inv, has_inv = _episode_inventory(ep)
+            rows.append(
                 {
                     "obs": ep.obs,
                     "actions": ep.actions,
                     "rewards": ep.rewards,
                     "cont": ep.cont,
                     "is_first": _episode_is_first(ep),
+                    "inventory": inv,
+                    "has_inventory": has_inv,
                 }
-                for ep in self._episodes
-            ],
-            "total_steps": self._total_steps,
-        }
+            )
+        return {"episodes": rows, "total_steps": self._total_steps}
 
     def load_state_dict(self, state: dict) -> None:
+        """Backward-compatible: dumps written before finding 40 have no
+        `inventory` / `has_inventory` keys. Those episodes load with zeros /
+        `has_inventory=0` rather than raising, so old replay (e.g. the M17
+        500k dump) keeps loading — the inventory head just skips them.
+        """
         self._clear_live()
         loaded: list[EpisodeBatch] = []
         for item in state["episodes"]:
@@ -276,6 +367,18 @@ class ReplayBuffer:
                     flags[0] = 1.0
             else:
                 flags = torch.as_tensor(first, dtype=torch.float32)
+            inv = item.get("inventory")
+            has_inv = item.get("has_inventory")
+            inv_t = (
+                torch.as_tensor(inv, dtype=torch.int64)
+                if inv is not None
+                else torch.zeros(t, N_ITEMS, dtype=torch.int64)
+            )
+            has_inv_t = (
+                torch.as_tensor(has_inv, dtype=torch.float32)
+                if has_inv is not None
+                else torch.zeros(t, dtype=torch.float32)
+            )
             loaded.append(
                 EpisodeBatch(
                     obs=obs,
@@ -283,6 +386,8 @@ class ReplayBuffer:
                     rewards=torch.as_tensor(item["rewards"], dtype=torch.float32),
                     cont=torch.as_tensor(item["cont"], dtype=torch.float32),
                     is_first=flags,
+                    inventory=inv_t,
+                    has_inventory=has_inv_t,
                 )
             )
         self._episodes = loaded
@@ -343,17 +448,25 @@ def collect_random_episodes(
     )
     try:
         for ep in range(num_episodes):
-            obs, _ = env.reset(seed=seed + ep)
+            obs, info = env.reset(seed=seed + ep)
             obs_buf: list = []
             act_buf: list[int] = []
             rew_buf: list[float] = []
             cont_buf: list[float] = []
+            inv_buf: list[np.ndarray] = []
             for _ in range(max_episode_steps):
+                # Strictly uniform random (M3 baseline, frozen across
+                # m6/m16/m17) — no legality mask here. See
+                # `prefill_random_steps(mask_illegal=...)` for the masked
+                # variant used by the m18 deviation.
                 action = int(env.action_space.sample())
-                next_obs, reward, terminated, truncated, _info = env.step(action)
-                done = bool(terminated or truncated)
                 obs_buf.append(np.asarray(obs, dtype=np.uint8))
                 act_buf.append(action)
+                inv_buf.append(
+                    inventory_vector(info.get("inventory") if isinstance(info, dict) else None)
+                )
+                next_obs, reward, terminated, truncated, info = env.step(action)
+                done = bool(terminated or truncated)
                 rew_buf.append(float(reward))
                 # Continue = not terminated. Truncation still counts as continue=1
                 # for bootstrap semantics; we still break the episode storage on either.
@@ -363,7 +476,7 @@ def collect_random_episodes(
                     break
             if len(obs_buf) == 0:
                 continue
-            buffer.add_episode(obs_buf, act_buf, rew_buf, cont_buf)
+            buffer.add_episode(obs_buf, act_buf, rew_buf, cont_buf, inventory=inv_buf)
             ep_len = len(obs_buf)
             ep_ret = float(sum(rew_buf))
             lengths.append(ep_len)
@@ -400,11 +513,16 @@ def collect_random_episodes(
     return buffer
 
 
-def _sample_action(env: Any) -> int:
+def _sample_action(env: Any, info: dict[str, Any] | None, mask_illegal: bool) -> int:
     space = env.action_space
+    n = int(space.n)
+    if mask_illegal and n == CRAFTER_ACTION_DIM:
+        legal = np.flatnonzero(legal_action_mask(info))
+        if legal.size > 0:
+            return int(np.random.choice(legal))
     if hasattr(space, "sample"):
         return int(space.sample())
-    return int(np.random.randint(0, int(space.n)))
+    return int(np.random.randint(0, n))
 
 
 def prefill_random_steps(
@@ -415,12 +533,21 @@ def prefill_random_steps(
     max_episode_steps: int,
     seq_len: int,
     seed: int = 0,
+    mask_illegal: bool = False,
 ) -> int:
     """Uniform-random actions until the buffer holds `steps` transitions.
 
     DreamerV3-torch `prefill: 2500` (defaults). Stops on step count, not on
     the first episode longer than `seq_len`. Flushes a trailing partial life
     if it is at least `seq_len` frames. Returns env steps taken this call.
+
+    `mask_illegal=False` (default) is the faithful-Dreamer path used by
+    m6/m16/m17 — pure uniform random, unchanged. `mask_illegal=True` is the
+    m18 deviation (finding 39/40): sample uniformly only over
+    `crafter_rules.legal_action_mask(info)` on the real 17-action Crafter
+    task, so prefill never wastes a step pressing an illegal `place_*`/
+    `make_*`. It does not make movement purposeful — see finding 40 for why
+    that was deliberately left out of scope.
     """
     target = int(steps)
     seq_len = int(seq_len)
@@ -438,19 +565,23 @@ def prefill_random_steps(
     got = 0
     ep_i = 0
     while buffer.num_steps < target or not buffer.can_sample(seq_len):
-        obs, _ = env.reset(seed=int(seed) + ep_i)
+        obs, info = env.reset(seed=int(seed) + ep_i)
         ep_i += 1
         obs_buf: list = []
         act_buf: list[int] = []
         rew_buf: list[float] = []
         cont_buf: list[float] = []
+        inv_buf: list[np.ndarray] = []
         for _ in range(cap):
-            action = _sample_action(env)
-            next_obs, reward, terminated, truncated, _info = env.step(action)
-            terminated = bool(terminated)
-            truncated = bool(truncated)
+            action = _sample_action(env, info if isinstance(info, dict) else None, mask_illegal)
             obs_buf.append(np.asarray(obs, dtype=np.uint8))
             act_buf.append(action)
+            inv_buf.append(
+                inventory_vector(info.get("inventory") if isinstance(info, dict) else None)
+            )
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            terminated = bool(terminated)
+            truncated = bool(truncated)
             rew_buf.append(float(reward))
             cont_buf.append(0.0 if terminated else 1.0)
             obs = next_obs
@@ -463,7 +594,7 @@ def prefill_random_steps(
                 break
         if len(obs_buf) == 0:
             continue
-        buffer.add_episode(obs_buf, act_buf, rew_buf, cont_buf)
+        buffer.add_episode(obs_buf, act_buf, rew_buf, cont_buf, inventory=inv_buf)
         if got >= target * 4:
             break
 

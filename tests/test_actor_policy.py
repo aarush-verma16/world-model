@@ -26,6 +26,49 @@ def test_actor_policy_probs_sum_to_one_and_action_is_onehot() -> None:
     assert bool((probs >= (0.01 / 7) - 1e-6).all())
 
 
+def test_actor_policy_mask_zeroes_illegal_actions() -> None:
+    actor = Actor(feat_dim=16, action_dim=7, hidden=8, layers=1, unimix=0.01)
+    feat = torch.randn(5, 16)
+    mask = torch.ones(5, 7, dtype=torch.bool)
+    mask[:, 2] = False
+    mask[:, 5] = False
+    action, log_prob, entropy, probs = actor.policy(feat, mask=mask)
+    assert torch.allclose(probs.sum(dim=-1), torch.ones(5), atol=1e-5)
+    assert torch.allclose(probs[:, 2], torch.zeros(5), atol=1e-8)
+    assert torch.allclose(probs[:, 5], torch.zeros(5), atol=1e-8)
+    # Unimix floor is redistributed over the 5 legal actions, not all 7.
+    legal = probs[:, [0, 1, 3, 4, 6]]
+    assert bool((legal >= (0.01 / 5) - 1e-6).all())
+    assert not bool((action[:, [2, 5]] > 0).any())
+    assert torch.isfinite(log_prob).all()
+    assert torch.isfinite(entropy).all()
+
+
+def test_actor_policy_mask_rejects_all_illegal_row() -> None:
+    actor = Actor(feat_dim=8, action_dim=4, hidden=8, layers=1)
+    feat = torch.randn(2, 8)
+    mask = torch.ones(2, 4, dtype=torch.bool)
+    mask[0, :] = False
+    try:
+        actor.policy(feat, mask=mask)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError when a row has no legal action")
+
+
+def test_actor_policy_mask_shape_mismatch_raises() -> None:
+    actor = Actor(feat_dim=8, action_dim=4, hidden=8, layers=1)
+    feat = torch.randn(2, 8)
+    mask = torch.ones(2, 5, dtype=torch.bool)
+    try:
+        actor.policy(feat, mask=mask)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for mask/logits shape mismatch")
+
+
 def test_actor_rejects_binary_action_space() -> None:
     try:
         Actor(feat_dim=8, action_dim=1, hidden=8, layers=1)

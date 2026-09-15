@@ -74,18 +74,30 @@ def load_yaml(path: Path) -> dict[str, Any]:
         return yaml.safe_load(f)
 
 
+def actor_critic_feat_dim(world_model: WorldModel) -> int:
+    """`world_model.feat_dim`, plus predicted-inventory columns (finding 40)
+    when the model has an `inventory_head` — the single switch that puts
+    m18's actor/critic in inventory-conditioned mode. `None` (every
+    m6/m17-style config) keeps this identical to `world_model.feat_dim`.
+    """
+    if world_model.inventory_head is None:
+        return world_model.feat_dim
+    return world_model.feat_dim + int(world_model.inventory_head.n_items)
+
+
 def make_actor_critic(cfg: dict[str, Any], world_model: WorldModel, device: torch.device) -> tuple[Actor, Critic]:
     actor_cfg = cfg.get("actor", {})
     critic_cfg = cfg.get("critic", {})
+    feat_dim = actor_critic_feat_dim(world_model)
     actor = Actor(
-        world_model.feat_dim,
+        feat_dim,
         world_model.rssm.action_dim,
         hidden=int(actor_cfg.get("hidden", 512)),
         layers=int(actor_cfg.get("layers", 2)),
         unimix=float(actor_cfg.get("unimix", 0.01)),
     ).to(device)
     critic = Critic(
-        world_model.feat_dim,
+        feat_dim,
         hidden=int(critic_cfg.get("hidden", 512)),
         layers=int(critic_cfg.get("layers", 2)),
         num_bins=int(critic_cfg.get("num_bins", 255)),
@@ -204,13 +216,20 @@ def overlay_wm_train(wm_train_cfg: dict[str, Any], train: dict[str, Any]) -> dic
         "reward_scale",
         "continue_scale",
         "kl_scale",
+        "inventory_scale",
     ):
         if key in train and train[key] is not None:
             out[key] = train[key]
     return out
 
 
-def prefill_replay(collector: Collector, buffer: ReplayBuffer, seq_len: int, steps: int) -> None:
+def prefill_replay(
+    collector: Collector,
+    buffer: ReplayBuffer,
+    seq_len: int,
+    steps: int,
+    mask_illegal: bool = False,
+) -> None:
     """Backward-compatible wrapper. Prefer `prefill_random_steps` on the collect env."""
     prefill_random_steps(
         collector.env,
@@ -219,6 +238,7 @@ def prefill_replay(collector: Collector, buffer: ReplayBuffer, seq_len: int, ste
         max_episode_steps=int(collector.max_episode_steps),
         seq_len=int(seq_len),
         seed=int(collector.next_seed),
+        mask_illegal=bool(mask_illegal),
     )
 
 
@@ -489,6 +509,7 @@ def main() -> None:
             max_episode_steps=int(train["max_episode_steps"]),
             seq_len=int(train["seq_len"]),
             seed=int(cfg["seed"]),
+            mask_illegal=bool(train.get("prefill_mask_illegal", False)),
         )
         pre_wm, pre_ac = pretrain_dreamer(
             world_model,

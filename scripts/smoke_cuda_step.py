@@ -27,6 +27,7 @@ from training.device import (
     vram_peak_gb,
     warn_if_not_cuda,
 )
+from training.crafter_rules import ITEM_NAMES
 from training.wm_step import world_model_step
 
 # `python scripts/smoke_cuda_step.py` puts this file's directory on sys.path,
@@ -66,11 +67,17 @@ def main() -> None:
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
+    n_items = len(ITEM_NAMES)
     dummy = {
         "obs": torch.randint(0, 256, (batch_size, seq_len, 64, 64, 3), dtype=torch.uint8),
         "actions": torch.randint(0, action_dim, (batch_size, seq_len), dtype=torch.int64),
         "rewards": torch.zeros(batch_size, seq_len, dtype=torch.float32),
         "cont": torch.ones(batch_size, seq_len, dtype=torch.float32),
+        # Harmless for models with no inventory_head (world_model_step only
+        # reads these when one exists, finding 40 / m18) -- included so the
+        # m18 VRAM smoke actually exercises the head's forward+backward.
+        "inventory": torch.randint(0, 10, (batch_size, seq_len, n_items), dtype=torch.int64),
+        "has_inventory": torch.ones(batch_size, seq_len, dtype=torch.float32),
     }
 
     model.train()

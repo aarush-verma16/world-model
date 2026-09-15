@@ -22,7 +22,7 @@ from torch import Tensor, nn
 
 from models.decoder import Decoder
 from models.encoder import Encoder
-from models.heads import ContinueHead, RewardHead, rssm_features
+from models.heads import ContinueHead, InventoryHead, RewardHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_unit
 from models.rssm import RSSM, RSSMOutput, one_hot_action
 
@@ -78,6 +78,7 @@ class WorldModel(nn.Module):
         decoder: Decoder,
         reward_head: RewardHead,
         continue_head: ContinueHead,
+        inventory_head: InventoryHead | None = None,
     ) -> None:
         super().__init__()
         self.encoder = encoder
@@ -85,6 +86,10 @@ class WorldModel(nn.Module):
         self.decoder = decoder
         self.reward_head = reward_head
         self.continue_head = continue_head
+        # Optional (finding 40, m18 only): `None` for every m6/m17-style
+        # config, so `state_dict()` has no `inventory_head.*` keys and old
+        # checkpoints keep loading with `strict=True` unchanged.
+        self.inventory_head = inventory_head
         feat_dim = rssm.deter_dim + rssm.z_flat_dim
         if encoder.embed_dim != rssm.embed_dim:
             raise ValueError(
@@ -97,6 +102,8 @@ class WorldModel(nn.Module):
             )
         if reward_head.in_dim != feat_dim or continue_head.in_dim != feat_dim:
             raise ValueError("reward/continue heads must match RSSM feature dim")
+        if inventory_head is not None and inventory_head.in_dim != feat_dim:
+            raise ValueError("inventory_head must match RSSM feature dim")
 
     @property
     def feat_dim(self) -> int:
@@ -127,12 +134,17 @@ class WorldModel(nn.Module):
         reward_num_bins: int = 255,
         reward_low: float = -20.0,
         reward_high: float = 20.0,
+        inventory_n_items: int | None = None,
+        inventory_num_classes: int = 10,
     ) -> WorldModel:
         """Construct a consistently-sized world model from scalar dims.
 
         `output_activation="linear"` (DreamerV3 `cnn_sigmoid=False`, pixels in
         `[0, 1]`) is the M3 default; pass `"tanh"` only to reproduce the old
         `[-1, 1]` M1-style pixel convention.
+
+        `inventory_n_items` (finding 40, m18 only): set to build an
+        `InventoryHead` (default `None` — no head, matching m6/m17 exactly).
         """
         encoder = Encoder(
             embed_dim=embed_dim,
@@ -169,7 +181,16 @@ class WorldModel(nn.Module):
             high=reward_high,
         )
         continue_head = ContinueHead(feat_dim, hidden=head_hidden, layers=head_layers)
-        return cls(encoder, rssm, decoder, reward_head, continue_head)
+        inventory_head = None
+        if inventory_n_items is not None:
+            inventory_head = InventoryHead(
+                feat_dim,
+                n_items=int(inventory_n_items),
+                num_classes=int(inventory_num_classes),
+                hidden=head_hidden,
+                layers=head_layers,
+            )
+        return cls(encoder, rssm, decoder, reward_head, continue_head, inventory_head)
 
     def encode(self, obs_u8: Tensor) -> Tensor:
         """uint8 obs `[B, T, H, W, C]` or `[B, H, W, C]` → embeds with time dim."""
@@ -183,6 +204,18 @@ class WorldModel(nn.Module):
         embeds = self.encoder(nhwc_uint8_to_nchw_unit(flat))
         embeds = embeds.view(batch, time, -1)
         return embeds.squeeze(1) if squeeze else embeds
+
+    def predict_inventory(self, feat: Tensor) -> Tensor:
+        """`feat` `[..., feat_dim]` -> inventory logits `[..., n_items, num_classes]`.
+
+        Raises if this model has no `inventory_head` (m6/m17-style config).
+        """
+        if self.inventory_head is None:
+            raise RuntimeError(
+                "predict_inventory called on a WorldModel with no inventory_head "
+                "(inventory_n_items was not set in from_config_dims)"
+            )
+        return self.inventory_head(feat)
 
     def decode(self, feat: Tensor) -> Tensor:
         """`feat` `[..., feat_dim]` → images `[..., 3, 64, 64]` (any leading dims)."""
