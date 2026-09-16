@@ -395,14 +395,19 @@ def test_m16_from_scratch_ratio_512_ac_warmup() -> None:
         assert "m12_xl" not in path, (key, path)
 
 
-def test_notebook_10_binds_m16_not_m15() -> None:
-    """Pin notebook 10 to the actor-warmup 512 loop, not M15."""
+def test_notebook_10_binds_m17_not_m16() -> None:
+    """Pin notebook 10 to the paper-knobs 512 loop, not M16 or earlier."""
     text = Path("notebooks/10_train_paper_online.ipynb").read_text(encoding="utf-8")
-    assert "configs/m16_xl_r512_acwarmup.yaml" in text
-    assert 'CONFIG = Path(\\"configs/m15_xl_r512_b2.yaml\\")' not in text
-    assert 'CONFIG = Path(\\"configs/m14_xl_r32_b2.yaml\\")' not in text
-    assert 'CONFIG = Path(\\"configs/m13_xl_r512_b2.yaml\\")' not in text
-    assert "Need 512 and 16/16" in text
+    assert "configs/m17_xl_paper.yaml" in text
+    assert "checkpoints/m16_xl_r512_acwarmup" in text  # guarded against, not loaded
+    for stale in (
+        'CONFIG = Path(\\"configs/m16_xl_r512_acwarmup.yaml\\")',
+        'CONFIG = Path(\\"configs/m15_xl_r512_b2.yaml\\")',
+        'CONFIG = Path(\\"configs/m14_xl_r32_b2.yaml\\")',
+        'CONFIG = Path(\\"configs/m13_xl_r512_b2.yaml\\")',
+    ):
+        assert stale not in text
+    assert "Need 512" in text
     assert "success_percents" in text
     assert "last-200 collect" in text or "last-200 unlocks" in text
 
@@ -439,4 +444,21 @@ def test_m17_config_has_no_inventory_block() -> None:
         size = yaml.safe_load(Path(cfg["world_model_config"]).read_text(encoding="utf-8"))
         assert "inventory" not in size, path
         assert not cfg.get("train", {}).get("prefill_mask_illegal", False), path
+
+
+def test_notebook_11_binds_m18_not_m17() -> None:
+    """Pin notebook 11 to the M18 masked+inventory deviation, never M6-M17."""
+    text = Path("notebooks/11_train_m18_masked_inventory.ipynb").read_text(encoding="utf-8")
+    assert "configs/m18_masked_inventory.yaml" in text
+    for stale in (
+        'CONFIG = Path(\\"configs/m17_xl_paper.yaml\\")',
+        'CONFIG = Path(\\"configs/m16_xl_r512_acwarmup.yaml\\")',
+    ):
+        assert stale not in text
+    assert "m18_masked_inventory" in text
+    assert "prefill_mask_illegal" in text
+    assert "inventory_head" in text
+    assert "not comparable to M6/M17" in text or "DEVIATION" in text
+    assert "success_percents" in text
+    assert "last-200 collect" in text
 
