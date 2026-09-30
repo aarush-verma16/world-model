@@ -186,6 +186,7 @@ def test_replay_load_state_dict_without_inventory_defaults_to_zero() -> None:
     assert batch["inventory"].shape == (1, 4, _N_ITEMS)
     assert bool((batch["has_inventory"] == 0.0).all())
     assert bool((batch["inventory"] == 0).all())
+    assert bool((batch["has_spatial"] == 0.0).all())
 
 
 def test_replay_state_dict_roundtrip() -> None:

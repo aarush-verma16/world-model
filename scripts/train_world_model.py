@@ -69,6 +69,14 @@ def build_model(cfg: dict) -> WorldModel:
 
         inventory_n_items = int(inv_cfg.get("n_items", len(ITEM_NAMES)))
         inventory_num_classes = int(inv_cfg.get("num_classes", 10))
+    # Optional (finding 45, m19 only). No `spatial:` key -> no SpatialHead,
+    # so m6/m18 checkpoints stay loadable.
+    spatial_cfg = cfg.get("spatial")
+    spatial_n_materials = None
+    if spatial_cfg:
+        from training.crafter_rules import MATERIAL_NAMES
+
+        spatial_n_materials = int(spatial_cfg.get("n_materials", len(MATERIAL_NAMES)))
     return WorldModel.from_config_dims(
         embed_dim=int(enc["embed_dim"]),
         encoder_channels=tuple(int(c) for c in enc["channels"]),
@@ -93,6 +101,7 @@ def build_model(cfg: dict) -> WorldModel:
         reward_high=float(heads.get("reward_high", 20.0)),
         inventory_n_items=inventory_n_items,
         inventory_num_classes=inventory_num_classes,
+        spatial_n_materials=spatial_n_materials,
     )
 
 

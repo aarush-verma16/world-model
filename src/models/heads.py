@@ -166,3 +166,37 @@ class InventoryHead(MLPHead):
         """`feat` `[..., in_dim]` -> logits `[..., n_items, num_classes]`."""
         flat = super().forward(feat)
         return flat.view(*flat.shape[:-1], self.n_items, self.num_classes)
+
+
+class SpatialHead(MLPHead):
+    """Predict the tile the player faces and the materials in the Moore neighborhood.
+
+    Finding 45, not vanilla DreamerV3. Crafter's facing tile is 7px and the
+    XL CNN stores the view in 4x4, so one latent cell is larger than the tile
+    `do` mines (finding 04). Inventory counts do not say whether that tile is
+    stone. This head is the imagination stand-in for the ground-truth fields
+    `CrafterEnv` already puts in `info`.
+
+    Output is three tensors from one MLP:
+        material logits `[..., n_materials]` (cross-entropy over `MATERIAL_NAMES`)
+        object logit `[..., 1]` (binary: something occupies the faced tile)
+        nearby logits `[..., n_materials]` (independent BCE; 1 if that material
+        is in `world.nearby(pos, 1)`)
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        n_materials: int,
+        hidden: int = 512,
+        layers: int = 2,
+    ) -> None:
+        n = int(n_materials)
+        super().__init__(in_dim=in_dim, out_dim=n + 1 + n, hidden=hidden, layers=layers)
+        self.n_materials = n
+
+    def forward(self, feat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """`feat` `[..., in_dim]` -> `(material [..., n], object [..., 1], nearby [..., n])`."""
+        flat = super().forward(feat)
+        n = self.n_materials
+        return flat[..., :n], flat[..., n : n + 1], flat[..., n + 1 :]

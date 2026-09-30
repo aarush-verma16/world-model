@@ -22,7 +22,7 @@ from torch import Tensor, nn
 
 from models.decoder import Decoder
 from models.encoder import Encoder
-from models.heads import ContinueHead, InventoryHead, RewardHead, rssm_features
+from models.heads import ContinueHead, InventoryHead, RewardHead, SpatialHead, rssm_features
 from models.preprocess import nhwc_uint8_to_nchw_unit
 from models.rssm import RSSM, RSSMOutput, one_hot_action
 
@@ -79,6 +79,7 @@ class WorldModel(nn.Module):
         reward_head: RewardHead,
         continue_head: ContinueHead,
         inventory_head: InventoryHead | None = None,
+        spatial_head: SpatialHead | None = None,
     ) -> None:
         super().__init__()
         self.encoder = encoder
@@ -90,6 +91,9 @@ class WorldModel(nn.Module):
         # config, so `state_dict()` has no `inventory_head.*` keys and old
         # checkpoints keep loading with `strict=True` unchanged.
         self.inventory_head = inventory_head
+        # Optional (finding 45, m19 only). `None` keeps m18's state_dict
+        # free of `spatial_head.*` keys.
+        self.spatial_head = spatial_head
         feat_dim = rssm.deter_dim + rssm.z_flat_dim
         if encoder.embed_dim != rssm.embed_dim:
             raise ValueError(
@@ -104,10 +108,27 @@ class WorldModel(nn.Module):
             raise ValueError("reward/continue heads must match RSSM feature dim")
         if inventory_head is not None and inventory_head.in_dim != feat_dim:
             raise ValueError("inventory_head must match RSSM feature dim")
+        if spatial_head is not None and spatial_head.in_dim != feat_dim:
+            raise ValueError("spatial_head must match RSSM feature dim")
 
     @property
     def feat_dim(self) -> int:
         return self.rssm.deter_dim + self.rssm.z_flat_dim
+
+    @property
+    def actor_extra_dim(self) -> int:
+        """Columns concatenated onto `feat` for the actor and critic.
+
+        0 for m6/m17. Inventory counts for m18. Inventory plus facing one-hot,
+        faced-object bit, and nearby multi-hot for m19.
+        """
+        extra = 0
+        if self.inventory_head is not None:
+            extra += int(self.inventory_head.n_items)
+        if self.spatial_head is not None:
+            n = int(self.spatial_head.n_materials)
+            extra += n + 1 + n
+        return extra
 
     @classmethod
     def from_config_dims(
@@ -136,6 +157,7 @@ class WorldModel(nn.Module):
         reward_high: float = 20.0,
         inventory_n_items: int | None = None,
         inventory_num_classes: int = 10,
+        spatial_n_materials: int | None = None,
     ) -> WorldModel:
         """Construct a consistently-sized world model from scalar dims.
 
@@ -145,6 +167,9 @@ class WorldModel(nn.Module):
 
         `inventory_n_items` (finding 40, m18 only): set to build an
         `InventoryHead` (default `None` — no head, matching m6/m17 exactly).
+
+        `spatial_n_materials` (finding 45, m19 only): set to build a
+        `SpatialHead`. Default `None` leaves m18 checkpoints loadable.
         """
         encoder = Encoder(
             embed_dim=embed_dim,
@@ -190,7 +215,23 @@ class WorldModel(nn.Module):
                 hidden=head_hidden,
                 layers=head_layers,
             )
-        return cls(encoder, rssm, decoder, reward_head, continue_head, inventory_head)
+        spatial_head = None
+        if spatial_n_materials is not None:
+            spatial_head = SpatialHead(
+                feat_dim,
+                n_materials=int(spatial_n_materials),
+                hidden=head_hidden,
+                layers=head_layers,
+            )
+        return cls(
+            encoder,
+            rssm,
+            decoder,
+            reward_head,
+            continue_head,
+            inventory_head,
+            spatial_head,
+        )
 
     def encode(self, obs_u8: Tensor) -> Tensor:
         """uint8 obs `[B, T, H, W, C]` or `[B, H, W, C]` → embeds with time dim."""
@@ -216,6 +257,18 @@ class WorldModel(nn.Module):
                 "(inventory_n_items was not set in from_config_dims)"
             )
         return self.inventory_head(feat)
+
+    def predict_spatial(self, feat: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """`feat` `[..., feat_dim]` -> material, object, nearby logits.
+
+        Raises if this model has no `spatial_head` (m6/m18-style config).
+        """
+        if self.spatial_head is None:
+            raise RuntimeError(
+                "predict_spatial called on a WorldModel with no spatial_head "
+                "(spatial_n_materials was not set in from_config_dims)"
+            )
+        return self.spatial_head(feat)
 
     def decode(self, feat: Tensor) -> Tensor:
         """`feat` `[..., feat_dim]` → images `[..., 3, 64, 64]` (any leading dims)."""

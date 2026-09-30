@@ -1,0 +1,62 @@
+# M19 size: paper XL + InventoryHead + SpatialHead (finding 45).
+# Do not point m6/m17/m18 at this file. m18 keeps
+# dreamer_xl_paper_inventory.yaml so its checkpoints have no spatial_head.
+#
+# n_items matches ITEM_NAMES (16). n_materials matches MATERIAL_NAMES (12).
+
+seed: 0
+
+encoder:
+  embed_dim: 12288
+  channels: [96, 192, 384, 768]
+  blocks: 2
+
+rssm:
+  deter_dim: 4096
+  stoch: 32
+  classes: 32
+  hidden: 1024
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [768, 384, 192, 96]
+  blocks: 2
+  output_activation: linear
+
+heads:
+  hidden: 1024
+  layers: 5
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+inventory:
+  n_items: 16
+  num_classes: 10
+
+spatial:
+  n_materials: 12
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 64
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0
+  inventory_scale: 1.0
+  spatial_scale: 1.0

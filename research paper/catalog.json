@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-15",
+  "updated": "2026-09-29",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -546,6 +546,54 @@
       "tags": ["compute", "eval"],
       "one_liner": "Same-script VRAM diff: 227.40M->237.02M params, 12.65/14.47->12.76/14.70 GiB (+0.11/+0.23). Masked-random prefill: 4/4 place_table legal and successful; pickaxe prerequisite still never reached in 3000 steps.",
       "paper_spin": "Compute appendix: legality masking + a small aux head is cheap on 16 GiB. Methods: validate a legality mask with a masked-random prefill diagnostic before a 1M run, and report prerequisite-reachability, not just illegal-press rate."
+    },
+    {
+      "id": "41",
+      "file": "findings/41-m18-50k-table-and-pickaxe-moved.md",
+      "title": "M18 ~50k: last-200 table 15% and pickaxe 2.5%; stone is one life",
+      "tags": ["eval"],
+      "one_liner": "At 49k: wood 52%, table 15%, pickaxe 2.5%, stone 0.5% (1/200). Last-50 table 26% / pickaxe 6%. gmean 2.42. ac_H 0.18. Ahead of M17's 100k crafts. Achievements, not a legality audit. Next look 100k.",
+      "paper_spin": "First 50k of the craft mask moves table and pickaxe achievement rates past paper-knob M17 at 100k. Stone is still one life. Legality audit is the 100k measurement."
+    },
+    {
+      "id": "42",
+      "file": "findings/42-m18-108k-crafts-up-stone-still-zero.md",
+      "title": "M18 108k: table 22% and pickaxe 7.5%; gmean 2.69 still has stone at 0",
+      "tags": ["eval"],
+      "one_liner": "Last-200 2.69 at 108k: wood 48%, table 22.5%, pickaxe 7.5%, stone 0. M17 at 100k was table 4.5% / pickaxe 0.5%. Length 175. Do not forecast 14.5. Extend past 500k only if stone moves by ~250k.",
+      "paper_spin": "The mask plus inventory conditioning opens the wood-pickaxe achievement by 108k. Score in the high 2s is that craft. Mining is still the 500k question."
+    },
+    {
+      "id": "43",
+      "file": "findings/43-m18-156k-crafts-slid-stone-is-three-lives.md",
+      "title": "M18 156k: table 22%→12% and pickaxe 7.5%→1.5%; stone is 3 lives",
+      "tags": ["eval"],
+      "one_liner": "Last-200 gmean 2.69→2.39. Table 12%, pickaxe 1.5%, last-50 pickaxe 0. Stone 3/973 lives, all with a pickaxe, length 172. ac_H 0.15. Not a 1M extension.",
+      "paper_spin": "The inventory mask opened pickaxe by 108k and those rates slid by 156k. Stone is three lives that still die at ~170."
+    },
+    {
+      "id": "44",
+      "file": "findings/44-m18-188k-pickaxe-left-the-window.md",
+      "title": "M18 188k: table came back to 18%; last-200 pickaxe and stone are 0",
+      "tags": ["eval"],
+      "one_liner": "Last-200 gmean 2.41, wood 50%, table 18.5%, pickaxe 0, stone 0. Still 36 pickaxe lives and 3 stone lives, none new since 156k. ac_H 0.14. Do not extend to 1M on the table recovery.",
+      "paper_spin": "place_table can return while make_wood_pickaxe stays at the lives already counted. Stone stays those 3."
+    },
+    {
+      "id": "45",
+      "file": "findings/45-m19-facing-head-stone-still-needs-a-tile.md",
+      "title": "M18 204k stone is still 3 lives; M19 feeds the actor the facing tile",
+      "tags": ["eval", "geometry"],
+      "one_liner": "Last-200 gmean 2.34, wood 50%, table 17%, pickaxe 0.5%, stone 0. 37 pickaxe lives, 3 stone, length 171.5. collect_stone is unmasked do on a 7px tile the 4x4 CNN cannot see. M19 is a new run with a SpatialHead. No score yet.",
+      "paper_spin": "The before-number for a symbolic facing head. Do not caption 2.34 next to 14.5. The after-number is M19 last-200 stone, not yet measured."
+    },
+    {
+      "id": "46",
+      "file": "findings/46-teacher-replay-puts-stone-in-the-buffer.md",
+      "title": "A map teacher puts stone in the replay; uniform sampling would throw it away",
+      "tags": ["eval"],
+      "one_liner": "Seeds 0-2: lengths 33, 23, 25, and 3/3 mined stone after table and wood pickaxe. Those episodes are pinned and half of each batch overlaps them. Eval does not call the teacher. Not a 14.5 claim.",
+      "paper_spin": "If the transition is missing, change the training distribution and upweight it. The actor's own last-200 stone rate is the after-number, not yet measured."
     }
   ],
   "do_not_revive": [
@@ -644,6 +692,11 @@
     "Raising entropy so M17 presses place_table more — that is more illegal no-ops",
     "Grinding M17 because 90 successful tables in 2922 lives 'started the tree' (2 pickaxes)",
     "Comparing an M18 (masked + inventory-conditioned) Crafter score to M6/M17 as if it were the same algorithm — it is a labeled deviation",
-    "Reading M18's 0% illegal place_table on a 3k-step masked-random sample as evidence the trained actor will reach 14.5; masking only removes illegal presses, not the wood+table-in-range exploration problem"
+    "Reading M18's 0% illegal place_table on a 3k-step masked-random sample as evidence the trained actor will reach 14.5; masking only removes illegal presses, not the wood+table-in-range exploration problem",
+    "Extending M18 to 1M because table is in the teens while last-200 stone is 0",
+    "Hard-masking do: the same action chops trees and attacks",
+    "Loading an M18 checkpoint into the M19 spatial graph",
+    "Treating teacher-episode stone as the agent's Crafter score",
+    "Leaving rare teacher episodes in a uniform replay and expecting the gradient to notice them"
   ]
 }

@@ -16,9 +16,11 @@
 # Do NOT compare this run's Crafter score to m6/m17 as if it were the same
 # algorithm — it isn't. See research paper/findings/40-*.md before citing
 # a number from this config. Matching these knobs is not a guarantee of a
-# higher score either; this is untested at scale, only smoke-tested.
+# higher score either. Budget is 500k env steps (M17's failure was already
+# measured by then). Replay capacity stays 1e6 so the buffer does not evict
+# early. Do not grind past 500k for a 14.5 caption.
 #
-# New dirs: do not load m16/m17/any prior XL. This is not a resume.
+# New dirs: do not load m16/m17/any prior XL. Resume only this M18 dir.
 
 seed: 0
 
@@ -51,7 +53,7 @@ train:
   batch_size: 8
   seq_len: 64
   amp: bf16
-  env_steps: 1000000
+  env_steps: 500000
   collect_every: 16
   train_ratio: 512
   wm_updates: 16

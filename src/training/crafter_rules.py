@@ -14,9 +14,12 @@ gate, and masking it is not what finding 39 measured (98.5% of illegal
 presses were `place_table` with wood < 2, not a bad `do`).
 
 `legal_action_mask` is the real-collect mask (exact). `legal_mask_from_counts`
-is the imagination-side mask: it only has *predicted* inventory (no
-ground-truth facing/nearby), so it can only enforce the `uses` half of each
-recipe. That gap is the documented approximation boundary — see finding 40.
+is the imagination-side mask when the model has inventory but no spatial
+head: it only has *predicted* inventory, so it can only enforce the `uses`
+half of each recipe (finding 40). `legal_mask_from_facts_torch` is the M19
+mask: predicted facing material, faced-object bit, and nearby materials
+close that gap for `place_*` / `make_*`. `do` stays legal in every mask —
+it also chops trees and attacks, and finding 39 was not a bad `do`.
 """
 
 from __future__ import annotations
@@ -35,6 +38,9 @@ ACTION_DIM: int = len(ACTION_NAMES)
 
 ITEM_NAMES: tuple[str, ...] = tuple(str(n) for n in crafter_constants.items)
 ITEM_INDEX: dict[str, int] = {n: i for i, n in enumerate(ITEM_NAMES)}
+
+MATERIAL_NAMES: tuple[str, ...] = tuple(str(n) for n in crafter_constants.materials)
+MATERIAL_INDEX: dict[str, int] = {n: i for i, n in enumerate(MATERIAL_NAMES)}
 
 _PLACE: dict[str, dict[str, Any]] = dict(crafter_constants.place)
 _MAKE: dict[str, dict[str, Any]] = dict(crafter_constants.make)
@@ -159,3 +165,66 @@ def inventory_vector(inventory: dict[str, Any] | None) -> np.ndarray:
     for name, i in ITEM_INDEX.items():
         out[i] = int(inventory.get(name, 0))
     return out
+
+
+def spatial_from_info(
+    info: dict[str, Any] | None,
+) -> tuple[int, float, np.ndarray] | None:
+    """`info` -> `(facing_id, object_present, nearby_multihot)`.
+
+    `facing_id` indexes `MATERIAL_NAMES`. `nearby_multihot` is float32
+    `[len(MATERIAL_NAMES)]`. Returns `None` when `facing_material` is absent
+    so replay can store `has_spatial=0` instead of a fake grass tile.
+    """
+    if not info or "facing_material" not in info:
+        return None
+    name = str(info["facing_material"])
+    if name not in MATERIAL_INDEX:
+        return None
+    nearby = np.zeros(len(MATERIAL_NAMES), dtype=np.float32)
+    for mat in info.get("nearby_materials") or ():
+        idx = MATERIAL_INDEX.get(str(mat))
+        if idx is not None:
+            nearby[idx] = 1.0
+    occupied = 1.0 if bool(info.get("facing_object_present")) else 0.0
+    return MATERIAL_INDEX[name], occupied, nearby
+
+
+def legal_mask_from_facts_torch(
+    counts: Tensor,
+    facing_id: Tensor,
+    facing_object: Tensor,
+    nearby: Tensor,
+) -> Tensor:
+    """Imagination legality once facing and nearby are predicted (finding 45).
+
+    `counts` `[..., n_items]`, `facing_id` `[...]` long, `facing_object`
+    `[...]` (true when the faced tile is occupied), `nearby` `[..., n_materials]`
+    (true when that material is in the 1-tile neighborhood). Returns bool
+    `[..., ACTION_DIM]`.
+
+    Starts from the inventory-`uses` mask, then requires `place_*` to face a
+    material in that recipe's `where` list with no object on the tile, and
+    `make_*` to have every `nearby` utility. `do`, movement, `sleep`, and
+    `noop` stay legal: `do` mines, chops, and attacks.
+    """
+    mask = legal_mask_from_counts_torch(counts)
+    occupied = (
+        facing_object
+        if facing_object.dtype == torch.bool
+        else facing_object > 0.5
+    )
+    near = nearby if nearby.dtype == torch.bool else nearby > 0.5
+    for idx, _name, spec in _PLACE_ACTIONS:
+        where_ok = torch.zeros(facing_id.shape, dtype=torch.bool, device=facing_id.device)
+        for mid in (MATERIAL_INDEX[m] for m in spec["where"] if m in MATERIAL_INDEX):
+            where_ok = where_ok | (facing_id == mid)
+        mask[..., idx] = mask[..., idx] & where_ok & ~occupied
+    for idx, _name, spec in _MAKE_ACTIONS:
+        near_ok = torch.ones(facing_id.shape, dtype=torch.bool, device=facing_id.device)
+        for util in spec.get("nearby", ()):
+            if util not in MATERIAL_INDEX:
+                continue
+            near_ok = near_ok & near[..., MATERIAL_INDEX[util]]
+        mask[..., idx] = mask[..., idx] & near_ok
+    return mask

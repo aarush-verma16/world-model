@@ -134,6 +134,7 @@ def outer_cycle(
     scaler: torch.amp.GradScaler,
     wm_max_grad_norm: float = 1000.0,
     ac_max_grad_norm: float = 100.0,
+    teacher_fraction: float = 0.0,
 ) -> OuterCycleResult:
     """Collect `collect_every` env steps, then `wm_updates` WM and `ac_updates` AC.
 
@@ -144,7 +145,9 @@ def outer_cycle(
     wm_metrics: dict[str, float] | None = None
     for _ in range(int(wm_updates)):
         unfreeze_world_model(world_model)
-        batch = buffer.sample(int(batch_size), int(seq_len))
+        batch = buffer.sample(
+            int(batch_size), int(seq_len), teacher_fraction=float(teacher_fraction)
+        )
         _loss, wm_metrics = world_model_step(
             world_model,
             wm_optim,
@@ -159,7 +162,9 @@ def outer_cycle(
     ac_metrics: dict[str, float] | None = None
     rollout = None
     for _ in range(int(ac_updates)):
-        batch = buffer.sample(int(batch_size), int(seq_len))
+        batch = buffer.sample(
+            int(batch_size), int(seq_len), teacher_fraction=float(teacher_fraction)
+        )
         _loss, ac_metrics, rollout = actor_critic_step(
             world_model,
             actor,

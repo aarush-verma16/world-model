@@ -184,6 +184,52 @@ def inventory_head_loss(
     return (per_step * mask).sum() / denom
 
 
+def spatial_head_loss(
+    material_logits: Tensor,
+    object_logit: Tensor,
+    nearby_logits: Tensor,
+    facing_id: Tensor,
+    facing_object: Tensor,
+    nearby: Tensor,
+    has_spatial: Tensor,
+) -> Tensor:
+    """Masked facing CE + object BCE + nearby BCE (finding 45).
+
+    Args:
+        material_logits: `[..., n_materials]`.
+        object_logit: `[..., 1]`.
+        nearby_logits: `[..., n_materials]`.
+        facing_id: `[...]` int64 class index.
+        facing_object: `[...]` in `{0, 1}`.
+        nearby: `[..., n_materials]` in `{0, 1}`.
+        has_spatial: `[...]` in `{0, 1}`. Steps from replay written before
+            this head existed contribute 0.
+
+    Returns:
+        Scalar. `0.0` with no gradient signal when every step is stale.
+    """
+    n_mat = material_logits.shape[-1]
+    ce = F.cross_entropy(
+        material_logits.reshape(-1, n_mat),
+        facing_id.reshape(-1).clamp(0, n_mat - 1),
+        reduction="none",
+    ).view(facing_id.shape)
+    obj_bce = F.binary_cross_entropy_with_logits(
+        object_logit.squeeze(-1),
+        facing_object.to(dtype=object_logit.dtype),
+        reduction="none",
+    )
+    near_bce = F.binary_cross_entropy_with_logits(
+        nearby_logits,
+        nearby.to(dtype=nearby_logits.dtype),
+        reduction="none",
+    ).mean(dim=-1)
+    per_step = ce + obj_bce + near_bce
+    mask = has_spatial.to(per_step.dtype)
+    denom = mask.sum().clamp_min(1.0)
+    return (per_step * mask).sum() / denom
+
+
 def world_model_loss(
     *,
     obs: Tensor,

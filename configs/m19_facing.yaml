@@ -1,0 +1,92 @@
+# M19 — facing and nearby facts, on top of M18's mask and inventory head.
+#
+# M18 at ~204k still has stone in 3 lives and pickaxe lives dying at ~172.
+# collect_stone is `do` while holding a wood pickaxe and facing stone.
+# The legality mask does not touch `do`, and the 4x4 CNN cell is larger
+# than the 7px facing tile (findings 04, 40, 45). This run gives the actor
+# those facts: ground truth in real collect, a SpatialHead in imagination.
+# Imagination's place_*/make_* mask then also checks predicted facing and
+# nearby. `do` stays legal so the policy can learn when to mine.
+#
+# New dirs. Do not load m6–m18. Budget 500k. Do not add a stone or hunger
+# bonus. Do not extend this run to 1M unless last-200 stone is actually common.
+
+seed: 0
+
+world_model_config: configs/sizes/dreamer_xl_paper_spatial.yaml
+world_model_ckpt: null
+actor_critic_ckpt: null
+reset_actor: true
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 8
+  seq_len: 64
+  amp: bf16
+  env_steps: 500000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  ac_warmup_env: 0
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  prefill_mask_illegal: true
+  # Map teacher writes wood→table→sword→pickaxe→stone into replay before
+  # learning, then half of each batch is drawn from those episodes so the
+  # 64 lives are not drowned by the agent's own failures. Eval does not
+  # use the teacher. 0 on every config that omits these keys.
+  teacher_episodes: 64
+  teacher_max_steps: 400
+  teacher_fraction: 0.5
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 1000000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  inventory_scale: 1.0
+  spatial_scale: 1.0
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  dashboard_every: 1000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m19_facing
+  checkpoint_dir: checkpoints/m19_facing
+  results_dir: results/m19_facing
+  replay_out: data/m19_facing_replay.pt

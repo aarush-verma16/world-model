@@ -14,7 +14,12 @@ from torch import Tensor
 from models.preprocess import nhwc_uint8_to_nchw_unit
 from models.world_model import WorldModel
 from training.device import autocast_context, to_device
-from training.losses import WorldModelLossBreakdown, inventory_head_loss, world_model_loss
+from training.losses import (
+    WorldModelLossBreakdown,
+    inventory_head_loss,
+    spatial_head_loss,
+    world_model_loss,
+)
 
 
 def loss_to_metrics(
@@ -22,6 +27,7 @@ def loss_to_metrics(
     *,
     total_override: Tensor | None = None,
     inventory: Tensor | None = None,
+    spatial: Tensor | None = None,
 ) -> dict[str, float]:
     """Detach per-term losses to plain floats for logging.
 
@@ -45,6 +51,8 @@ def loss_to_metrics(
     }
     if inventory is not None:
         out["inventory"] = float(inventory.detach())
+    if spatial is not None:
+        out["spatial"] = float(spatial.detach())
     return out
 
 
@@ -132,6 +140,28 @@ def world_model_step(
             inventory_scale = 1.0 if inventory_scale is None else inventory_scale
             total = total + inventory_scale * inv_loss
 
+        # Optional (finding 45, m19 only). Absent on m6/m18, so those
+        # recipes do not grow a spatial term.
+        spatial_loss: Tensor | None = None
+        if (
+            model.spatial_head is not None
+            and "facing" in batch
+            and "nearby" in batch
+        ):
+            mat_logits, obj_logit, near_logits = model.spatial_head(out.feat)
+            spatial_loss = spatial_head_loss(
+                mat_logits,
+                obj_logit,
+                near_logits,
+                batch["facing"],
+                batch["facing_object"],
+                batch["nearby"],
+                batch.get("has_spatial", torch.zeros_like(batch["rewards"])),
+            )
+            spatial_scale = _train_optional_float(train_cfg, "spatial_scale")
+            spatial_scale = 1.0 if spatial_scale is None else spatial_scale
+            total = total + spatial_scale * spatial_loss
+
     if scaler.is_enabled():
         scaler.scale(total).backward()
         scaler.unscale_(optim)
@@ -143,4 +173,6 @@ def world_model_step(
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optim.step()
 
-    return loss, loss_to_metrics(loss, total_override=total, inventory=inv_loss)
+    return loss, loss_to_metrics(
+        loss, total_override=total, inventory=inv_loss, spatial=spatial_loss
+    )

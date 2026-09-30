@@ -462,3 +462,31 @@ def test_notebook_11_binds_m18_not_m17() -> None:
     assert "success_percents" in text
     assert "last-200 collect" in text
 
+
+def test_m19_facing_is_isolated_from_m18() -> None:
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m19_facing.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    size = yaml.safe_load(Path(cfg["world_model_config"]).read_text(encoding="utf-8"))
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl_paper_spatial.yaml"
+    assert int(size["spatial"]["n_materials"]) == 12
+    assert int(size["inventory"]["n_items"]) == 16
+    assert float(train["spatial_scale"]) == 1.0
+    assert int(train["teacher_episodes"]) == 64
+    assert float(train["teacher_fraction"]) == 0.5
+    assert int(train["env_steps"]) == 500000
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m19_facing" in path
+        assert "m18_masked" not in path
+    m18 = yaml.safe_load(Path("configs/m18_masked_inventory.yaml").read_text(encoding="utf-8"))
+    m18_size = yaml.safe_load(Path(m18["world_model_config"]).read_text(encoding="utf-8"))
+    assert "spatial" not in m18_size
+    assert not m18["train"].get("teacher_episodes", 0)
+    text = Path("notebooks/12_train_m19_facing.ipynb").read_text(encoding="utf-8")
+    assert 'CONFIG = Path("configs/m19_facing.yaml")' in text or "configs/m19_facing.yaml" in text
+    assert "RESUME = None" in text
+    assert "m18_masked" in text
+    assert "spatial_head" in text
+

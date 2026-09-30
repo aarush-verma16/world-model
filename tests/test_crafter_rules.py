@@ -5,14 +5,18 @@ synthetic `info` dicts mirroring `crafter.constants.place` / `.make` exactly.
 from __future__ import annotations
 
 import numpy as np
+import torch
 
 from training.crafter_rules import (
     ACTION_DIM,
     ACTION_INDEX,
     ITEM_NAMES,
+    MATERIAL_NAMES,
     inventory_vector,
     legal_action_mask,
     legal_mask_from_counts,
+    legal_mask_from_facts_torch,
+    spatial_from_info,
 )
 
 
@@ -99,3 +103,36 @@ def test_legal_mask_from_counts_batches_and_only_gates_uses() -> None:
     # make_wood_pickaxe also needs a table nearby, only that wood >= 1.
     pick_idx = ACTION_INDEX["make_wood_pickaxe"]
     assert bool(mask[0, pick_idx])
+
+
+def test_spatial_from_info_and_facts_mask_see_facing_and_nearby() -> None:
+    info = _base_info(
+        inventory={**{n: 0 for n in ITEM_NAMES}, "wood": 2},
+        facing_material="stone",
+        nearby_materials=("grass",),
+    )
+    facing_id, occupied, nearby = spatial_from_info(info)
+    assert MATERIAL_NAMES[facing_id] == "stone"
+    assert occupied == 0.0
+    assert nearby[MATERIAL_NAMES.index("grass")] == 1.0
+    assert spatial_from_info({}) is None
+
+    counts = torch.zeros(1, len(ITEM_NAMES))
+    counts[0, ITEM_NAMES.index("wood")] = 2
+    face = torch.tensor([MATERIAL_NAMES.index("stone")])
+    obj = torch.zeros(1)
+    near = torch.zeros(1, len(MATERIAL_NAMES))
+    mask = legal_mask_from_facts_torch(counts, face, obj, near)
+    assert not bool(mask[0, ACTION_INDEX["place_table"]])
+    assert bool(mask[0, ACTION_INDEX["do"]])
+
+    face = torch.tensor([MATERIAL_NAMES.index("grass")])
+    mask = legal_mask_from_facts_torch(counts, face, obj, near)
+    assert bool(mask[0, ACTION_INDEX["place_table"]])
+    assert not bool(mask[0, ACTION_INDEX["make_wood_pickaxe"]])
+
+    near[0, MATERIAL_NAMES.index("table")] = 1.0
+    counts[0, ITEM_NAMES.index("wood")] = 1
+    mask = legal_mask_from_facts_torch(counts, face, obj, near)
+    assert bool(mask[0, ACTION_INDEX["make_wood_pickaxe"]])
+    assert bool(mask[0, ACTION_INDEX["do"]])

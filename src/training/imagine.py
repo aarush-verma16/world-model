@@ -19,7 +19,7 @@ from models.heads import rssm_features
 from models.rssm import one_hot_action
 from models.symlog import symlog_twohot_mean
 from models.world_model import WorldModel
-from training.crafter_rules import legal_mask_from_counts_torch
+from training.actor_input import features_imagined
 
 
 @dataclass
@@ -35,12 +35,10 @@ class ImaginedRollout:
     `reward`, `cont`, `value`, `value_logits`.
     Action-indexed `[N, H, ...]`: `action`, `log_prob`, `entropy`.
 
-    `feat_actor` (finding 40, m18 only) is the actor/critic input: `feat`
-    plus predicted-inventory columns when `world_model.inventory_head` is
-    set, otherwise it is exactly `feat.detach()` — the vanilla m6/m17 path
-    is unchanged. `decode_imagination` and anything that needs the raw RSSM
-    feature (matching the decoder's `feat_dim`) must use `feat`, not
-    `feat_actor`.
+    `feat_actor` is the actor/critic input. It is `feat.detach()` for m6/m17,
+    plus predicted inventory for m18, plus predicted facing/nearby for m19.
+    `decode_imagination` and anything that needs the raw RSSM feature
+    (matching the decoder's `feat_dim`) must use `feat`, not `feat_actor`.
 
     So `value[:, i]` is `V(s_i)` — the baseline for `log_prob[:, i]` — and
     `reward[:, i]` is the reward predicted *at* `s_i`. Mixing the two is how
@@ -80,22 +78,14 @@ def unfreeze_world_model(model: WorldModel) -> None:
 
 
 def _actor_input(world_model: WorldModel, feat_detached: Tensor) -> tuple[Tensor, Tensor | None]:
-    """`(feat_actor, inv_counts)` for one imagined step's actor/critic input.
+    """`(feat_actor, legal_mask)` for one imagined step.
 
-    finding 40 (m18 only): `world_model.inventory_head is None` for every
-    m6/m17-style config, so this returns `(feat_detached, None)` unchanged —
-    the exact tensor `critic`/`actor.policy` already received before this
-    existed. Otherwise it argmax-decodes the predicted inventory (the head
-    is trained on real replay in `wm_step.py`; the argmax is why this never
-    needs its own `.detach()` beyond the one the caller already applied to
-    `feat_detached`) and appends it as `count / 9` columns.
+    m6/m17 (`inventory_head` and `spatial_head` both `None`): returns
+    `(feat_detached, None)`. m18 appends predicted inventory and an
+    inventory-uses mask. m19 also appends predicted facing/nearby and
+    tightens `place_*` / `make_*`. `do` stays legal.
     """
-    if world_model.inventory_head is None:
-        return feat_detached, None
-    inv_logits = world_model.predict_inventory(feat_detached)
-    inv_counts = inv_logits.argmax(dim=-1).float()
-    feat_actor = torch.cat([feat_detached, inv_counts / 9.0], dim=-1)
-    return feat_actor, inv_counts
+    return features_imagined(world_model, feat_detached)
 
 
 def _start_states(
@@ -203,7 +193,7 @@ def imagine_ahead(
                 reward_logits = world_model.reward_head(feat)
                 cont_logit = world_model.continue_head(feat).squeeze(-1)
             feat = feat.detach()
-        feat_actor, inv_counts = _actor_input(world_model, feat.detach())
+        feat_actor, legal_mask = _actor_input(world_model, feat.detach())
         value_logits = critic(feat_actor)
 
         hs.append(h)
@@ -217,10 +207,7 @@ def imagine_ahead(
 
         if step == horizon:
             break
-        mask = None
-        if inv_counts is not None:
-            mask = legal_mask_from_counts_torch(inv_counts)
-        action, log_prob, entropy, _probs = actor.policy(feat_actor, mask=mask)
+        action, log_prob, entropy, _probs = actor.policy(feat_actor, mask=legal_mask)
         acts.append(action)
         logps.append(log_prob)
         ents.append(entropy)

@@ -402,6 +402,8 @@ def test_world_model_default_has_no_inventory_head() -> None:
     """m6/m17 must load `strict=True`: no inventory_head key exists at all."""
     wm = _tiny_wm()
     assert wm.inventory_head is None
+    assert wm.spatial_head is None
+    assert wm.actor_extra_dim == 0
     try:
         wm.predict_inventory(torch.zeros(1, wm.feat_dim))
     except RuntimeError:
@@ -563,6 +565,58 @@ def test_imagine_ahead_with_inventory_head_extends_feat_actor_and_masks() -> Non
         _action_masked, _lp, _ent, probs_masked = actor.policy(feat0, mask=mask)
     for name in ("place_table", "place_furnace", "make_wood_pickaxe"):
         assert float(probs_masked[:, ACTION_INDEX[name]].max()) == 0.0
+
+
+def test_imagine_ahead_with_spatial_head_extends_feat_and_keeps_do_legal() -> None:
+    from agents.actor_critic import Actor, Critic
+    from training.crafter_rules import ACTION_INDEX, ITEM_NAMES, MATERIAL_NAMES
+    from training.imagine import freeze_world_model, imagine_ahead
+
+    n_items = len(ITEM_NAMES)
+    n_mat = len(MATERIAL_NAMES)
+    wm = WorldModel.from_config_dims(
+        embed_dim=64,
+        encoder_channels=(16, 32, 64, 64),
+        action_dim=17,
+        deter_dim=32,
+        stoch=4,
+        classes=4,
+        hidden=32,
+        decoder_channels=(64, 32, 16, 8),
+        head_hidden=32,
+        head_layers=1,
+        encoder_blocks=1,
+        decoder_blocks=0,
+        inventory_n_items=n_items,
+        inventory_num_classes=10,
+        spatial_n_materials=n_mat,
+    )
+    assert wm.spatial_head is not None
+    assert any(k.startswith("spatial_head.") for k in wm.state_dict())
+    freeze_world_model(wm)
+    extra = n_items + n_mat + 1 + n_mat
+    actor = Actor(wm.feat_dim + extra, 17, hidden=16, layers=1)
+    critic = Critic(wm.feat_dim + extra, hidden=16, layers=1, num_bins=21)
+    obs = torch.randint(0, 256, (2, 4, 64, 64, 3), dtype=torch.uint8)
+    actions = torch.randint(0, 17, (2, 4), dtype=torch.int64)
+    rollout = imagine_ahead(wm, actor, critic, obs, actions, horizon=2, start_mode="last")
+    assert rollout.feat.shape[-1] == wm.feat_dim
+    assert rollout.feat_actor.shape[-1] == wm.feat_dim + extra
+
+    for head in (wm.inventory_head, wm.spatial_head):
+        for p in head.parameters():
+            torch.nn.init.zeros_(p)
+    rollout2 = imagine_ahead(wm, actor, critic, obs, actions, horizon=2, start_mode="last")
+    from training.actor_input import features_imagined
+
+    feat_actor, mask = features_imagined(wm, rollout2.feat[:, 0].detach())
+    assert mask is not None
+    assert bool(mask[:, ACTION_INDEX["do"]].all())
+    assert not bool(mask[:, ACTION_INDEX["place_table"]].any())
+    with torch.no_grad():
+        _a, _lp, _ent, probs = actor.policy(feat_actor, mask=mask)
+    assert float(probs[:, ACTION_INDEX["do"]].min()) > 0.0
+    assert float(probs[:, ACTION_INDEX["place_table"]].max()) == 0.0
 
 
 def test_world_model_step_updates_weights() -> None:

@@ -19,8 +19,9 @@ from agents.actor_critic import Actor
 from models.heads import rssm_features
 from models.rssm import RSSMState
 from models.world_model import WorldModel
+from training.actor_input import features_real
 from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
-from training.crafter_rules import inventory_vector, legal_action_mask
+from training.crafter_rules import inventory_vector, legal_action_mask, spatial_from_info
 from training.crafter_score import achievement_counts_from_info
 from training.device import autocast_context
 from training.replay_buffer import ReplayBuffer
@@ -87,14 +88,9 @@ def rssm_policy_step(
             state, prev_action, embed
         )
         feat = rssm_features(new_state.h, new_state.z_posterior)
-        feat_actor = feat
-        if world_model.inventory_head is not None:
-            # Ground-truth inventory (finding 40): real collect has actual
-            # `info`, unlike imagination, so it never needs the predicted
-            # head here — only `training.imagine` does.
-            inv = inventory_vector(info.get("inventory") if info else None)
-            inv_t = torch.from_numpy(inv).to(device=device, dtype=feat.dtype).unsqueeze(0) / 9.0
-            feat_actor = torch.cat([feat, inv_t], dim=-1)
+        # Ground truth (findings 40 and 45): real collect has `info`.
+        # Imagination is the path that has to predict these columns.
+        feat_actor = features_real(world_model, feat, info)
         action_oh, _log_prob, entropy, _probs = actor.policy(feat_actor, mask=mask)
     action_i = ste_action_to_int(action_oh)
     return new_state, action_oh.float(), action_i, float(entropy.reshape(-1)[0].item())
@@ -198,6 +194,7 @@ class Collector:
             cont,
             is_first=len(self._obs_buf) == 1,
             inventory=inv_vec,
+            spatial=spatial_from_info(pre_info),
         )
 
         self._state = new_state

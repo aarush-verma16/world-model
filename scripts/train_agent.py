@@ -75,14 +75,12 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 
 def actor_critic_feat_dim(world_model: WorldModel) -> int:
-    """`world_model.feat_dim`, plus predicted-inventory columns (finding 40)
-    when the model has an `inventory_head` — the single switch that puts
-    m18's actor/critic in inventory-conditioned mode. `None` (every
-    m6/m17-style config) keeps this identical to `world_model.feat_dim`.
+    """RSSM `feat_dim` plus whatever columns this model concatenates.
+
+    m6/m17: `feat_dim`. m18: plus inventory. m19: plus inventory and the
+    facing/nearby block. `WorldModel.actor_extra_dim` is the switch.
     """
-    if world_model.inventory_head is None:
-        return world_model.feat_dim
-    return world_model.feat_dim + int(world_model.inventory_head.n_items)
+    return world_model.feat_dim + world_model.actor_extra_dim
 
 
 def make_actor_critic(cfg: dict[str, Any], world_model: WorldModel, device: torch.device) -> tuple[Actor, Critic]:
@@ -217,6 +215,7 @@ def overlay_wm_train(wm_train_cfg: dict[str, Any], train: dict[str, Any]) -> dic
         "continue_scale",
         "kl_scale",
         "inventory_scale",
+        "spatial_scale",
     ):
         if key in train and train[key] is not None:
             out[key] = train[key]
@@ -286,7 +285,11 @@ def pretrain_dreamer(
     )
     for i in range(n):
         unfreeze_world_model(world_model)
-        batch = buffer.sample(batch_size, seq_len)
+        batch = buffer.sample(
+            batch_size,
+            seq_len,
+            teacher_fraction=float(train.get("teacher_fraction", 0.0) or 0.0),
+        )
         _loss, last_wm = world_model_step(
             world_model,
             wm_optim,
@@ -297,7 +300,11 @@ def pretrain_dreamer(
             scaler=scaler,
             max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
         )
-        batch = buffer.sample(batch_size, seq_len)
+        batch = buffer.sample(
+            batch_size,
+            seq_len,
+            teacher_fraction=float(train.get("teacher_fraction", 0.0) or 0.0),
+        )
         _loss, last_ac, _rollout = actor_critic_step(
             world_model,
             actor,
@@ -641,6 +648,7 @@ def main() -> None:
                 scaler=scaler,
                 wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
                 ac_max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
+                teacher_fraction=float(train.get("teacher_fraction", 0.0) or 0.0),
             )
             prev_steps = env_steps
             env_steps += collect_every
