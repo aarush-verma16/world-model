@@ -17,6 +17,7 @@ from training.device import autocast_context, to_device
 from training.losses import (
     WorldModelLossBreakdown,
     inventory_head_loss,
+    local_map_head_loss,
     spatial_head_loss,
     world_model_loss,
 )
@@ -28,6 +29,7 @@ def loss_to_metrics(
     total_override: Tensor | None = None,
     inventory: Tensor | None = None,
     spatial: Tensor | None = None,
+    local: Tensor | None = None,
 ) -> dict[str, float]:
     """Detach per-term losses to plain floats for logging.
 
@@ -53,6 +55,8 @@ def loss_to_metrics(
         out["inventory"] = float(inventory.detach())
     if spatial is not None:
         out["spatial"] = float(spatial.detach())
+    if local is not None:
+        out["local"] = float(local.detach())
     return out
 
 
@@ -162,6 +166,22 @@ def world_model_step(
             spatial_scale = 1.0 if spatial_scale is None else spatial_scale
             total = total + spatial_scale * spatial_loss
 
+        # Optional (finding 47, m20 only).
+        local_loss: Tensor | None = None
+        if model.local_map_head is not None and "local_mat" in batch:
+            lmat_logits, lobj_logits = model.local_map_head(out.feat)
+            local_loss = local_map_head_loss(
+                lmat_logits,
+                lobj_logits,
+                batch["local_mat"],
+                batch["local_obj"],
+                batch.get("has_local", torch.zeros_like(batch["rewards"])),
+                object_weight=_train_optional_float(train_cfg, "local_object_weight") or 4.0,
+            )
+            local_scale = _train_optional_float(train_cfg, "local_scale")
+            local_scale = 1.0 if local_scale is None else local_scale
+            total = total + local_scale * local_loss
+
     if scaler.is_enabled():
         scaler.scale(total).backward()
         scaler.unscale_(optim)
@@ -174,5 +194,9 @@ def world_model_step(
         optim.step()
 
     return loss, loss_to_metrics(
-        loss, total_override=total, inventory=inv_loss, spatial=spatial_loss
+        loss,
+        total_override=total,
+        inventory=inv_loss,
+        spatial=spatial_loss,
+        local=local_loss,
     )

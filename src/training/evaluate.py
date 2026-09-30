@@ -83,8 +83,11 @@ def evaluate_policy(
     last_frames: list[np.ndarray] = []
 
     for ep in range(int(n_episodes)):
-        obs, _info = env.reset(seed=int(seed) + ep)
+        obs, reset_info = env.reset(seed=int(seed) + ep)
         obs_np = np.asarray(obs, dtype=np.uint8)
+        # Same info collect passes (findings 39/40/45/47): legality mask and
+        # the actor's truth columns. Without it eval ran a different policy.
+        step_info: dict[str, Any] | None = reset_info if isinstance(reset_info, dict) else None
         state = rssm.initial(1, device=device)
         prev_action = torch.zeros(1, rssm.action_dim, device=device)
         ep_ret = 0.0
@@ -102,8 +105,10 @@ def evaluate_policy(
                 prev_action,
                 device=device,
                 amp_dtype=amp_dtype,
+                info=step_info,
             )
             next_obs, reward, terminated, truncated, info = env.step(action_i)
+            step_info = info if isinstance(info, dict) else None
             ep_ret += float(reward)
             ep_len += 1
             obs_np = np.asarray(next_obs, dtype=np.uint8)

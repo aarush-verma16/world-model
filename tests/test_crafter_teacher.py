@@ -25,6 +25,21 @@ def test_teacher_mines_stone_on_the_real_env() -> None:
     assert buf.num_steps == stats["steps"]
 
 
+def test_teacher_v2_reaches_stone_pickaxe() -> None:
+    register_crafter_envs()
+    env = gym.make("CrafterReward-v1")
+    try:
+        buf = ReplayBuffer()
+        stats = seed_teacher_episodes(
+            env, buf, episodes=1, max_episode_steps=800, seed=0, version=2
+        )
+    finally:
+        env.close()
+    assert stats["unlocks"]["collect_stone"] == 1
+    assert stats["unlocks"]["defeat_zombie"] == 1
+    assert stats["mean_length"] > 150
+
+
 def test_teacher_fraction_hits_the_marked_episode_and_eviction_keeps_it() -> None:
     buf = ReplayBuffer(seed=0, max_steps=20)
     buf.add_episode(

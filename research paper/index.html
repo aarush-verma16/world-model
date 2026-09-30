@@ -511,7 +511,13 @@ flowchart LR
         body:"Last-200 gmean 2.34, wood 50%, table 17%, pickaxe 0.5%, stone 0. 37 pickaxe lives, 3 stone, length 171.5. collect_stone is unmasked do on a 7px tile. M19 is a new SpatialHead run. No score yet." },
       { id:"46", tags:["eval"], title:"A map teacher puts stone in the replay; uniform sampling would throw it away",
         file:"findings/46-teacher-replay-puts-stone-in-the-buffer.md",
-        body:"Seeds 0-2 finished table, wood pickaxe, and stone in 33, 23, and 25 steps (3/3). Those episodes are pinned and half of each batch overlaps them. Eval does not call the teacher. Not a 14.5 claim." }
+        body:"Seeds 0-2 finished table, wood pickaxe, and stone in 33, 23, and 25 steps (3/3). Those episodes are pinned and half of each batch overlaps them. Eval does not call the teacher. Not a 14.5 claim." },
+      { id:"47", tags:["eval","negative-result"], title:"M19 at 51k is geometric mean 4 because stone pickaxe never entered the tree",
+        file:"findings/47-m19-51k-is-four-not-fourteen.md",
+        body:"Last-200 4.19, table 52%, pickaxe 11.5%, stone 3%, stone pickaxe 0, length 175. Teacher v1 stopped after first stone. The live notebook never passed teacher_fraction. Not 14.5." },
+      { id:"48", tags:["eval"], title:"Whole-life teacher plus a 9x7 map and cloning those actions",
+        file:"findings/48-teacher-v2-local-map-and-bc.md",
+        body:"Teacher v2: 8/8 stone pickaxe and zombie, 7/8 furnace, 5/8 iron, 0 iron pickaxe, length 245. M20 writes those lives, a 9x7 local map, and BC. No actor score yet." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -594,7 +600,11 @@ flowchart LR
       "Hard-masking do, which also chops trees and attacks",
       "Loading an M18 checkpoint into the M19 spatial graph",
       "Treating teacher-episode stone as the agent's Crafter score",
-      "Leaving rare teacher episodes in a uniform replay and expecting the gradient to notice them"
+      "Leaving rare teacher episodes in a uniform replay and expecting the gradient to notice them",
+      "Captioning M19 last-200 4.19 next to DreamerV3 14.5",
+      "Grinding M19 to 500k while last-200 stone pickaxe is 0",
+      "Loading an M19 checkpoint into the M20 local-map graph",
+      "Treating teacher v2 iron/furnace unlocks as the agent's Crafter score"
     ];
 
     let tag = "all";

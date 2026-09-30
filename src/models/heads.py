@@ -200,3 +200,42 @@ class SpatialHead(MLPHead):
         flat = super().forward(feat)
         n = self.n_materials
         return flat[..., :n], flat[..., n : n + 1], flat[..., n + 1 :]
+
+
+class LocalMapHead(MLPHead):
+    """Decode the whole 9x7 local view as per-cell material and object classes.
+
+    Finding 47, not vanilla DreamerV3. `SpatialHead` only names the faced
+    tile and a 3x3 multi-hot, so the actor still cannot tell *where* the
+    stone, water, cow, or zombie in view is. This head reads `[h, z]` and
+    names every visible tile, making the latent carry a semantic map
+    instead of relying on 7px pixel recon to do it.
+
+    Output:
+        material logits `[..., cells, n_material_classes]` (class 0 = outside
+        the 64x64 world, then `MATERIAL_NAMES` order)
+        object logits `[..., cells, n_object_classes]` (`OBJECT_NAMES` order)
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        cells: int,
+        n_material_classes: int,
+        n_object_classes: int,
+        hidden: int = 512,
+        layers: int = 2,
+    ) -> None:
+        c, m, o = int(cells), int(n_material_classes), int(n_object_classes)
+        super().__init__(in_dim=in_dim, out_dim=c * (m + o), hidden=hidden, layers=layers)
+        self.cells = c
+        self.n_material_classes = m
+        self.n_object_classes = o
+
+    def forward(self, feat: Tensor) -> tuple[Tensor, Tensor]:
+        """`feat` `[..., in_dim]` -> `(material [..., C, M], object [..., C, O])`."""
+        flat = super().forward(feat)
+        c, m, o = self.cells, self.n_material_classes, self.n_object_classes
+        mat = flat[..., : c * m].reshape(*flat.shape[:-1], c, m)
+        obj = flat[..., c * m :].reshape(*flat.shape[:-1], c, o)
+        return mat, obj

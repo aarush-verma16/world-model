@@ -126,6 +126,8 @@ def load_seed_world_model(m5_cfg: dict[str, Any], device: torch.device) -> tuple
     """
     wm_cfg = load_yaml(Path(m5_cfg["world_model_config"]))
     model = build_model(wm_cfg).to(device)
+    source = m5_cfg.get("actor_input_source", wm_cfg.get("actor_input_source", "truth"))
+    model.actor_input_source = str(source)
     raw = m5_cfg.get("world_model_ckpt")
     if not raw:
         n_m = sum(p.numel() for p in model.parameters()) / 1e6
@@ -216,6 +218,8 @@ def overlay_wm_train(wm_train_cfg: dict[str, Any], train: dict[str, Any]) -> dic
         "kl_scale",
         "inventory_scale",
         "spatial_scale",
+        "local_scale",
+        "local_object_weight",
     ):
         if key in train and train[key] is not None:
             out[key] = train[key]
@@ -324,6 +328,7 @@ def pretrain_dreamer(
             amp_dtype=amp_dtype,
             scaler=scaler,
             max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
+            bc_scale=float(train.get("bc_scale", 0.0) or 0.0),
         )
         if (i + 1) % 10 == 0 or i == 0:
             recon_i = last_wm.get("recon_l1", float("nan")) if last_wm else float("nan")
@@ -649,6 +654,7 @@ def main() -> None:
                 wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
                 ac_max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
                 teacher_fraction=float(train.get("teacher_fraction", 0.0) or 0.0),
+                bc_scale=float(train.get("bc_scale", 0.0) or 0.0),
             )
             prev_steps = env_steps
             env_steps += collect_every
@@ -656,6 +662,30 @@ def main() -> None:
                 wm_steps += wm_updates
             if cycle.ac_metrics is not None:
                 ac_steps += ac_updates
+
+            inject_every = int(train.get("teacher_inject_every", 0) or 0)
+            inject_n = int(train.get("teacher_inject_episodes", 0) or 0)
+            if (
+                inject_every > 0
+                and inject_n > 0
+                and crossed_interval(prev_steps, env_steps, inject_every)
+            ):
+                from training.crafter_teacher import seed_teacher_episodes
+
+                inj = seed_teacher_episodes(
+                    collect_env,
+                    buffer,
+                    episodes=inject_n,
+                    max_episode_steps=int(train.get("teacher_max_steps", 800)),
+                    seed=int(cfg["seed"]) + 20_000 + env_steps,
+                    version=int(train.get("teacher_version", 1) or 1),
+                )
+                print(
+                    f"teacher inject at env={env_steps} stone={inj['stone']}/{inj['episodes']} "
+                    f"iron={inj.get('unlocks', {}).get('collect_iron', 0)} "
+                    f"steps={inj['steps']} (not counted in env_steps)",
+                    flush=True,
+                )
 
             row: dict[str, Any] = {"env_steps": env_steps, "wm_steps": wm_steps, "ac_steps": ac_steps}
             if cycle.wm_metrics:

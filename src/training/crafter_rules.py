@@ -42,6 +42,26 @@ ITEM_INDEX: dict[str, int] = {n: i for i, n in enumerate(ITEM_NAMES)}
 MATERIAL_NAMES: tuple[str, ...] = tuple(str(n) for n in crafter_constants.materials)
 MATERIAL_INDEX: dict[str, int] = {n: i for i, n in enumerate(MATERIAL_NAMES)}
 
+# Crafter's rendered world view: 9 wide x 7 tall tiles (the bottom 2 rows of
+# the 9x9 frame are the inventory HUD). Cell (x, y) is world
+# `player.pos + (x, y) - (4, 3)`, the same offset `engine.LocalView` draws.
+LOCAL_GRID: tuple[int, int] = (9, 7)
+LOCAL_CELLS: int = LOCAL_GRID[0] * LOCAL_GRID[1]
+# Material code 0 is "outside the world"; code i + 1 is MATERIAL_NAMES[i].
+LOCAL_MATERIAL_CLASSES: int = 1 + len(MATERIAL_NAMES)
+OBJECT_NAMES: tuple[str, ...] = (
+    "none",
+    "zombie",
+    "skeleton",
+    "cow",
+    "plant",
+    "plant_ripe",
+    "arrow",
+    "fence",
+)
+OBJECT_INDEX: dict[str, int] = {n: i for i, n in enumerate(OBJECT_NAMES)}
+LOCAL_OBJECT_CLASSES: int = len(OBJECT_NAMES)
+
 _PLACE: dict[str, dict[str, Any]] = dict(crafter_constants.place)
 _MAKE: dict[str, dict[str, Any]] = dict(crafter_constants.make)
 
@@ -188,6 +208,21 @@ def spatial_from_info(
             nearby[idx] = 1.0
     occupied = 1.0 if bool(info.get("facing_object_present")) else 0.0
     return MATERIAL_INDEX[name], occupied, nearby
+
+
+def local_map_from_info(info: dict[str, Any] | None) -> tuple[np.ndarray, np.ndarray] | None:
+    """`info` -> `(materials [LOCAL_CELLS] uint8, objects [LOCAL_CELLS] uint8)`.
+
+    Flattened x-major (`x * 7 + y`). `None` when the env did not report a
+    local map, so replay stores `has_local=0` instead of an all-outside grid.
+    """
+    if not info or "local_materials" not in info or "local_objects" not in info:
+        return None
+    mats = np.asarray(info["local_materials"], dtype=np.uint8).reshape(-1)
+    objs = np.asarray(info["local_objects"], dtype=np.uint8).reshape(-1)
+    if mats.shape != (LOCAL_CELLS,) or objs.shape != (LOCAL_CELLS,):
+        return None
+    return mats, objs
 
 
 def legal_mask_from_facts_torch(

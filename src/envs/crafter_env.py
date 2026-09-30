@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, SupportsFloat
 
 import crafter
+import crafter.constants
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
@@ -33,6 +34,37 @@ def split_crafter_done(
     return terminated, truncated
 
 
+_MATERIAL_CODE = {str(n): i + 1 for i, n in enumerate(crafter.constants.materials)}
+_OBJECT_CODE = {"Zombie": 1, "Skeleton": 2, "Cow": 3, "Plant": 4, "Arrow": 6, "Fence": 7}
+_LOCAL_W, _LOCAL_H = 9, 7
+
+
+def _local_map(player: Any, world: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Semantic 9x7 grid of the rendered view (finding 47).
+
+    Same cells `engine.LocalView` draws: world `pos + (x, y) - (4, 3)`.
+    Materials: 0 outside the world, else 1 + index in `constants.materials`.
+    Objects: 0 none (the player itself is 0), then zombie, skeleton, cow,
+    plant, ripe plant, arrow, fence. Flattened x-major.
+    """
+    px, py = int(player.pos[0]), int(player.pos[1])
+    mats = np.zeros(_LOCAL_W * _LOCAL_H, dtype=np.uint8)
+    objs = np.zeros(_LOCAL_W * _LOCAL_H, dtype=np.uint8)
+    for x in range(_LOCAL_W):
+        for y in range(_LOCAL_H):
+            material, obj = world[(px + x - 4, py + y - 3)]
+            i = x * _LOCAL_H + y
+            if material is not None:
+                mats[i] = _MATERIAL_CODE.get(str(material), 0)
+            if obj is not None and obj is not player:
+                name = type(obj).__name__
+                code = _OBJECT_CODE.get(name, 0)
+                if name == "Plant" and bool(getattr(obj, "ripe", False)):
+                    code = 5
+                objs[i] = code
+    return mats, objs
+
+
 def _extra_legality_info(env: "crafter.Env") -> dict[str, Any]:
     """Ground-truth facing/nearby facts `training.crafter_rules` needs.
 
@@ -49,11 +81,14 @@ def _extra_legality_info(env: "crafter.Env") -> dict[str, Any]:
     target = (pos[0] + facing[0], pos[1] + facing[1])
     facing_material, facing_obj = world[target]
     nearby_materials, _nearby_objs = world.nearby(pos, 1)
+    local_materials, local_objects = _local_map(player, world)
     return {
         "facing": facing,
         "facing_material": facing_material,
         "facing_object_present": facing_obj is not None,
         "nearby_materials": tuple(nearby_materials),
+        "local_materials": local_materials,
+        "local_objects": local_objects,
     }
 
 

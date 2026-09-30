@@ -11,8 +11,10 @@ from torch import Tensor
 from agents.actor_critic import Actor, Critic, SlowCritic
 from models.symlog import symlog_twohot_loss, symlog_twohot_mean
 from models.world_model import WorldModel
+from training.actor_input import features_from_batch
 from training.device import autocast_context, to_device
 from training.imagine import freeze_world_model, imagine_ahead
+from training.losses import behavior_clone_loss
 from training.returns import PercentileReturnNorm, imagined_targets
 
 
@@ -62,6 +64,7 @@ def actor_critic_step(
     amp_dtype: torch.dtype | None,
     scaler: torch.amp.GradScaler,
     max_grad_norm: float = 100.0,
+    bc_scale: float = 0.0,
 ) -> tuple[ActorCriticLoss, dict[str, float], Any]:
     """Imagine `horizon` steps and update actor + critic. World model frozen.
 
@@ -70,6 +73,10 @@ def actor_critic_step(
         retnorm: percentile EMA; mutated in place and should be checkpointed.
         slow_critic: EMA critic copy used as a second regression target. Passing
             `None` drops DreamerV3's slow-target term.
+        bc_scale: weight of the behavior-cloning term (finding 48, m20 only):
+            action CE of the actor on the *real posteriors* of the window,
+            counted only on steps where `batch["teacher"] == 1`. 0 (default)
+            is the plain DreamerV3 actor loss. Needs `start_mode="all"`.
 
     Returns:
         `(loss, metrics, rollout)` — rollout is for optional visualization.
@@ -139,6 +146,19 @@ def actor_critic_step(
             raise ValueError(
                 f"imag_gradient must be 'reinforce', 'dynamics', or 'both', got {imag_gradient!r}"
             )
+        bc_loss: Tensor | None = None
+        bc_frac = 0.0
+        if float(bc_scale) > 0.0 and "teacher" in batch:
+            if start_mode != "all":
+                raise ValueError("bc_scale > 0 needs start_mode='all' (posteriors per step)")
+            teacher_w = batch["teacher"].float()
+            bc_frac = float(teacher_w.mean())
+            if bc_frac > 0.0:
+                b_n, t_n = batch["actions"].shape[:2]
+                post_feat = rollout.feat[:, 0].detach().reshape(b_n, t_n, -1)
+                bc_logits = actor(features_from_batch(world_model, post_feat, batch))
+                bc_loss = behavior_clone_loss(bc_logits, batch["actions"], teacher_w)
+                actor_loss = actor_loss + float(bc_scale) * bc_loss
         n_bins = critic.bins.shape[0]
         value_logits = rollout.value_logits[:, :-1]
         critic_nll = symlog_twohot_loss(
@@ -199,4 +219,7 @@ def actor_critic_step(
         "weight": float(weights.mean()),
         "slow_value": slow_value,
     }
+    if bc_loss is not None:
+        extra["bc"] = float(bc_loss.detach())
+        extra["bc_frac"] = bc_frac
     return loss, loss_to_metrics(loss, extra), rollout

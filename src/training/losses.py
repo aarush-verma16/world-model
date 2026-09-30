@@ -230,6 +230,76 @@ def spatial_head_loss(
     return (per_step * mask).sum() / denom
 
 
+def local_map_head_loss(
+    material_logits: Tensor,
+    object_logits: Tensor,
+    local_mat: Tensor,
+    local_obj: Tensor,
+    has_local: Tensor,
+    *,
+    object_weight: float = 4.0,
+) -> Tensor:
+    """Masked per-cell CE over the 9x7 view (finding 47).
+
+    Args:
+        material_logits: `[..., C, M]`.
+        object_logits: `[..., C, O]`.
+        local_mat: `[..., C]` int material codes (0 = outside world).
+        local_obj: `[..., C]` int object codes (0 = none).
+        has_local: `[...]` in `{0, 1}`; replay written before the head
+            existed contributes 0.
+        object_weight: extra CE weight on cells that hold an object. ~95% of
+            cells are "none", so unweighted CE learns to never see a zombie.
+
+    Returns:
+        Scalar: per-step mean over cells of material CE + weighted object CE,
+        averaged over real steps.
+    """
+    n_mat = material_logits.shape[-1]
+    n_obj = object_logits.shape[-1]
+    mat_ce = F.cross_entropy(
+        material_logits.reshape(-1, n_mat).float(),
+        local_mat.reshape(-1).long().clamp(0, n_mat - 1),
+        reduction="none",
+    ).view(local_mat.shape)
+    obj_target = local_obj.long().clamp(0, n_obj - 1)
+    obj_ce = F.cross_entropy(
+        object_logits.reshape(-1, n_obj).float(),
+        obj_target.reshape(-1),
+        reduction="none",
+    ).view(local_obj.shape)
+    weight = torch.where(obj_target > 0, float(object_weight), 1.0)
+    per_step = mat_ce.mean(dim=-1) + (obj_ce * weight).mean(dim=-1)
+    mask = has_local.to(per_step.dtype)
+    denom = mask.sum().clamp_min(1.0)
+    return (per_step * mask).sum() / denom
+
+
+def behavior_clone_loss(
+    logits: Tensor,
+    actions: Tensor,
+    weight: Tensor,
+) -> Tensor:
+    """Masked action cross-entropy on replay posteriors (finding 48).
+
+    Args:
+        logits: `[B, T, A]` actor logits (no mask, no unimix).
+        actions: `[B, T]` int64 action taken after obs `t`.
+        weight: `[B, T]` in `{0, 1}` (1 on teacher steps).
+
+    Returns:
+        Scalar mean CE over weighted steps; exactly 0 when none are weighted.
+    """
+    n_act = logits.shape[-1]
+    ce = F.cross_entropy(
+        logits.reshape(-1, n_act).float(),
+        actions.reshape(-1).long(),
+        reduction="none",
+    ).view(actions.shape)
+    w = weight.to(ce.dtype)
+    return (ce * w).sum() / w.sum().clamp_min(1.0)
+
+
 def world_model_loss(
     *,
     obs: Tensor,

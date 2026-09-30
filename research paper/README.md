@@ -96,6 +96,8 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 44. [M18 188k pickaxe left the window](findings/44-m18-188k-pickaxe-left-the-window.md) — table 18.5%, last-200 pickaxe 0, stone still 3 lives.
 45. [M19 facing head](findings/45-m19-facing-head-stone-still-needs-a-tile.md) — M18 204k stone still 3 lives; next run feeds the actor the facing tile. No M19 score yet.
 46. [Teacher replay puts stone in the buffer](findings/46-teacher-replay-puts-stone-in-the-buffer.md) — 3/3 scripted lives mine stone in ~30 steps; half the batch overlaps them. Not the agent's score.
+47. [M19 51k is 4, not 14.5](findings/47-m19-51k-is-four-not-fourteen.md) — table 52%, stone 3%, stone pickaxe 0, length 175. Teacher stopped after first stone.
+48. [Teacher v2 + local map + BC](findings/48-teacher-v2-local-map-and-bc.md) — 8/8 stone pickaxe in ~245 steps; M20 writes those lives and a 9x7 map. No actor score yet.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -120,7 +122,8 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M16 actor warmup** (`configs/m16_xl_r512_acwarmup.yaml`): 25k AC delay. At **~544k**: last-200 **1.78**, wood **29%**, table **1.5%**, stone **0** (finding 30). **Do not grind to 1M for 14.5. Do not resume it into M17.**
 - **M17 paper knobs** (`configs/m17_xl_paper.yaml`): Halfway **~512k**: last-200 **1.61**, wood **27%**, stone **0/2951**, `recon_l1` **0.0046**, `ac_H` **0.17** (finding 37). Frozen ckpt: `P(place_table)=0.068` but **98.5%** of table presses have wood<2; **90** real tables, **2** pickaxes in 2922 lives (findings 38–39). **Stop. Do not grind to 1M.** `notebooks/10_train_paper_online.ipynb`.
 - **M18 masked + inventory-conditioned** (`configs/m18_masked_inventory.yaml`): **labeled deviation from vanilla DreamerV3**. Budget **500k**. At **~204k**: last-200 gmean **2.34**, table **17%**, pickaxe **0.5%**, stone still **3** lives (finding 45). Do not extend to 1M. `notebooks/11_train_m18_masked_inventory.ipynb`.
-- **M19 facing/nearby + teacher replay** (`configs/m19_facing.yaml`): mask, inventory head, `SpatialHead`, and 64 map-teacher lives that mine stone before learning. Half of each batch overlaps those lives (finding 46). Eval is the actor alone. No score yet. Start only after M18 is stopped. `notebooks/12_train_m19_facing.ipynb`.
+- **M19 facing/nearby + teacher replay** (`configs/m19_facing.yaml`): At **~51k**: last-200 gmean **4.19**, table **52%**, pickaxe **11.5%**, stone **3%**, stone pickaxe **0**, length **175** (finding 47). Do not grind to 500k for 14.5. `notebooks/12_train_m19_facing.ipynb`.
+- **M20 local map + teacher v2 + BC** (`configs/m20_local_map.yaml`): 9x7 semantic view, whole-life teacher (8/8 stone pickaxe in a 8-life check), clone those actions. New dirs. No score yet (finding 48). Start only after M19 is stopped. `notebooks/13_train_m20_local_map.ipynb`.
 
 ## Conventions
 

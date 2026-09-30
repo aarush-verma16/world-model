@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-29",
+  "updated": "2026-09-30",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -594,6 +594,22 @@
       "tags": ["eval"],
       "one_liner": "Seeds 0-2: lengths 33, 23, 25, and 3/3 mined stone after table and wood pickaxe. Those episodes are pinned and half of each batch overlaps them. Eval does not call the teacher. Not a 14.5 claim.",
       "paper_spin": "If the transition is missing, change the training distribution and upweight it. The actor's own last-200 stone rate is the after-number, not yet measured."
+    },
+    {
+      "id": "47",
+      "file": "findings/47-m19-51k-is-four-not-fourteen.md",
+      "title": "M19 at 51k is geometric mean 4 because stone pickaxe never entered the tree",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "Last-200 4.19, table 52%, pickaxe 11.5%, stone 3%, stone pickaxe 0, length 175. Teacher v1 stopped after first stone. Notebook never passed teacher_fraction. Not 14.5.",
+      "paper_spin": "Facing plus a teacher that stops at first stone is a high-2s to low-4s island. Later-tree transitions have to be in the buffer."
+    },
+    {
+      "id": "48",
+      "file": "findings/48-teacher-v2-local-map-and-bc.md",
+      "title": "Whole-life teacher plus a 9x7 map and cloning those actions",
+      "tags": ["eval"],
+      "one_liner": "Teacher v2 on 8 lives: 8/8 stone pickaxe and zombie, 7/8 furnace, 5/8 iron, 0 iron pickaxe, mean length 245. M20 writes those lives, a 9x7 local map, and BC. No actor score yet.",
+      "paper_spin": "Change the training distribution to include the later tree, upweight it, clone it, and give the actor the view as symbols. Teacher unlocks are not the Crafter score."
     }
   ],
   "do_not_revive": [
@@ -697,6 +713,10 @@
     "Hard-masking do: the same action chops trees and attacks",
     "Loading an M18 checkpoint into the M19 spatial graph",
     "Treating teacher-episode stone as the agent's Crafter score",
-    "Leaving rare teacher episodes in a uniform replay and expecting the gradient to notice them"
+    "Leaving rare teacher episodes in a uniform replay and expecting the gradient to notice them",
+    "Captioning M19 last-200 4.19 next to DreamerV3 14.5",
+    "Grinding M19 to 500k while last-200 stone pickaxe is 0",
+    "Loading an M19 checkpoint into the M20 local-map graph",
+    "Treating teacher v2 iron/furnace unlocks as the agent's Crafter score"
   ]
 }

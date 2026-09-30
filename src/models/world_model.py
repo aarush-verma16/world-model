@@ -22,7 +22,14 @@ from torch import Tensor, nn
 
 from models.decoder import Decoder
 from models.encoder import Encoder
-from models.heads import ContinueHead, InventoryHead, RewardHead, SpatialHead, rssm_features
+from models.heads import (
+    ContinueHead,
+    InventoryHead,
+    LocalMapHead,
+    RewardHead,
+    SpatialHead,
+    rssm_features,
+)
 from models.preprocess import nhwc_uint8_to_nchw_unit
 from models.rssm import RSSM, RSSMOutput, one_hot_action
 
@@ -80,6 +87,7 @@ class WorldModel(nn.Module):
         continue_head: ContinueHead,
         inventory_head: InventoryHead | None = None,
         spatial_head: SpatialHead | None = None,
+        local_map_head: LocalMapHead | None = None,
     ) -> None:
         super().__init__()
         self.encoder = encoder
@@ -94,6 +102,14 @@ class WorldModel(nn.Module):
         # Optional (finding 45, m19 only). `None` keeps m18's state_dict
         # free of `spatial_head.*` keys.
         self.spatial_head = spatial_head
+        # Optional (finding 47, m20 only). `None` keeps m19's state_dict
+        # free of `local_map_head.*` keys.
+        self.local_map_head = local_map_head
+        # Where real collect / eval get the actor's extra columns:
+        # "truth" = `CrafterEnv` info (m18/m19), "predicted" = this model's
+        # own heads, same as imagination (m20: pixel-only actor at test).
+        # A plain attribute, not a buffer, so it never enters `state_dict`.
+        self.actor_input_source = "truth"
         feat_dim = rssm.deter_dim + rssm.z_flat_dim
         if encoder.embed_dim != rssm.embed_dim:
             raise ValueError(
@@ -110,6 +126,8 @@ class WorldModel(nn.Module):
             raise ValueError("inventory_head must match RSSM feature dim")
         if spatial_head is not None and spatial_head.in_dim != feat_dim:
             raise ValueError("spatial_head must match RSSM feature dim")
+        if local_map_head is not None and local_map_head.in_dim != feat_dim:
+            raise ValueError("local_map_head must match RSSM feature dim")
 
     @property
     def feat_dim(self) -> int:
@@ -120,7 +138,8 @@ class WorldModel(nn.Module):
         """Columns concatenated onto `feat` for the actor and critic.
 
         0 for m6/m17. Inventory counts for m18. Inventory plus facing one-hot,
-        faced-object bit, and nearby multi-hot for m19.
+        faced-object bit, and nearby multi-hot for m19. m20 adds the local
+        map as per-cell material + object distributions.
         """
         extra = 0
         if self.inventory_head is not None:
@@ -128,6 +147,9 @@ class WorldModel(nn.Module):
         if self.spatial_head is not None:
             n = int(self.spatial_head.n_materials)
             extra += n + 1 + n
+        if self.local_map_head is not None:
+            head = self.local_map_head
+            extra += head.cells * (head.n_material_classes + head.n_object_classes)
         return extra
 
     @classmethod
@@ -158,6 +180,9 @@ class WorldModel(nn.Module):
         inventory_n_items: int | None = None,
         inventory_num_classes: int = 10,
         spatial_n_materials: int | None = None,
+        local_map_cells: int | None = None,
+        local_map_material_classes: int = 13,
+        local_map_object_classes: int = 8,
     ) -> WorldModel:
         """Construct a consistently-sized world model from scalar dims.
 
@@ -170,6 +195,9 @@ class WorldModel(nn.Module):
 
         `spatial_n_materials` (finding 45, m19 only): set to build a
         `SpatialHead`. Default `None` leaves m18 checkpoints loadable.
+
+        `local_map_cells` (finding 47, m20 only): set to build a
+        `LocalMapHead`. Default `None` leaves m19 checkpoints loadable.
         """
         encoder = Encoder(
             embed_dim=embed_dim,
@@ -223,6 +251,16 @@ class WorldModel(nn.Module):
                 hidden=head_hidden,
                 layers=head_layers,
             )
+        local_map_head = None
+        if local_map_cells is not None:
+            local_map_head = LocalMapHead(
+                feat_dim,
+                cells=int(local_map_cells),
+                n_material_classes=int(local_map_material_classes),
+                n_object_classes=int(local_map_object_classes),
+                hidden=head_hidden,
+                layers=head_layers,
+            )
         return cls(
             encoder,
             rssm,
@@ -231,6 +269,7 @@ class WorldModel(nn.Module):
             continue_head,
             inventory_head,
             spatial_head,
+            local_map_head,
         )
 
     def encode(self, obs_u8: Tensor) -> Tensor:
@@ -269,6 +308,18 @@ class WorldModel(nn.Module):
                 "(spatial_n_materials was not set in from_config_dims)"
             )
         return self.spatial_head(feat)
+
+    def predict_local_map(self, feat: Tensor) -> tuple[Tensor, Tensor]:
+        """`feat` `[..., feat_dim]` -> `(material [..., C, M], object [..., C, O])` logits.
+
+        Raises if this model has no `local_map_head` (m6-m19-style config).
+        """
+        if self.local_map_head is None:
+            raise RuntimeError(
+                "predict_local_map called on a WorldModel with no local_map_head "
+                "(local_map_cells was not set in from_config_dims)"
+            )
+        return self.local_map_head(feat)
 
     def decode(self, feat: Tensor) -> Tensor:
         """`feat` `[..., feat_dim]` → images `[..., 3, 64, 64]` (any leading dims)."""

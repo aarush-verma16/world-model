@@ -490,3 +490,31 @@ def test_m19_facing_is_isolated_from_m18() -> None:
     assert "m18_masked" in text
     assert "spatial_head" in text
 
+
+def test_m20_local_map_is_isolated_from_m19() -> None:
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m20_local_map.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    size = yaml.safe_load(Path(cfg["world_model_config"]).read_text(encoding="utf-8"))
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl_paper_local.yaml"
+    assert int(size["local_map"]["cells"]) == 63
+    assert int(train["teacher_version"]) == 2
+    assert float(train["bc_scale"]) == 1.0
+    assert int(train["teacher_inject_every"]) == 25000
+    assert "spatial" not in yaml.safe_load(
+        Path("configs/sizes/dreamer_xl_paper_inventory.yaml").read_text(encoding="utf-8")
+    )
+    m19_size = yaml.safe_load(Path("configs/sizes/dreamer_xl_paper_spatial.yaml").read_text(encoding="utf-8"))
+    assert "local_map" not in m19_size
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m20_local_map" in path
+        assert "m19_facing" not in path
+    text = Path("notebooks/13_train_m20_local_map.ipynb").read_text(encoding="utf-8")
+    assert "configs/m20_local_map.yaml" in text
+    assert "teacher_fraction" in text
+    assert "bc_scale" in text
+    assert "local_map_head" in text
+    assert "RESUME = None" in text
+

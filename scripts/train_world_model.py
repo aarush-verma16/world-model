@@ -77,7 +77,21 @@ def build_model(cfg: dict) -> WorldModel:
         from training.crafter_rules import MATERIAL_NAMES
 
         spatial_n_materials = int(spatial_cfg.get("n_materials", len(MATERIAL_NAMES)))
-    return WorldModel.from_config_dims(
+    local_cfg = cfg.get("local_map")
+    local_map_cells = None
+    local_map_material_classes = 13
+    local_map_object_classes = 8
+    if local_cfg:
+        from training.crafter_rules import LOCAL_CELLS, LOCAL_MATERIAL_CLASSES, LOCAL_OBJECT_CLASSES
+
+        local_map_cells = int(local_cfg.get("cells", LOCAL_CELLS))
+        local_map_material_classes = int(
+            local_cfg.get("n_material_classes", LOCAL_MATERIAL_CLASSES)
+        )
+        local_map_object_classes = int(
+            local_cfg.get("n_object_classes", LOCAL_OBJECT_CLASSES)
+        )
+    model = WorldModel.from_config_dims(
         embed_dim=int(enc["embed_dim"]),
         encoder_channels=tuple(int(c) for c in enc["channels"]),
         action_dim=int(cfg["env"]["action_dim"]),
@@ -102,7 +116,12 @@ def build_model(cfg: dict) -> WorldModel:
         inventory_n_items=inventory_n_items,
         inventory_num_classes=inventory_num_classes,
         spatial_n_materials=spatial_n_materials,
+        local_map_cells=local_map_cells,
+        local_map_material_classes=local_map_material_classes,
+        local_map_object_classes=local_map_object_classes,
     )
+    model.actor_input_source = str(cfg.get("actor_input_source", "truth"))
+    return model
 
 
 def save_recon_grid(obs_u8: torch.Tensor, recon: torch.Tensor, path: Path) -> None:

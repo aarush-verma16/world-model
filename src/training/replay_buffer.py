@@ -17,14 +17,17 @@ from torch import Tensor
 from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
 from training.crafter_rules import (
     ITEM_NAMES,
+    LOCAL_CELLS,
     MATERIAL_NAMES,
     inventory_vector,
     legal_action_mask,
+    local_map_from_info,
     spatial_from_info,
 )
 
 N_ITEMS = len(ITEM_NAMES)
 N_MATERIALS = len(MATERIAL_NAMES)
+LocalMap = tuple[np.ndarray, np.ndarray]
 
 
 @dataclass
@@ -42,6 +45,9 @@ class EpisodeBatch:
     facing_object: Tensor | None = None  # float32 [T] — 1 if the faced tile is occupied
     nearby: Tensor | None = None  # float32 [T, N_MATERIALS] multi-hot
     has_spatial: Tensor | None = None  # float32 [T] — 1 if facing/nearby are real
+    local_mat: Tensor | None = None  # uint8 [T, LOCAL_CELLS] material codes (finding 47)
+    local_obj: Tensor | None = None  # uint8 [T, LOCAL_CELLS] object codes
+    has_local: Tensor | None = None  # float32 [T] — 1 if the local map is real
     teacher: bool = False  # map-teacher episode (finding 46); excluded from the score
 
 
@@ -106,6 +112,47 @@ def _episode_spatial(ep: EpisodeBatch) -> tuple[Tensor, Tensor, Tensor, Tensor]:
     return facing, facing_object, nearby, has_spatial
 
 
+def _episode_local(ep: EpisodeBatch) -> tuple[Tensor, Tensor, Tensor]:
+    """`(local_mat [T, C] uint8, local_obj [T, C] uint8, has_local [T])`.
+
+    Replay written before finding 47 has no local map; those steps get
+    `has_local=0` so `local_map_head_loss` skips them.
+    """
+    t = int(ep.obs.shape[0])
+    mat = (
+        ep.local_mat.to(dtype=torch.uint8)
+        if ep.local_mat is not None
+        else torch.zeros(t, LOCAL_CELLS, dtype=torch.uint8)
+    )
+    obj = (
+        ep.local_obj.to(dtype=torch.uint8)
+        if ep.local_obj is not None
+        else torch.zeros(t, LOCAL_CELLS, dtype=torch.uint8)
+    )
+    has = (
+        ep.has_local.to(dtype=torch.float32)
+        if ep.has_local is not None
+        else torch.zeros(t, dtype=torch.float32)
+    )
+    return mat, obj, has
+
+
+def _teacher_flag(value: Any) -> bool:
+    """`state_dict` stores a bool; tolerate a per-step tensor too."""
+    if isinstance(value, Tensor):
+        return bool(value.numel() and float(value.reshape(-1)[0]) > 0.5)
+    return bool(value)
+
+
+def _pack_local(rows: list[LocalMap | None]) -> tuple[np.ndarray, np.ndarray] | None:
+    """Stack per-step local maps. `None` if any step lacked one."""
+    if not rows or any(row is None for row in rows):
+        return None
+    mats = np.stack([row[0] for row in rows], axis=0).astype(np.uint8)
+    objs = np.stack([row[1] for row in rows], axis=0).astype(np.uint8)
+    return mats, objs
+
+
 class ReplayBuffer:
     """Stores episodes and samples fixed-length contiguous windows.
 
@@ -132,6 +179,9 @@ class ReplayBuffer:
         self._live_facing_object: list[float] = []
         self._live_nearby: list[np.ndarray] = []
         self._live_has_spatial: list[float] = []
+        self._live_local_mat: list[np.ndarray] = []
+        self._live_local_obj: list[np.ndarray] = []
+        self._live_has_local: list[float] = []
 
     def __len__(self) -> int:
         return len(self._episodes) + (1 if self._live_obs else 0)
@@ -162,6 +212,9 @@ class ReplayBuffer:
             facing_object=torch.as_tensor(self._live_facing_object, dtype=torch.float32),
             nearby=torch.as_tensor(np.stack(self._live_nearby, axis=0), dtype=torch.float32),
             has_spatial=torch.as_tensor(self._live_has_spatial, dtype=torch.float32),
+            local_mat=torch.as_tensor(np.stack(self._live_local_mat, axis=0), dtype=torch.uint8),
+            local_obj=torch.as_tensor(np.stack(self._live_local_obj, axis=0), dtype=torch.uint8),
+            has_local=torch.as_tensor(self._live_has_local, dtype=torch.float32),
         )
 
     def _parts(self) -> list[EpisodeBatch]:
@@ -183,6 +236,9 @@ class ReplayBuffer:
         self._live_facing_object = []
         self._live_nearby = []
         self._live_has_spatial = []
+        self._live_local_mat = []
+        self._live_local_obj = []
+        self._live_has_local = []
 
     def close_episode(self) -> None:
         """Freeze the in-progress life so FIFO eviction can drop it later."""
@@ -221,6 +277,7 @@ class ReplayBuffer:
         is_first: bool,
         inventory: np.ndarray | None = None,
         spatial: tuple[int, float, np.ndarray] | None = None,
+        local: LocalMap | None = None,
     ) -> None:
         """Append one transition. `is_first` starts a new life in the stream.
 
@@ -249,7 +306,22 @@ class ReplayBuffer:
             self._live_inventory.append(vec)
             self._live_has_inventory.append(1.0)
         self._append_spatial(spatial)
+        self._append_local(local)
         self._evict()
+
+    def _append_local(self, local: LocalMap | None) -> None:
+        if local is None:
+            self._live_local_mat.append(np.zeros(LOCAL_CELLS, dtype=np.uint8))
+            self._live_local_obj.append(np.zeros(LOCAL_CELLS, dtype=np.uint8))
+            self._live_has_local.append(0.0)
+            return
+        mats = np.asarray(local[0], dtype=np.uint8).reshape(-1)
+        objs = np.asarray(local[1], dtype=np.uint8).reshape(-1)
+        if mats.shape != (LOCAL_CELLS,) or objs.shape != (LOCAL_CELLS,):
+            raise ValueError(f"local map must be [{LOCAL_CELLS}] x2, got {mats.shape} {objs.shape}")
+        self._live_local_mat.append(mats)
+        self._live_local_obj.append(objs)
+        self._live_has_local.append(1.0)
 
     def _append_spatial(self, spatial: tuple[int, float, np.ndarray] | None) -> None:
         if spatial is None:
@@ -276,6 +348,7 @@ class ReplayBuffer:
         inventory: Tensor | np.ndarray | None = None,
         spatial: tuple[Tensor | np.ndarray, Tensor | np.ndarray, Tensor | np.ndarray] | None = None,
         teacher: bool = False,
+        local: tuple[Tensor | np.ndarray, Tensor | np.ndarray] | None = None,
     ) -> None:
         """Append one finished episode. All arrays length `T` along dim 0.
 
@@ -321,6 +394,19 @@ class ReplayBuffer:
                     f"got {tuple(facing_t.shape)} {tuple(obj_t.shape)} {tuple(near_t.shape)}"
                 )
             has_sp_t = torch.ones(t, dtype=torch.float32)
+        if local is None:
+            lmat_t = torch.zeros(t, LOCAL_CELLS, dtype=torch.uint8)
+            lobj_t = torch.zeros(t, LOCAL_CELLS, dtype=torch.uint8)
+            has_l_t = torch.zeros(t, dtype=torch.float32)
+        else:
+            lmat_t = torch.as_tensor(np.asarray(local[0]), dtype=torch.uint8)
+            lobj_t = torch.as_tensor(np.asarray(local[1]), dtype=torch.uint8)
+            if lmat_t.shape != (t, LOCAL_CELLS) or lobj_t.shape != (t, LOCAL_CELLS):
+                raise ValueError(
+                    f"local map must be [{t},{LOCAL_CELLS}] x2, "
+                    f"got {tuple(lmat_t.shape)} {tuple(lobj_t.shape)}"
+                )
+            has_l_t = torch.ones(t, dtype=torch.float32)
         self._episodes.append(
             EpisodeBatch(
                 obs=obs_t,
@@ -334,66 +420,60 @@ class ReplayBuffer:
                 facing_object=obj_t,
                 nearby=near_t,
                 has_spatial=has_sp_t,
+                local_mat=lmat_t,
+                local_obj=lobj_t,
+                has_local=has_l_t,
                 teacher=bool(teacher),
             )
         )
         self._total_steps += t
         self._evict()
 
-    def _gather(
-        self, parts: list[EpisodeBatch], start: int, seq_len: int
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    @staticmethod
+    def _episode_fields(ep: EpisodeBatch) -> dict[str, Tensor]:
+        """Every per-step replay field of one episode, keyed like `sample`."""
+        inv, has_inv = _episode_inventory(ep)
+        facing, facing_object, nearby, has_spatial = _episode_spatial(ep)
+        local_mat, local_obj, has_local = _episode_local(ep)
+        t = int(ep.obs.shape[0])
+        return {
+            "obs": ep.obs,
+            "actions": ep.actions,
+            "rewards": ep.rewards,
+            "cont": ep.cont,
+            "is_first": _episode_is_first(ep),
+            "inventory": inv,
+            "has_inventory": has_inv,
+            "facing": facing,
+            "facing_object": facing_object,
+            "nearby": nearby,
+            "has_spatial": has_spatial,
+            "local_mat": local_mat,
+            "local_obj": local_obj,
+            "has_local": has_local,
+            "teacher": torch.full((t,), 1.0 if ep.teacher else 0.0, dtype=torch.float32),
+        }
+
+    def _gather(self, parts: list[EpisodeBatch], start: int, seq_len: int) -> dict[str, Tensor]:
+        """One length-`seq_len` window starting at global stream index `start`."""
         lengths = [int(ep.obs.shape[0]) for ep in parts]
         idx = 0
         offset = start
         while offset >= lengths[idx]:
             offset -= lengths[idx]
             idx += 1
-        obs_c: list[Tensor] = []
-        act_c: list[Tensor] = []
-        rew_c: list[Tensor] = []
-        cont_c: list[Tensor] = []
-        first_c: list[Tensor] = []
-        inv_c: list[Tensor] = []
-        has_inv_c: list[Tensor] = []
-        face_c: list[Tensor] = []
-        obj_c: list[Tensor] = []
-        near_c: list[Tensor] = []
-        has_sp_c: list[Tensor] = []
+        chunks: dict[str, list[Tensor]] = {}
         remaining = seq_len
         while remaining > 0:
             ep = parts[idx]
             take = min(remaining, lengths[idx] - offset)
             end = offset + take
-            obs_c.append(ep.obs[offset:end])
-            act_c.append(ep.actions[offset:end])
-            rew_c.append(ep.rewards[offset:end])
-            cont_c.append(ep.cont[offset:end])
-            first_c.append(_episode_is_first(ep)[offset:end])
-            inv, has_inv = _episode_inventory(ep)
-            inv_c.append(inv[offset:end])
-            has_inv_c.append(has_inv[offset:end])
-            facing, facing_object, nearby, has_spatial = _episode_spatial(ep)
-            face_c.append(facing[offset:end])
-            obj_c.append(facing_object[offset:end])
-            near_c.append(nearby[offset:end])
-            has_sp_c.append(has_spatial[offset:end])
+            for key, value in self._episode_fields(ep).items():
+                chunks.setdefault(key, []).append(value[offset:end])
             remaining -= take
             idx += 1
             offset = 0
-        return (
-            torch.cat(obs_c, dim=0),
-            torch.cat(act_c, dim=0),
-            torch.cat(rew_c, dim=0),
-            torch.cat(cont_c, dim=0),
-            torch.cat(first_c, dim=0),
-            torch.cat(inv_c, dim=0),
-            torch.cat(has_inv_c, dim=0),
-            torch.cat(face_c, dim=0),
-            torch.cat(obj_c, dim=0),
-            torch.cat(near_c, dim=0),
-            torch.cat(has_sp_c, dim=0),
-        )
+        return {key: torch.cat(values, dim=0) for key, values in chunks.items()}
 
     def _teacher_overlap_starts(self, seq_len: int) -> np.ndarray:
         """Window starts whose span overlaps a teacher episode.
@@ -439,6 +519,9 @@ class ReplayBuffer:
             facing `[B, L]` int64, facing_object `[B, L]` float32,
             nearby `[B, L, N_MATERIALS]` float32, has_spatial `[B, L]` float32
             (finding 45; zeros / 0 where the replay predates the spatial head)
+            local_mat / local_obj `[B, L, LOCAL_CELLS]` uint8, has_local `[B, L]`
+            (finding 47)
+            teacher `[B, L]` float32 — 1 on steps from a map-teacher episode
         """
         if not self.can_sample(seq_len):
             raise RuntimeError(
@@ -450,73 +533,23 @@ class ReplayBuffer:
         n_starts = total - int(seq_len) + 1
         frac = float(teacher_fraction)
         overlap = self._teacher_overlap_starts(int(seq_len)) if frac > 0.0 else None
-        obs_list: list[Tensor] = []
-        act_list: list[Tensor] = []
-        rew_list: list[Tensor] = []
-        cont_list: list[Tensor] = []
-        first_list: list[Tensor] = []
-        inv_list: list[Tensor] = []
-        has_inv_list: list[Tensor] = []
-        face_list: list[Tensor] = []
-        obj_list: list[Tensor] = []
-        near_list: list[Tensor] = []
-        has_sp_list: list[Tensor] = []
+        rows: list[dict[str, Tensor]] = []
         for _ in range(batch_size):
             if overlap is not None and overlap.size and float(self._rng.random()) < frac:
                 start = int(self._rng.choice(overlap))
             else:
                 start = int(self._rng.integers(0, n_starts))
-            obs, act, rew, cont, first, inv, has_inv, facing, obj, nearby, has_sp = self._gather(
-                parts, start, int(seq_len)
-            )
-            obs_list.append(obs)
-            act_list.append(act)
-            rew_list.append(rew)
-            cont_list.append(cont)
-            first_list.append(first)
-            inv_list.append(inv)
-            has_inv_list.append(has_inv)
-            face_list.append(facing)
-            obj_list.append(obj)
-            near_list.append(nearby)
-            has_sp_list.append(has_sp)
-        return {
-            "obs": torch.stack(obs_list, dim=0),
-            "actions": torch.stack(act_list, dim=0),
-            "rewards": torch.stack(rew_list, dim=0),
-            "cont": torch.stack(cont_list, dim=0),
-            "is_first": torch.stack(first_list, dim=0),
-            "inventory": torch.stack(inv_list, dim=0),
-            "has_inventory": torch.stack(has_inv_list, dim=0),
-            "facing": torch.stack(face_list, dim=0),
-            "facing_object": torch.stack(obj_list, dim=0),
-            "nearby": torch.stack(near_list, dim=0),
-            "has_spatial": torch.stack(has_sp_list, dim=0),
-        }
+            rows.append(self._gather(parts, start, int(seq_len)))
+        return {key: torch.stack([row[key] for row in rows], dim=0) for key in rows[0]}
 
     def state_dict(self) -> dict:
         if self._live_obs:
             self.close_episode()
         rows = []
         for ep in self._episodes:
-            inv, has_inv = _episode_inventory(ep)
-            facing, facing_object, nearby, has_spatial = _episode_spatial(ep)
-            rows.append(
-                {
-                    "obs": ep.obs,
-                    "actions": ep.actions,
-                    "rewards": ep.rewards,
-                    "cont": ep.cont,
-                    "is_first": _episode_is_first(ep),
-                    "inventory": inv,
-                    "has_inventory": has_inv,
-                    "facing": facing,
-                    "facing_object": facing_object,
-                    "nearby": nearby,
-                    "has_spatial": has_spatial,
-                    "teacher": bool(ep.teacher),
-                }
-            )
+            row = self._episode_fields(ep)
+            row["teacher"] = bool(ep.teacher)
+            rows.append(row)
         return {"episodes": rows, "total_steps": self._total_steps}
 
     def load_state_dict(self, state: dict) -> None:
@@ -582,7 +615,22 @@ class ReplayBuffer:
                         if has_spatial is not None
                         else torch.zeros(t, dtype=torch.float32)
                     ),
-                    teacher=bool(item.get("teacher", False)),
+                    local_mat=(
+                        torch.as_tensor(item["local_mat"], dtype=torch.uint8)
+                        if item.get("local_mat") is not None
+                        else torch.zeros(t, LOCAL_CELLS, dtype=torch.uint8)
+                    ),
+                    local_obj=(
+                        torch.as_tensor(item["local_obj"], dtype=torch.uint8)
+                        if item.get("local_obj") is not None
+                        else torch.zeros(t, LOCAL_CELLS, dtype=torch.uint8)
+                    ),
+                    has_local=(
+                        torch.as_tensor(item["has_local"], dtype=torch.float32)
+                        if item.get("has_local") is not None
+                        else torch.zeros(t, dtype=torch.float32)
+                    ),
+                    teacher=_teacher_flag(item.get("teacher", False)),
                 )
             )
         self._episodes = loaded
@@ -662,6 +710,7 @@ def collect_random_episodes(
             cont_buf: list[float] = []
             inv_buf: list[np.ndarray] = []
             spatial_buf: list[tuple[int, float, np.ndarray] | None] = []
+            local_buf: list[LocalMap | None] = []
             for _ in range(max_episode_steps):
                 # Strictly uniform random (M3 baseline, frozen across
                 # m6/m16/m17) — no legality mask here. See
@@ -676,6 +725,7 @@ def collect_random_episodes(
                 spatial_buf.append(
                     spatial_from_info(info if isinstance(info, dict) else None)
                 )
+                local_buf.append(local_map_from_info(info if isinstance(info, dict) else None))
                 next_obs, reward, terminated, truncated, info = env.step(action)
                 done = bool(terminated or truncated)
                 rew_buf.append(float(reward))
@@ -694,6 +744,7 @@ def collect_random_episodes(
                 cont_buf,
                 inventory=inv_buf,
                 spatial=_pack_spatial(spatial_buf),
+                local=_pack_local(local_buf),
             )
             ep_len = len(obs_buf)
             ep_ret = float(sum(rew_buf))
@@ -791,6 +842,7 @@ def prefill_random_steps(
         cont_buf: list[float] = []
         inv_buf: list[np.ndarray] = []
         spatial_buf: list[tuple[int, float, np.ndarray] | None] = []
+        local_buf: list[LocalMap | None] = []
         for _ in range(cap):
             action = _sample_action(env, info if isinstance(info, dict) else None, mask_illegal)
             obs_buf.append(np.asarray(obs, dtype=np.uint8))
@@ -799,6 +851,7 @@ def prefill_random_steps(
                 inventory_vector(info.get("inventory") if isinstance(info, dict) else None)
             )
             spatial_buf.append(spatial_from_info(info if isinstance(info, dict) else None))
+            local_buf.append(local_map_from_info(info if isinstance(info, dict) else None))
             next_obs, reward, terminated, truncated, info = env.step(action)
             terminated = bool(terminated)
             truncated = bool(truncated)
@@ -821,6 +874,7 @@ def prefill_random_steps(
             cont_buf,
             inventory=inv_buf,
             spatial=_pack_spatial(spatial_buf),
+            local=_pack_local(local_buf),
         )
         if got >= target * 4:
             break

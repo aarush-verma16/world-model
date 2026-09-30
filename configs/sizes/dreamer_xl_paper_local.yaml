@@ -1,0 +1,68 @@
+# M20 size: paper XL + inventory + spatial + 9x7 local map (finding 47).
+# Do not point m6–m19 at this file. m19 keeps dreamer_xl_paper_spatial.yaml
+# so its checkpoints have no local_map_head.
+
+seed: 0
+actor_input_source: truth
+
+encoder:
+  embed_dim: 12288
+  channels: [96, 192, 384, 768]
+  blocks: 2
+
+rssm:
+  deter_dim: 4096
+  stoch: 32
+  classes: 32
+  hidden: 1024
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [768, 384, 192, 96]
+  blocks: 2
+  output_activation: linear
+
+heads:
+  hidden: 1024
+  layers: 5
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+inventory:
+  n_items: 16
+  num_classes: 10
+
+spatial:
+  n_materials: 12
+
+local_map:
+  cells: 63
+  n_material_classes: 13
+  n_object_classes: 8
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+train:
+  batch_size: 16
+  seq_len: 64
+  amp: bf16
+  lr: 1.0e-4
+  steps: 1
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0
+  inventory_scale: 1.0
+  spatial_scale: 1.0
+  local_scale: 1.0
+  local_object_weight: 4.0

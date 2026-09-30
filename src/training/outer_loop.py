@@ -135,6 +135,7 @@ def outer_cycle(
     wm_max_grad_norm: float = 1000.0,
     ac_max_grad_norm: float = 100.0,
     teacher_fraction: float = 0.0,
+    bc_scale: float = 0.0,
 ) -> OuterCycleResult:
     """Collect `collect_every` env steps, then `wm_updates` WM and `ac_updates` AC.
 
@@ -184,6 +185,7 @@ def outer_cycle(
             amp_dtype=amp_dtype,
             scaler=scaler,
             max_grad_norm=float(ac_max_grad_norm),
+            bc_scale=float(bc_scale),
         )
 
     return OuterCycleResult(

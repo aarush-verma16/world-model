@@ -21,7 +21,12 @@ from models.rssm import RSSMState
 from models.world_model import WorldModel
 from training.actor_input import features_real
 from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
-from training.crafter_rules import inventory_vector, legal_action_mask, spatial_from_info
+from training.crafter_rules import (
+    inventory_vector,
+    legal_action_mask,
+    local_map_from_info,
+    spatial_from_info,
+)
 from training.crafter_score import achievement_counts_from_info
 from training.device import autocast_context
 from training.replay_buffer import ReplayBuffer
@@ -195,6 +200,7 @@ class Collector:
             is_first=len(self._obs_buf) == 1,
             inventory=inv_vec,
             spatial=spatial_from_info(pre_info),
+            local=local_map_from_info(pre_info),
         )
 
         self._state = new_state
