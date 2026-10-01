@@ -182,6 +182,8 @@ class ReplayBuffer:
         self._live_local_mat: list[np.ndarray] = []
         self._live_local_obj: list[np.ndarray] = []
         self._live_has_local: list[float] = []
+        self._teacher_starts_key: tuple[int, int, int, int] | None = None
+        self._teacher_starts: np.ndarray | None = None
 
     def __len__(self) -> int:
         return len(self._episodes) + (1 if self._live_obs else 0)
@@ -483,9 +485,15 @@ class ReplayBuffer:
         The spill is what keeps the stone transition inside a legal sample.
         """
         seq_len = int(seq_len)
+        key = (seq_len, len(self._episodes), int(self._total_steps), len(self._live_obs))
+        if self._teacher_starts_key == key and self._teacher_starts is not None:
+            return self._teacher_starts
         n_starts = self.num_steps - seq_len + 1
         if n_starts <= 0:
-            return np.zeros(0, dtype=np.int64)
+            empty = np.zeros(0, dtype=np.int64)
+            self._teacher_starts_key = key
+            self._teacher_starts = empty
+            return empty
         cursor = 0
         starts: list[int] = []
         for ep in self._parts():
@@ -496,8 +504,12 @@ class ReplayBuffer:
                 starts.extend(range(lo, hi))
             cursor += length
         if not starts:
-            return np.zeros(0, dtype=np.int64)
-        return np.unique(np.asarray(starts, dtype=np.int64))
+            result = np.zeros(0, dtype=np.int64)
+        else:
+            result = np.unique(np.asarray(starts, dtype=np.int64))
+        self._teacher_starts_key = key
+        self._teacher_starts = result
+        return result
 
     def sample(
         self,

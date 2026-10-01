@@ -84,7 +84,7 @@ train:
   wm_max_grad_norm: 1000.0
   ac_max_grad_norm: 100.0
   log_every: 256
-  dashboard_every: 1000
+  dashboard_every: 256
   image_every: 50000
   checkpoint_every: 25000
   replay_every: 50000
