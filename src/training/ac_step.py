@@ -65,6 +65,7 @@ def actor_critic_step(
     scaler: torch.amp.GradScaler,
     max_grad_norm: float = 100.0,
     bc_scale: float = 0.0,
+    metrics: bool = True,
 ) -> tuple[ActorCriticLoss, dict[str, float], Any]:
     """Imagine `horizon` steps and update actor + critic. World model frozen.
 
@@ -77,6 +78,8 @@ def actor_critic_step(
             action CE of the actor on the *real posteriors* of the window,
             counted only on steps where `batch["teacher"] == 1`. 0 (default)
             is the plain DreamerV3 actor loss. Needs `start_mode="all"`.
+        metrics: when False, skip the host syncs that turn losses into
+            floats. The update is otherwise identical.
 
     Returns:
         `(loss, metrics, rollout)` — rollout is for optional visualization.
@@ -172,7 +175,7 @@ def actor_critic_step(
                 slow_target = symlog_twohot_mean(
                     slow_critic(rollout.feat_actor[:, :-1].detach()), slow_critic.bins
                 )
-            slow_value = float(slow_target.mean())
+            slow_value = float(slow_target.mean()) if metrics else float("nan")
             critic_nll = critic_nll + symlog_twohot_loss(
                 value_logits.reshape(-1, n_bins),
                 critic.bins,
@@ -207,6 +210,8 @@ def actor_critic_step(
         reinforce=reinforce,
         backprop=backprop,
     )
+    if not metrics:
+        return loss, {}, rollout
     extra = {
         "return": float(returns.detach().mean()),
         "return_std": float(returns.detach().std(unbiased=False)),

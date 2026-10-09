@@ -8,7 +8,7 @@
 #   2. Writes whole lives from CrafterTeacherV2 (table through iron, combat)
 #      and keeps injecting them so they are not drowned (finding 48).
 #   3. Behavior-clones those actions on teacher steps (bc_scale).
-# Eval never calls the teacher. New dirs. Do not load m6–m19. Budget 500k.
+# Eval never calls the teacher. New dirs. Do not load m6–m19. Budget 200k.
 
 seed: 0
 actor_input_source: truth
@@ -42,7 +42,7 @@ train:
   batch_size: 8
   seq_len: 64
   amp: bf16
-  env_steps: 500000
+  env_steps: 200000
   collect_every: 16
   train_ratio: 512
   wm_updates: 16
@@ -84,7 +84,9 @@ train:
   wm_max_grad_norm: 1000.0
   ac_max_grad_norm: 100.0
   log_every: 256
-  dashboard_every: 256
+  # A figure on every log (256) blocks the notebook channel and drops
+  # ~1.1 env/s to ~0.07 (finding 08). Text log stays at log_every.
+  dashboard_every: 5000
   image_every: 50000
   checkpoint_every: 25000
   replay_every: 50000

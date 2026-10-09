@@ -84,6 +84,7 @@ def world_model_step(
     amp_dtype: torch.dtype | None,
     scaler: torch.amp.GradScaler,
     max_grad_norm: float = 1000.0,
+    metrics: bool = True,
 ) -> tuple[WorldModelLossBreakdown, dict[str, float]]:
     """Forward + backward + optimizer step on one replay window.
 
@@ -94,6 +95,9 @@ def world_model_step(
         scaler: from `make_grad_scaler` (enabled only for fp16).
         max_grad_norm: DreamerV3's default grad-clip norm is 1000 (a high
             ceiling that only catches genuine blowups, not a routine clamp).
+        metrics: when False, skip the host sync that turns losses into
+            floats. The update is otherwise identical. The outer loop asks
+            only the last update of a cycle for numbers.
 
     Returns:
         `(loss_breakdown, metrics_dict)` with the same keys the logger uses.
@@ -193,6 +197,8 @@ def world_model_step(
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optim.step()
 
+    if not metrics:
+        return loss, {}
     return loss, loss_to_metrics(
         loss,
         total_override=total,

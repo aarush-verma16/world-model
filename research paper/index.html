@@ -517,7 +517,10 @@ flowchart LR
         body:"Last-200 4.19, table 52%, pickaxe 11.5%, stone 3%, stone pickaxe 0, length 175. Teacher v1 stopped after first stone. The live notebook never passed teacher_fraction. Not 14.5." },
       { id:"48", tags:["eval"], title:"Whole-life teacher plus a 9x7 map and cloning those actions",
         file:"findings/48-teacher-v2-local-map-and-bc.md",
-        body:"Teacher v2: 8/8 stone pickaxe and zombie, 7/8 furnace, 5/8 iron, 0 iron pickaxe, length 245. M20 writes those lives, a 9x7 local map, and BC. No actor score yet." }
+        body:"Teacher v2: 8/8 stone pickaxe and zombie, 7/8 furnace, 5/8 iron, 0 iron pickaxe, length 245. M20 writes those lives, a 9x7 local map, and BC. Actor score is finding 49." },
+      { id:"49", tags:["eval","compute"], title:"M20 at 58k last-200 is 15.7; 0.07 env/s was the dashboard",
+        file:"findings/49-m20-58k-last200-is-15-dashboard-was-the-stall.md",
+        body:"Last-200 15.69 at 58,336: stone 36%, stone pickaxe 9%, coal 15.5%, iron 2%. Held-out 50k is 13.2 (n=10). The step is ~1.1 env/s; 0.07 was a figure on every log. Not a 14.5 caption." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [

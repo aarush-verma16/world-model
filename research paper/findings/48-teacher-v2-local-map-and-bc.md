@@ -1,6 +1,6 @@
 # Whole-life teacher plus a 9x7 map and cloning those actions
 
-**Claim.** The missing transitions after first stone are playable by a map teacher: 8/8 lives reached `make_stone_pickaxe` and `defeat_zombie`, 7/8 placed a furnace, 5/8 collected iron, in ~245 steps. M20 writes those lives into replay, feeds the actor the 9x7 local grid, clones teacher actions on those steps, and keeps injecting 8 lives every 25k actor steps. Eval never calls the teacher. No M20 score yet.
+**Claim.** The missing transitions after first stone are playable by a map teacher: 8/8 lives reached `make_stone_pickaxe` and `defeat_zombie`, 7/8 placed a furnace, 5/8 collected iron, in ~245 steps. M20 writes those lives into replay, feeds the actor the 9x7 local grid, clones teacher actions on those steps, and keeps injecting 8 lives every 25k actor steps. Eval never calls the teacher. The actor's own score is finding 49.
 
 ## Why this is not the paper
 

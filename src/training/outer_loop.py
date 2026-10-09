@@ -144,7 +144,8 @@ def outer_cycle(
     collect_stats = collector.collect(int(collect_every))
 
     wm_metrics: dict[str, float] | None = None
-    for _ in range(int(wm_updates)):
+    n_wm = int(wm_updates)
+    for i in range(n_wm):
         unfreeze_world_model(world_model)
         batch = buffer.sample(
             int(batch_size), int(seq_len), teacher_fraction=float(teacher_fraction)
@@ -158,11 +159,13 @@ def outer_cycle(
             amp_dtype=amp_dtype,
             scaler=scaler,
             max_grad_norm=float(wm_max_grad_norm),
+            metrics=(i + 1 == n_wm),
         )
 
     ac_metrics: dict[str, float] | None = None
     rollout = None
-    for _ in range(int(ac_updates)):
+    n_ac = int(ac_updates)
+    for i in range(n_ac):
         batch = buffer.sample(
             int(batch_size), int(seq_len), teacher_fraction=float(teacher_fraction)
         )
@@ -186,6 +189,7 @@ def outer_cycle(
             scaler=scaler,
             max_grad_norm=float(ac_max_grad_norm),
             bc_scale=float(bc_scale),
+            metrics=(i + 1 == n_ac),
         )
 
     return OuterCycleResult(

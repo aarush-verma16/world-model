@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-09-30",
+  "updated": "2026-10-09",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -608,8 +608,16 @@
       "file": "findings/48-teacher-v2-local-map-and-bc.md",
       "title": "Whole-life teacher plus a 9x7 map and cloning those actions",
       "tags": ["eval"],
-      "one_liner": "Teacher v2 on 8 lives: 8/8 stone pickaxe and zombie, 7/8 furnace, 5/8 iron, 0 iron pickaxe, mean length 245. M20 writes those lives, a 9x7 local map, and BC. No actor score yet.",
+      "one_liner": "Teacher v2 on 8 lives: 8/8 stone pickaxe and zombie, 7/8 furnace, 5/8 iron, 0 iron pickaxe, mean length 245. M20 writes those lives, a 9x7 local map, and BC. Actor score is finding 49.",
       "paper_spin": "Change the training distribution to include the later tree, upweight it, clone it, and give the actor the view as symbols. Teacher unlocks are not the Crafter score."
+    },
+    {
+      "id": "49",
+      "file": "findings/49-m20-58k-last200-is-15-dashboard-was-the-stall.md",
+      "title": "M20 at 58k last-200 is 15.7; 0.07 env/s was the dashboard",
+      "tags": ["eval", "compute"],
+      "one_liner": "Last-200 15.69 at 58,336: stone 36%, stone pickaxe 9%, coal 15.5%, iron 2%. Held-out 50k is 13.2 (n=10). The step is ~1.1 env/s; 0.07 was a figure on every log. Not a 14.5 caption.",
+      "paper_spin": "The 9x7 map plus whole-life teacher moves last-200 off the wood/table island by 58k. Train_ratio 512 on this box stays ~1 env/s. A live figure on the log tick is not the recipe."
     }
   ],
   "do_not_revive": [

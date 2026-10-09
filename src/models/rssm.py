@@ -537,9 +537,18 @@ class RSSM(nn.Module):
         posterior_logits_t: list[Tensor] = []
 
         zero_action = torch.zeros(batch, self.action_dim, device=embeds.device)
+        # One host read of the reset mask. Checking `is_first[:, t].any()`
+        # inside `obs_step` syncs every timestep and stalls the 64-step scan.
+        # The mask is [B, T] and tiny; timesteps with no boundary pass
+        # `is_first=None`, which is the same path as the old skip.
+        first_cpu = None
+        if is_first is not None:
+            first_cpu = is_first.detach().ne(0).cpu()
         for t in range(time):
             prev_action = zero_action if t == 0 else actions[:, t - 1]
-            first_t = None if is_first is None else is_first[:, t]
+            first_t = None
+            if first_cpu is not None and bool(first_cpu[:, t].any()):
+                first_t = is_first[:, t]
             state, z_prior, prior_logits, posterior_logits = self.obs_step(
                 state, prev_action, embeds[:, t], first_t
             )

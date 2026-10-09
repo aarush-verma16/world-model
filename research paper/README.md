@@ -97,7 +97,8 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 45. [M19 facing head](findings/45-m19-facing-head-stone-still-needs-a-tile.md) — M18 204k stone still 3 lives; next run feeds the actor the facing tile. No M19 score yet.
 46. [Teacher replay puts stone in the buffer](findings/46-teacher-replay-puts-stone-in-the-buffer.md) — 3/3 scripted lives mine stone in ~30 steps; half the batch overlaps them. Not the agent's score.
 47. [M19 51k is 4, not 14.5](findings/47-m19-51k-is-four-not-fourteen.md) — table 52%, stone 3%, stone pickaxe 0, length 175. Teacher stopped after first stone.
-48. [Teacher v2 + local map + BC](findings/48-teacher-v2-local-map-and-bc.md) — 8/8 stone pickaxe in ~245 steps; M20 writes those lives and a 9x7 map. No actor score yet.
+48. [Teacher v2 + local map + BC](findings/48-teacher-v2-local-map-and-bc.md) — 8/8 stone pickaxe in ~245 steps; M20 writes those lives and a 9x7 map. Actor score is finding 49.
+49. [M20 58k last-200 is 15.7](findings/49-m20-58k-last200-is-15-dashboard-was-the-stall.md) — stone pickaxe 9%, coal 15.5%, held-out 50k is 13.2. The 0.07 env/s was the dashboard, not the step.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
