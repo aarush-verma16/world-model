@@ -99,6 +99,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 47. [M19 51k is 4, not 14.5](findings/47-m19-51k-is-four-not-fourteen.md) — table 52%, stone 3%, stone pickaxe 0, length 175. Teacher stopped after first stone.
 48. [Teacher v2 + local map + BC](findings/48-teacher-v2-local-map-and-bc.md) — 8/8 stone pickaxe in ~245 steps; M20 writes those lives and a 9x7 map. Actor score is finding 49.
 49. [M20 58k last-200 is 15.7](findings/49-m20-58k-last200-is-15-dashboard-was-the-stall.md) — stone pickaxe 9%, coal 15.5%, held-out 50k is 13.2. The 0.07 env/s was the dashboard, not the step.
+50. [M20 200k iron pickaxe left the window](findings/50-m20-200k-iron-pickaxe-left-the-window.md) — last-200 15.7, stone pickaxe 13.5%, coal 18.5%, iron pickaxe 0. Teacher v3 is 4/8 versus v2's 2/8.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -124,7 +125,8 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M17 paper knobs** (`configs/m17_xl_paper.yaml`): Halfway **~512k**: last-200 **1.61**, wood **27%**, stone **0/2951**, `recon_l1` **0.0046**, `ac_H` **0.17** (finding 37). Frozen ckpt: `P(place_table)=0.068` but **98.5%** of table presses have wood<2; **90** real tables, **2** pickaxes in 2922 lives (findings 38–39). **Stop. Do not grind to 1M.** `notebooks/10_train_paper_online.ipynb`.
 - **M18 masked + inventory-conditioned** (`configs/m18_masked_inventory.yaml`): **labeled deviation from vanilla DreamerV3**. Budget **500k**. At **~204k**: last-200 gmean **2.34**, table **17%**, pickaxe **0.5%**, stone still **3** lives (finding 45). Do not extend to 1M. `notebooks/11_train_m18_masked_inventory.ipynb`.
 - **M19 facing/nearby + teacher replay** (`configs/m19_facing.yaml`): At **~51k**: last-200 gmean **4.19**, table **52%**, pickaxe **11.5%**, stone **3%**, stone pickaxe **0**, length **175** (finding 47). Do not grind to 500k for 14.5. `notebooks/12_train_m19_facing.ipynb`.
-- **M20 local map + teacher v2 + BC** (`configs/m20_local_map.yaml`): 9x7 semantic view, whole-life teacher (8/8 stone pickaxe in a 8-life check), clone those actions. New dirs. No score yet (finding 48). Start only after M19 is stopped. `notebooks/13_train_m20_local_map.ipynb`.
+- **M20 local map + teacher v2 + BC** (`configs/m20_local_map.yaml`): **200k done.** Last-200 **15.66**, stone pickaxe **13.5%**, coal **18.5%**, furnace **4%**, iron **0.5%**, iron pickaxe **0** in that window (finding 50). Do not extend it. `notebooks/13_train_m20_local_map.ipynb`.
+- **M21 craft-now** (`configs/m21_iron_craft.yaml`): loads the M20 final weights, new replay, teacher v3 crafts the pickaxe when its own recipe is in hand (4/8 vs v2 2/8 on seeds 0–7). Budget **100k**. Watch last-200 iron pickaxe. `notebooks/14_train_m21_iron_craft.ipynb`.
 
 ## Conventions
 

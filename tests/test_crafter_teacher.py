@@ -25,6 +25,24 @@ def test_teacher_mines_stone_on_the_real_env() -> None:
     assert buf.num_steps == stats["steps"]
 
 
+def test_teacher_v3_crafts_iron_pickaxe_where_v2_stockpiles() -> None:
+    """Seed 2 dies holding coal=2 iron=2 under v2, and crafts under v3."""
+    register_crafter_envs()
+    env = gym.make("CrafterReward-v1")
+    try:
+        v2 = seed_teacher_episodes(
+            env, ReplayBuffer(), episodes=1, max_episode_steps=800, seed=2, version=2
+        )
+        v3 = seed_teacher_episodes(
+            env, ReplayBuffer(), episodes=1, max_episode_steps=800, seed=2, version=3
+        )
+    finally:
+        env.close()
+    assert v2["unlocks"]["collect_iron"] == 1
+    assert v2["unlocks"]["make_iron_pickaxe"] == 0
+    assert v3["unlocks"]["make_iron_pickaxe"] == 1
+
+
 def test_teacher_v2_reaches_stone_pickaxe() -> None:
     register_crafter_envs()
     env = gym.make("CrafterReward-v1")

@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-10-09",
+  "updated": "2026-10-19",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -618,6 +618,14 @@
       "tags": ["eval", "compute"],
       "one_liner": "Last-200 15.69 at 58,336: stone 36%, stone pickaxe 9%, coal 15.5%, iron 2%. Held-out 50k is 13.2 (n=10). The step is ~1.1 env/s; 0.07 was a figure on every log. Not a 14.5 caption.",
       "paper_spin": "The 9x7 map plus whole-life teacher moves last-200 off the wood/table island by 58k. Train_ratio 512 on this box stays ~1 env/s. A live figure on the log tick is not the recipe."
+    },
+    {
+      "id": "50",
+      "file": "findings/50-m20-200k-iron-pickaxe-left-the-window.md",
+      "title": "M20 at 200k held stone and coal; iron pickaxe left the window",
+      "tags": ["eval"],
+      "one_liner": "Last-200 15.66 at 200k: stone pickaxe 13.5%, coal 18.5%, furnace 4%, iron 0.5%, iron pickaxe 0 (3/944 lives, all before 166k). Teacher v3 crafts at 1/1/1 and goes 2/8 to 4/8 on seeds 0-7.",
+      "paper_spin": "Stone pickaxe and coal entered last-200 and iron pickaxe did not stay. The demonstration has to craft when the pickaxe's own recipe is in hand."
     }
   ],
   "do_not_revive": [
@@ -725,6 +733,8 @@
     "Captioning M19 last-200 4.19 next to DreamerV3 14.5",
     "Grinding M19 to 500k while last-200 stone pickaxe is 0",
     "Loading an M19 checkpoint into the M20 local-map graph",
-    "Treating teacher v2 iron/furnace unlocks as the agent's Crafter score"
+    "Treating teacher v2 iron/furnace unlocks as the agent's Crafter score",
+    "Grinding M20 past 200k for iron pickaxe (last window stone pickaxe 16.5% to 13.2%, iron pickaxe already gone)",
+    "Resuming the M20 replay into M21 (those teacher lives stockpile the sword before the pickaxe)"
   ]
 }

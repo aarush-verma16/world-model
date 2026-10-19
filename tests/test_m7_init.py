@@ -518,3 +518,26 @@ def test_m20_local_map_is_isolated_from_m19() -> None:
     assert "local_map_head" in text
     assert "RESUME = None" in text
 
+
+def test_m21_loads_m20_and_crafts_now() -> None:
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m21_iron_craft.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl_paper_local.yaml"
+    assert int(train["teacher_version"]) == 3
+    assert float(train["bc_scale"]) == 1.0
+    assert int(train["env_steps"]) == 100000
+    assert cfg["reset_actor"] is False
+    assert "m20_local_map" in str(cfg["world_model_ckpt"]).replace("\\", "/")
+    assert "m20_local_map" in str(cfg["actor_critic_ckpt"]).replace("\\", "/")
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m21_iron_craft" in path
+        assert "m20_local_map" not in path
+    text = Path("notebooks/14_train_m21_iron_craft.ipynb").read_text(encoding="utf-8")
+    assert "configs/m21_iron_craft.yaml" in text
+    assert "teacher_version must be 3" in text
+    assert "make_iron_pickaxe" in text
+    assert "RESUME = None" in text
+

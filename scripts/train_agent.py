@@ -157,6 +157,7 @@ def load_seed_actor_critic(
     ac_optim: torch.optim.Optimizer,
     retnorm: PercentileReturnNorm,
     device: torch.device,
+    slow_critic: Any = None,
 ) -> None:
     raw = m5_cfg.get("actor_critic_ckpt")
     if not raw:
@@ -176,7 +177,10 @@ def load_seed_actor_critic(
             print(f"skipping M4 optim state ({exc})")
     if "retnorm" in payload:
         retnorm.load_state_dict(payload["retnorm"])
-    print(f"actor-critic from {ckpt_path} (ac step {payload.get('step', '?')})")
+    if slow_critic is not None:
+        slow_critic.reset(critic)
+    step = payload.get("env_steps", payload.get("step", "?"))
+    print(f"actor-critic from {ckpt_path} (step {step})")
 
 
 def load_replay(m5_cfg: dict[str, Any], train: dict[str, Any], *, resume: bool) -> ReplayBuffer:
@@ -500,7 +504,9 @@ def main() -> None:
         collect_seed = counters["collect_seed"]
         print(f"resumed {resume_path} at env_steps={env_steps}")
     elif not bool(cfg.get("reset_actor", False)) and cfg.get("actor_critic_ckpt"):
-        load_seed_actor_critic(cfg, actor, critic, ac_optim, retnorm, device)
+        load_seed_actor_critic(
+            cfg, actor, critic, ac_optim, retnorm, device, slow_critic=slow_critic
+        )
     else:
         print("actor-critic random init (reset_actor or no actor_critic_ckpt)")
 
@@ -683,6 +689,7 @@ def main() -> None:
                 print(
                     f"teacher inject at env={env_steps} stone={inj['stone']}/{inj['episodes']} "
                     f"iron={inj.get('unlocks', {}).get('collect_iron', 0)} "
+                    f"iron_pickaxe={inj.get('unlocks', {}).get('make_iron_pickaxe', 0)} "
                     f"steps={inj['steps']} (not counted in env_steps)",
                     flush=True,
                 )

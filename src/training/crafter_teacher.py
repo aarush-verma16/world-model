@@ -333,9 +333,15 @@ class CrafterTeacherV2:
     it never moves onto lava.
     """
 
-    def __init__(self, seed: int = 0, goal_timeout: int = 600) -> None:
+    def __init__(
+        self, seed: int = 0, goal_timeout: int = 600, *, craft_now: bool = False
+    ) -> None:
         self._rng = np.random.default_rng(int(seed))
         self.goal_timeout = int(goal_timeout)
+        # Craft the next iron tool as soon as its own recipe is in hand.
+        # Stockpiling coal and iron for the sword as well dies in the cave
+        # before either craft (M20 seeds 2 and 3).
+        self.craft_now = bool(craft_now)
         self.reset()
 
     def reset(self) -> None:
@@ -483,6 +489,15 @@ class CrafterTeacherV2:
                     return self._place_facing(player, util)
         return act
 
+    def _iron_recipe_ready(self, player: Any) -> bool:
+        """True when the next missing iron tool's ingredients are in inventory."""
+        inv = player.inventory
+        for tool in ("iron_pickaxe", "iron_sword"):
+            if int(inv[tool]) >= 1:
+                continue
+            return self._lacking(player, crafter_constants.make[tool]["uses"]) is None
+        return False
+
     def _lacking(self, player: Any, uses: dict[str, int]) -> str | None:
         for item, amount in uses.items():
             if int(player.inventory[item]) < int(amount):
@@ -562,11 +577,19 @@ class CrafterTeacherV2:
                     return gather(key, lack)
                 return key, self._place_facing(player, "furnace", anchors=("table",))
             if key in ("coal", "iron"):
-                need = sum(
-                    int(crafter_constants.make[t]["uses"].get(key, 0))
+                pending = [
+                    t
                     for t in ("iron_pickaxe", "iron_sword")
                     if int(inv[t]) < 1
-                )
+                ]
+                if not pending:
+                    continue
+                if self.craft_now:
+                    need = int(crafter_constants.make[pending[0]]["uses"].get(key, 0))
+                else:
+                    need = sum(
+                        int(crafter_constants.make[t]["uses"].get(key, 0)) for t in pending
+                    )
                 if int(inv[key]) >= need:
                     continue
                 return key, self._collect(player, key)
@@ -621,30 +644,38 @@ class CrafterTeacherV2:
         if want_sleep and near_hostile > 6:
             return ACTION_INDEX["sleep"]
 
-        # Opportunistic achievements.
-        if self.plant_pos is not None:
-            _mat, obj = world[self.plant_pos]
-            if obj is None or obj.__class__.__name__ != "Plant":
-                self.plant_pos = None
-            elif obj.ripe and int(ach.get("eat_plant", 0)) == 0:
-                act = self._go_act(player, [self.plant_pos], "do", tunnel=False)
+        # Opportunistic achievements. Once the next iron tool's recipe is
+        # in hand, skip the hunt and walk home. A zombie on the return
+        # spends the health the craft needs.
+        go_craft = self.craft_now and self._iron_recipe_ready(player)
+        if not go_craft:
+            if self.plant_pos is not None:
+                _mat, obj = world[self.plant_pos]
+                if obj is None or obj.__class__.__name__ != "Plant":
+                    self.plant_pos = None
+                elif obj.ripe and int(ach.get("eat_plant", 0)) == 0:
+                    act = self._go_act(player, [self.plant_pos], "do", tunnel=False)
+                    if act is not None:
+                        return act
+            if int(inv["health"]) >= 6 and near_hostile <= 5:
+                wanted = [
+                    _pos(o)
+                    for o in _objects_named(world, _HOSTILES)
+                    if int(ach.get(f"defeat_{o.__class__.__name__.lower()}", 0)) == 0
+                    and _manhattan(here, _pos(o)) <= 5
+                ]
+                act = self._go_act(player, wanted, "do", tunnel=False)
                 if act is not None:
                     return act
-        if int(inv["health"]) >= 6 and near_hostile <= 5:
-            wanted = [
-                _pos(o)
-                for o in _objects_named(world, _HOSTILES)
-                if int(ach.get(f"defeat_{o.__class__.__name__.lower()}", 0)) == 0
-                and _manhattan(here, _pos(o)) <= 5
-            ]
-            act = self._go_act(player, wanted, "do", tunnel=False)
-            if act is not None:
-                return act
-        if int(ach.get("eat_cow", 0)) == 0 and int(inv["food"]) < 9:
-            cows = [_pos(o) for o in _objects_named(world, ("Cow",)) if _manhattan(here, _pos(o)) <= 6]
-            act = self._go_act(player, cows, "do", tunnel=False)
-            if act is not None:
-                return act
+            if int(ach.get("eat_cow", 0)) == 0 and int(inv["food"]) < 9:
+                cows = [
+                    _pos(o)
+                    for o in _objects_named(world, ("Cow",))
+                    if _manhattan(here, _pos(o)) <= 6
+                ]
+                act = self._go_act(player, cows, "do", tunnel=False)
+                if act is not None:
+                    return act
 
         key, act = self._chain(player)
         if key != self.goal_key:
@@ -696,6 +727,9 @@ def seed_teacher_episodes(
     replay holds the chain rather than a long tail of no-ops.
     `version=2` (M20): plays the whole life with `CrafterTeacherV2` until
     death, `max_episode_steps`, or `idle_stop` steps with nothing left to do.
+    It gathers coal and iron for both iron tools before crafting either.
+    `version=3` (M21): same life, but crafts the pickaxe as soon as its own
+    recipe is in hand and walks home instead of hunting.
     Failures are still stored: a life that only got wood is real data.
 
     Returns:
@@ -716,9 +750,14 @@ def seed_teacher_episodes(
     }
     if n <= 0:
         return empty
-    if int(version) not in (1, 2):
-        raise ValueError(f"teacher version must be 1 or 2, got {version}")
-    teacher_v2 = CrafterTeacherV2(seed=int(seed)) if int(version) == 2 else None
+    if int(version) not in (1, 2, 3):
+        raise ValueError(f"teacher version must be 1, 2, or 3, got {version}")
+    if int(version) == 2:
+        teacher_v2 = CrafterTeacherV2(seed=int(seed))
+    elif int(version) == 3:
+        teacher_v2 = CrafterTeacherV2(seed=int(seed), craft_now=True)
+    else:
+        teacher_v2 = None
     steps = 0
     unlocks: dict[str, int] = {name: 0 for name in crafter_constants.achievements}
     lengths: list[int] = []
@@ -784,6 +823,7 @@ def seed_teacher_episodes(
         f"teacher done episodes={n} steps={steps} "
         f"table={unlocks['place_table']} pickaxe={unlocks['make_wood_pickaxe']} "
         f"stone={unlocks['collect_stone']} iron={unlocks['collect_iron']} "
+        f"iron_pickaxe={unlocks['make_iron_pickaxe']} "
         f"diamond={unlocks['collect_diamond']}",
         flush=True,
     )
