@@ -539,5 +539,5 @@ def test_m21_loads_m20_and_crafts_now() -> None:
     assert "configs/m21_iron_craft.yaml" in text
     assert "teacher_version must be 3" in text
     assert "make_iron_pickaxe" in text
-    assert "RESUME = None" in text
+    assert 'RESUME = "auto"' in text
 
