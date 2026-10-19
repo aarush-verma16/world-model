@@ -7,6 +7,7 @@ critic + both optimizers + retnorm; the replay dump is a separate file.
 
 from __future__ import annotations
 
+import gc
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -232,6 +233,21 @@ def joint_payload(
     return payload
 
 
+def release_checkpoint(payload: dict[str, Any]) -> None:
+    """Free a loaded checkpoint and give its CUDA blocks back to the driver.
+
+    A joint checkpoint is about 3.4 GiB. Putting that dict on the GPU next
+    to the live weights fills the caching allocator before the first
+    convolution. cuDNN then keeps the low-workspace algorithm for the whole
+    process, and the step rate stays near 0.44 env/s instead of the 1.16
+    M20 got from a clean first forward at the same 13.8 GiB steady state.
+    """
+    payload.clear()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def save_checkpoint(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, path)
@@ -253,7 +269,7 @@ def load_checkpoint(
     A checkpoint written before the slow critic existed has no `slow_critic`
     key; the EMA copy then just restarts from the loaded critic.
     """
-    payload = torch.load(path, weights_only=False, map_location=device)
+    payload = torch.load(path, weights_only=False, map_location="cpu")
     world_model.load_state_dict(payload["world_model"], strict=True)
     actor.load_state_dict(payload["actor"], strict=True)
     critic.load_state_dict(payload["critic"], strict=True)
@@ -268,12 +284,14 @@ def load_checkpoint(
         ac_optim.load_state_dict(payload["ac_optim"])
     if "retnorm" in payload:
         retnorm.load_state_dict(payload["retnorm"])
-    return {
+    counters = {
         "env_steps": int(payload.get("env_steps", 0)),
         "wm_steps": int(payload.get("wm_steps", 0)),
         "ac_steps": int(payload.get("ac_steps", 0)),
         "collect_seed": int(payload.get("collect_seed", 0)),
     }
+    release_checkpoint(payload)
+    return counters
 
 
 def save_replay(buffer: ReplayBuffer, path: Path) -> None:

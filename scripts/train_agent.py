@@ -57,6 +57,7 @@ from training.outer_loop import (
     joint_payload,
     load_checkpoint,
     loop_updates,
+    release_checkpoint,
     outer_cycle,
     save_checkpoint,
     save_replay,
@@ -138,7 +139,7 @@ def load_seed_world_model(m5_cfg: dict[str, Any], device: torch.device) -> tuple
         raise FileNotFoundError(
             f"world-model checkpoint not found: {ckpt_path}. Train M3 first."
         )
-    payload = torch.load(ckpt_path, weights_only=False, map_location=device)
+    payload = torch.load(ckpt_path, weights_only=False, map_location="cpu")
     if "world_model" in payload:
         model.load_state_dict(payload["world_model"], strict=True)
         print(f"world model from joint {ckpt_path} (env_steps {payload.get('env_steps', '?')})")
@@ -147,6 +148,7 @@ def load_seed_world_model(m5_cfg: dict[str, Any], device: torch.device) -> tuple
         print(f"world model from {ckpt_path} (wm step {payload.get('step', '?')})")
     else:
         raise KeyError(f"{ckpt_path} has neither 'world_model' nor 'model'")
+    release_checkpoint(payload)
     return model, wm_cfg
 
 
@@ -167,7 +169,7 @@ def load_seed_actor_critic(
         raise FileNotFoundError(
             f"actor-critic checkpoint not found: {ckpt_path}. Train M4 first."
         )
-    payload = torch.load(ckpt_path, weights_only=False, map_location=device)
+    payload = torch.load(ckpt_path, weights_only=False, map_location="cpu")
     actor.load_state_dict(payload["actor"], strict=True)
     critic.load_state_dict(payload["critic"], strict=True)
     if "optim" in payload:
@@ -181,6 +183,7 @@ def load_seed_actor_critic(
         slow_critic.reset(critic)
     step = payload.get("env_steps", payload.get("step", "?"))
     print(f"actor-critic from {ckpt_path} (step {step})")
+    release_checkpoint(payload)
 
 
 def load_replay(m5_cfg: dict[str, Any], train: dict[str, Any], *, resume: bool) -> ReplayBuffer:
