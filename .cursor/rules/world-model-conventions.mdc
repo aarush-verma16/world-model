@@ -1,11 +1,11 @@
 ---
-description: Core conventions for the Dreamer-style world model (tensors, naming, CUDA)
+description: Fieldcraft conventions (tensors, prior versus posterior, CUDA)
 alwaysApply: true
 ---
 
-# World Model Conventions
+# Fieldcraft conventions
 
-Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguous.
+The method is called **Fieldcraft**: a DreamerV3 world model whose actor reads a 9×7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles. Source of truth: `PROJECT_BRIEF.md`. Prefer that file over guessing when ambiguous.
 
 ## Hardware / Runtime
 

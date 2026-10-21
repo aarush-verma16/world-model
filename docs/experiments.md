@@ -1,6 +1,6 @@
 # Experiment Log
 
-Living log of approaches tried, including failures and why they failed.
+Living log of approaches tried, including failures and why they failed. The method is **Fieldcraft**: a Dreamer agent whose actor reads a 9×7 map and copies a teacher that crafts inside that map. Entries through M19 are the Dreamer baseline. M20 onward is Fieldcraft. Numbers for the paper live in `research paper/`.
 
 ## M7 paper-style online (2026-08-27)
 

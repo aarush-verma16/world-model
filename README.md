@@ -1,8 +1,10 @@
-# World Model
+# Fieldcraft
 
-A Dreamer-style world model for [Crafter](https://github.com/danijar/crafter): learn a compressed predictive model of the environment from pixels, then train a policy inside imagined rollouts instead of on every real interaction.
+Fieldcraft is a Dreamer agent for [Crafter](https://github.com/danijar/crafter) that crafts inside the tiles it can see. The world model is DreamerV3's RSSM: it learns a compressed predictive model from pixels and trains its policy inside imagined rollouts. The actor also reads a 9×7 symbolic map of those tiles, and is behavior-cloned from a teacher that places the crafting station on the map. A craft that happens outside that view never becomes an action the actor can copy.
 
-Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally.
+Working title: *Fieldcraft: teaching a Dreamer agent to craft inside the tiles it can see.*
+
+Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally. M20–M22 are the Fieldcraft runs. M6–M19 are the Dreamer baseline those runs are measured against. The evidence archive is [`research paper/`](research%20paper/README.md).
 
 <p align="center">
   <img src="results/m1/recon_final.png" alt="Real vs reconstructed Crafter frames" width="720" />
@@ -157,6 +159,7 @@ notebooks/     Interactive exploration (inline figures)
 scripts/       CLI entry points (including setup_windows.ps1)
 results/       Figures and rollouts
 docs/          MkDocs source
+research paper/  Findings archive for the Fieldcraft draft
 paper/         Paper draft and figures
 ```
 

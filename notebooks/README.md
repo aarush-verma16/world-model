@@ -1,6 +1,6 @@
 # Notebooks
 
-Interactive work surface for this repo — not milestone checklists.
+Interactive work surface for Fieldcraft — not milestone checklists. Fieldcraft is the Dreamer agent that crafts inside the 9×7 map it can see. Notebooks 13–15 are the Fieldcraft runs. Notebooks 05–10 are the Dreamer baseline.
 
 Create a notebook whenever you want to **run real functionality and see graphs
 inline** (reconstructions, RSSM rollouts, loss curves, imagination drift, etc.).
@@ -19,9 +19,9 @@ Do this continuously as features land; do not wait for a milestone tag.
 | `08_train_outer_loop.ipynb` | M5 outer loop: policy collect, WM + AC updates, real-env eval return (user-run) |
 | `09_train_baseline.ipynb` | M6 baseline: continue 100k → 1M, official Crafter gmean + 10×10k eval (user-run) |
 | `10_train_paper_online.ipynb` | M16 XL 1M: `train_ratio` 512 + actor warmup to 25k (user-run). Do not resume M15. |
-| `13_train_m20_local_map.ipynb` | M20 local map + teacher v2 + BC. Finished 200k (finding 50). Do not extend. |
-| `14_train_m21_iron_craft.ipynb` | M21: M20 weights, teacher v3 crafts the iron pickaxe as soon as the recipe is in hand. Stopped at 22k (iron pickaxe 0/109). |
-| `15_train_m22_field_craft.ipynb` | M22: M20 weights, teacher v4 places the table and furnace beside the ore. 100k stop (user-run). |
+| `13_train_m20_local_map.ipynb` | Fieldcraft M20: local map + teacher v2 + BC. Finished 200k (finding 50). Do not extend. |
+| `14_train_m21_iron_craft.ipynb` | Fieldcraft M21: M20 weights, teacher v3 walks home to craft. Stopped at 22k (iron pickaxe 0/109). |
+| `15_train_m22_field_craft.ipynb` | Fieldcraft M22: M20 weights, teacher v4 places the table and furnace beside the ore. 100k stop (user-run). |
 
 ## Conventions
 
