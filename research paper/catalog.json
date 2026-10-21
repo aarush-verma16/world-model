@@ -2,7 +2,7 @@
   "title": "World-model findings archive (not the paper)",
   "method": "Fieldcraft",
   "method_sentence": "A DreamerV3 world model whose actor reads a 9x7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles.",
-  "updated": "2026-10-20",
+  "updated": "2026-10-21",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -626,7 +626,7 @@
       "file": "findings/50-m20-200k-iron-pickaxe-left-the-window.md",
       "title": "M20 at 200k held stone and coal; iron pickaxe left the window",
       "tags": ["eval"],
-      "one_liner": "Last-200 15.66 at 200k: stone pickaxe 13.5%, coal 18.5%, furnace 4%, iron 0.5%, iron pickaxe 0 (3/944 lives, all before 166k). Teacher v3 crafts at 1/1/1 and goes 2/8 to 4/8 on seeds 0-7.",
+      "one_liner": "Last-200 15.66 at 200k: stone pickaxe 13.5%, coal 18.5%, iron pickaxe 0. The 3 iron-pickaxe lives are at env 25024, 50016, 100064. Final 50 lives are 11.78. Teacher 2/8 to 4/8 is one process of 8 lives.",
       "paper_spin": "Stone pickaxe and coal entered last-200 and iron pickaxe did not stay. The demonstration has to craft when the pickaxe's own recipe is in hand."
     },
     {
@@ -634,7 +634,7 @@
       "file": "findings/51-field-craft-beats-the-walk-home.md",
       "title": "Placing the station beside the iron crafts; the walk home did not show up in M21",
       "tags": ["eval", "negative-result"],
-      "one_liner": "M21 at 22k: iron pickaxe 0/109, gmean 14.88. Three map draws: teacher v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4, and diamond 3, 5, 6 versus 0, 2, 1.",
+      "one_liner": "M21 at 22k: iron pickaxe 0/109, gmean 14.88. Three draws v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4. A fresh-world draw went 3/8 versus 4/8. Eight lives are not a win.",
       "paper_spin": "The craft has to happen inside the 9x7 crop. Cloning a walk back to a table the actor cannot see did not produce an iron pickaxe in 109 lives."
     }
   ],

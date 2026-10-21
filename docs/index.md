@@ -4,7 +4,8 @@ Fieldcraft is a Dreamer agent that crafts inside the tiles it can see. The world
 
 - Plan and conventions: `PROJECT_BRIEF.md`
 - Experiment log: `experiments.md` (M6–M19 are the Dreamer baseline; M20 onward is Fieldcraft)
-- Findings archive for the paper: `research paper/README.md`
+- Problem, method, and which numbers count: `research paper/PROBLEM.md`
+- Findings archive: `research paper/README.md`
 - Milestone gates: `milestones.md`
 
 Target runtime is Windows + CUDA (RTX 5080).

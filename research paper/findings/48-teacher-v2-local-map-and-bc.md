@@ -4,7 +4,7 @@
 
 ## Why this is not the paper
 
-No actor score. Teacher length 245 is still the combat wall; iron pickaxe was 0/8. This does not guarantee 14.5.
+This file is the teacher and the wiring. The actor scores are findings 49 and 50. Teacher length 245 is still the combat wall; iron pickaxe was 0/8 in that check. This does not guarantee 14.5.
 
 ## Evidence
 

@@ -4,6 +4,8 @@ This folder is **not the paper**. It is a living dump of *our* findings — mech
 
 The method name is **Fieldcraft**. It is a DreamerV3 world model whose actor also reads a 9×7 symbolic map of the tiles in view, and is behavior-cloned from a teacher that places the crafting station on those tiles. The RSSM is still Dreamer's. Fieldcraft is the policy-side change: a craft that happens outside that map does not show up as an action the actor can copy. Working title: *Fieldcraft: teaching a Dreamer agent to craft inside the tiles it can see.*
 
+The problem, the method, and which numbers are allowed in the draft are in [`PROBLEM.md`](PROBLEM.md). Actor scores below were recomputed from the collect logs on 2026-10-21. Teacher counts of 8 lives are not a result.
+
 Open [`index.html`](index.html) in a browser for the interactive hub (filterable findings, hoverable 50k/700k curves, figure galleries). The Markdown files under [`findings/`](findings/) are the cite-able writeups.
 
 ## What belongs here
@@ -102,7 +104,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 48. [Teacher v2 + local map + BC](findings/48-teacher-v2-local-map-and-bc.md) — 8/8 stone pickaxe in ~245 steps; M20 writes those lives and a 9x7 map. Actor score is finding 49.
 49. [M20 58k last-200 is 15.7](findings/49-m20-58k-last200-is-15-dashboard-was-the-stall.md) — stone pickaxe 9%, coal 15.5%, held-out 50k is 13.2. The 0.07 env/s was the dashboard, not the step.
 50. [M20 200k iron pickaxe left the window](findings/50-m20-200k-iron-pickaxe-left-the-window.md) — last-200 15.7, stone pickaxe 13.5%, coal 18.5%, iron pickaxe 0. Teacher v3 is 4/8 versus v2's 2/8.
-51. [Field craft beats the walk home](findings/51-field-craft-beats-the-walk-home.md) — M21 at 22k is iron pickaxe 0/109. Three map draws: v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4.
+51. [Field craft versus the walk home](findings/51-field-craft-beats-the-walk-home.md) — M21 at 22k is iron pickaxe 0/109. Three draws favor v4; one fresh-world draw does not. Eight lives are not a win.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 

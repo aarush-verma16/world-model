@@ -4,7 +4,7 @@ Fieldcraft is a Dreamer agent for [Crafter](https://github.com/danijar/crafter) 
 
 Working title: *Fieldcraft: teaching a Dreamer agent to craft inside the tiles it can see.*
 
-Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally. M20–M22 are the Fieldcraft runs. M6–M19 are the Dreamer baseline those runs are measured against. The evidence archive is [`research paper/`](research%20paper/README.md).
+Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally. M20–M22 are the Fieldcraft runs. M6–M19 are the Dreamer baseline those runs are measured against. The problem and method are in [`research paper/PROBLEM.md`](research%20paper/PROBLEM.md). The evidence archive is [`research paper/`](research%20paper/README.md).
 
 <p align="center">
   <img src="results/m1/recon_final.png" alt="Real vs reconstructed Crafter frames" width="720" />

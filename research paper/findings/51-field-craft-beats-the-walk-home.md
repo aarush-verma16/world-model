@@ -1,6 +1,6 @@
 # Placing the station beside the iron crafts; walking home did not show up in M21
 
-**Claim.** M21 at 22k still has iron pickaxe in 0 of 109 lives, because teacher v3 walks back to a table outside the 9×7 crop. Teacher v4 carries wood for a second table, mines the furnace stone at the ore, and places both on the cave floor. Across three draws of the same eight episode ids, v4 makes the iron pickaxe 5, 6, and 6 times, against v3's 3, 5, and 4, and finds diamond 3, 5, and 6 times against 0, 2, and 1.
+**Claim.** M21 at 22,048 has iron pickaxe in 0 of 109 lives (geometric mean 14.88). Teacher v3 walks back to a table outside the 9×7 crop. Teacher v4 places the table and furnace on the cave floor. On three draws of eight lives, v4 made the iron pickaxe 5, 6, and 6 times and v3 made it 3, 5, and 4. A fourth draw, eight fresh worlds with the episode counter reset, went the other way: v3 4/8, v4 3/8. Eight lives and a process-dependent map id are not a win.
 
 ## Why this is not the paper
 
