@@ -1,5 +1,7 @@
 {
   "title": "World-model findings archive (not the paper)",
+  "method": "Fieldcraft",
+  "method_sentence": "A DreamerV3 world model whose actor reads a 9x7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles.",
   "updated": "2026-10-20",
   "diagnostics": {
     "advantage_alignment": {
