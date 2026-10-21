@@ -539,5 +539,33 @@ def test_m21_loads_m20_and_crafts_now() -> None:
     assert "configs/m21_iron_craft.yaml" in text
     assert "teacher_version must be 3" in text
     assert "make_iron_pickaxe" in text
-    assert 'RESUME = "auto"' in text
+    assert 'RESUME = \\"auto\\"' in text or 'RESUME = "auto"' in text
+
+
+def test_m22_loads_m20_and_crafts_at_the_ore() -> None:
+    import yaml
+
+    cfg = yaml.safe_load(Path("configs/m22_field_craft.yaml").read_text(encoding="utf-8"))
+    train = cfg["train"]
+    assert cfg["world_model_config"] == "configs/sizes/dreamer_xl_paper_local.yaml"
+    assert int(train["teacher_version"]) == 4
+    assert float(train["bc_scale"]) == 1.0
+    assert int(train["env_steps"]) == 100000
+    assert cfg["reset_actor"] is False
+    assert cfg["seed_replay"] is None
+    assert "m20_local_map" in str(cfg["world_model_ckpt"]).replace("\\", "/")
+    assert "m20_local_map" in str(cfg["actor_critic_ckpt"]).replace("\\", "/")
+    for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+        path = str(train[key]).replace("\\", "/")
+        assert "m22_field_craft" in path
+        assert "m21_iron_craft" not in path
+        assert "m20_local_map" not in path
+    text = Path("notebooks/15_train_m22_field_craft.ipynb").read_text(encoding="utf-8")
+    assert "configs/m22_field_craft.yaml" in text
+    assert "teacher_version must be 4" in text
+    assert "make_iron_pickaxe" in text
+    assert 'RESUME = \\"auto\\"' in text or 'RESUME = "auto"' in text
+    assert "m21_iron_craft" in text
+    assert "clear_output(wait=True)" in text
+    assert "if history:" in text
 

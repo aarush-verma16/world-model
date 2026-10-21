@@ -523,7 +523,10 @@ flowchart LR
         body:"Last-200 15.69 at 58,336: stone 36%, stone pickaxe 9%, coal 15.5%, iron 2%. Held-out 50k is 13.2 (n=10). The step is ~1.1 env/s; 0.07 was a figure on every log. Not a 14.5 caption." },
       { id:"50", tags:["eval"], title:"M20 at 200k held stone and coal; iron pickaxe left the window",
         file:"findings/50-m20-200k-iron-pickaxe-left-the-window.md",
-        body:"Last-200 15.66 at 200k: stone pickaxe 13.5%, coal 18.5%, furnace 4%, iron 0.5%, iron pickaxe 0. Three iron-pickaxe lives, all before 166k. Teacher v3 crafts at 1 wood + 1 coal + 1 iron: 2/8 to 4/8 on seeds 0-7." }
+        body:"Last-200 15.66 at 200k: stone pickaxe 13.5%, coal 18.5%, furnace 4%, iron 0.5%, iron pickaxe 0. Three iron-pickaxe lives, all before 166k. Teacher v3 crafts at 1 wood + 1 coal + 1 iron: 2/8 to 4/8 on seeds 0-7." },
+      { id:"51", tags:["eval","negative-result"], title:"Placing the station beside the iron crafts; the walk home did not show up in M21",
+        file:"findings/51-field-craft-beats-the-walk-home.md",
+        body:"M21 at 22,048: 109 lives, gmean 14.88, iron pickaxe 0. Three map draws: teacher v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4, and more diamonds on every draw. Not an M22 score yet." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -612,7 +615,9 @@ flowchart LR
       "Loading an M19 checkpoint into the M20 local-map graph",
       "Treating teacher v2 iron/furnace unlocks as the agent's Crafter score",
       "Grinding M20 past 200k for iron pickaxe",
-      "Resuming the M20 replay into M21"
+      "Resuming the M20 replay into M21",
+      "Grinding M21 to 100k (iron pickaxe 0/109 at 22k)",
+      "Resuming the M21 replay into M22"
     ];
 
     let tag = "all";

@@ -1,0 +1,98 @@
+# M22 — place the table and furnace beside the iron, then craft.
+#
+# M21 at 22,048 steps (109 lives) was still the M20 plateau: stone pickaxe
+# 11.9%, coal 11.9%, furnace 4.6%, iron 0/109, iron pickaxe 0. Teacher v3
+# walks back to the home station. That station is outside the 9x7 crop, so
+# cloning the walk does not transfer. Crafter's map id is Python's hash, so
+# seeds 0-7 are a different draw every process. Three draws, cap 800
+# (2026-10-20): v3 iron pickaxe 3/8, 5/8, 4/8 and diamond 0/8, 2/8, 1/8;
+# v4, which carries wood for a field table and places the station on the
+# ore, iron pickaxe 5/8, 6/8, 6/8 and diamond 3/8, 5/8, 6/8.
+#
+# Same XL local-map graph. Weights load from the M20 final checkpoint.
+# Replay is new, so behavior cloning sees v4 lives rather than the M21
+# walk-home buffer. Eval never calls the teacher. Budget 100k.
+
+seed: 0
+actor_input_source: truth
+
+world_model_config: configs/sizes/dreamer_xl_paper_local.yaml
+world_model_ckpt: checkpoints/m20_local_map/ckpt_final.pt
+actor_critic_ckpt: checkpoints/m20_local_map/ckpt_final.pt
+reset_actor: false
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 8
+  seq_len: 64
+  amp: bf16
+  env_steps: 100000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  ac_warmup_env: 0
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  prefill_mask_illegal: true
+  teacher_episodes: 32
+  teacher_max_steps: 800
+  teacher_fraction: 0.5
+  teacher_version: 4
+  teacher_inject_every: 25000
+  teacher_inject_episodes: 8
+  bc_scale: 1.0
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 1000000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  inventory_scale: 1.0
+  spatial_scale: 1.0
+  local_scale: 1.0
+  local_object_weight: 4.0
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  # A figure on every log (256) blocks the notebook channel (finding 08, 49).
+  dashboard_every: 5000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m22_field_craft
+  checkpoint_dir: checkpoints/m22_field_craft
+  results_dir: results/m22_field_craft
+  replay_out: data/m22_field_craft_replay.pt

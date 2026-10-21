@@ -1,6 +1,6 @@
 {
   "title": "World-model findings archive (not the paper)",
-  "updated": "2026-10-19",
+  "updated": "2026-10-20",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -626,6 +626,14 @@
       "tags": ["eval"],
       "one_liner": "Last-200 15.66 at 200k: stone pickaxe 13.5%, coal 18.5%, furnace 4%, iron 0.5%, iron pickaxe 0 (3/944 lives, all before 166k). Teacher v3 crafts at 1/1/1 and goes 2/8 to 4/8 on seeds 0-7.",
       "paper_spin": "Stone pickaxe and coal entered last-200 and iron pickaxe did not stay. The demonstration has to craft when the pickaxe's own recipe is in hand."
+    },
+    {
+      "id": "51",
+      "file": "findings/51-field-craft-beats-the-walk-home.md",
+      "title": "Placing the station beside the iron crafts; the walk home did not show up in M21",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "M21 at 22k: iron pickaxe 0/109, gmean 14.88. Three map draws: teacher v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4, and diamond 3, 5, 6 versus 0, 2, 1.",
+      "paper_spin": "The craft has to happen inside the 9x7 crop. Cloning a walk back to a table the actor cannot see did not produce an iron pickaxe in 109 lives."
     }
   ],
   "do_not_revive": [
@@ -735,6 +743,8 @@
     "Loading an M19 checkpoint into the M20 local-map graph",
     "Treating teacher v2 iron/furnace unlocks as the agent's Crafter score",
     "Grinding M20 past 200k for iron pickaxe (last window stone pickaxe 16.5% to 13.2%, iron pickaxe already gone)",
-    "Resuming the M20 replay into M21 (those teacher lives stockpile the sword before the pickaxe)"
+    "Resuming the M20 replay into M21 (those teacher lives stockpile the sword before the pickaxe)",
+    "Grinding M21 to 100k (22k was iron pickaxe 0/109 at ~0.36 env/s)",
+    "Resuming the M21 replay into M22 (those teacher lives walk home to craft)"
   ]
 }

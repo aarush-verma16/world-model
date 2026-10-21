@@ -20,7 +20,8 @@ Do this continuously as features land; do not wait for a milestone tag.
 | `09_train_baseline.ipynb` | M6 baseline: continue 100k → 1M, official Crafter gmean + 10×10k eval (user-run) |
 | `10_train_paper_online.ipynb` | M16 XL 1M: `train_ratio` 512 + actor warmup to 25k (user-run). Do not resume M15. |
 | `13_train_m20_local_map.ipynb` | M20 local map + teacher v2 + BC. Finished 200k (finding 50). Do not extend. |
-| `14_train_m21_iron_craft.ipynb` | M21: M20 weights, teacher v3 crafts the iron pickaxe as soon as the recipe is in hand. 100k stop (user-run). |
+| `14_train_m21_iron_craft.ipynb` | M21: M20 weights, teacher v3 crafts the iron pickaxe as soon as the recipe is in hand. Stopped at 22k (iron pickaxe 0/109). |
+| `15_train_m22_field_craft.ipynb` | M22: M20 weights, teacher v4 places the table and furnace beside the ore. 100k stop (user-run). |
 
 ## Conventions
 

@@ -43,6 +43,57 @@ def test_teacher_v3_crafts_iron_pickaxe_where_v2_stockpiles() -> None:
     assert v3["unlocks"]["make_iron_pickaxe"] == 1
 
 
+def test_teacher_v4_crafts_where_v3_holds_the_iron() -> None:
+    """Seed 3 under PYTHONHASHSEED=0: v3 dies holding iron, v4 places and crafts.
+
+    Crafter's map id is hash((seed, episode)), which changes across processes.
+    The child process pins that hash. This is the first reset of a fresh env.
+    """
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    code = (
+        "import gymnasium as gym\n"
+        "from envs.crafter_env import register_crafter_envs\n"
+        "from training.crafter_teacher import seed_teacher_episodes\n"
+        "from training.replay_buffer import ReplayBuffer\n"
+        "register_crafter_envs()\n"
+        "env = gym.make('CrafterReward-v1')\n"
+        "try:\n"
+        "    v3 = seed_teacher_episodes(env, ReplayBuffer(), episodes=1, max_episode_steps=800, seed=3, version=3)\n"
+        "finally:\n"
+        "    env.close()\n"
+        "env = gym.make('CrafterReward-v1')\n"
+        "try:\n"
+        "    v4 = seed_teacher_episodes(env, ReplayBuffer(), episodes=1, max_episode_steps=800, seed=3, version=4)\n"
+        "finally:\n"
+        "    env.close()\n"
+        "print(v3['unlocks']['collect_iron'], v3['unlocks']['make_iron_pickaxe'], v4['unlocks']['make_iron_pickaxe'])\n"
+    )
+    child_env = os.environ.copy()
+    child_env["PYTHONHASHSEED"] = "0"
+    child_env["PYTHONPATH"] = os.pathsep.join(
+        [str(root / "src"), str(root), child_env.get("PYTHONPATH", "")]
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=root,
+        env=child_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    line = [ln for ln in proc.stdout.splitlines() if ln[:1].isdigit()][-1]
+    iron, v3_px, v4_px = (int(part) for part in line.split())
+    assert iron == 1
+    assert v3_px == 0
+    assert v4_px == 1
+
+
 def test_teacher_v2_reaches_stone_pickaxe() -> None:
     register_crafter_envs()
     env = gym.make("CrafterReward-v1")

@@ -334,7 +334,12 @@ class CrafterTeacherV2:
     """
 
     def __init__(
-        self, seed: int = 0, goal_timeout: int = 600, *, craft_now: bool = False
+        self,
+        seed: int = 0,
+        goal_timeout: int = 600,
+        *,
+        craft_now: bool = False,
+        field_craft: bool = False,
     ) -> None:
         self._rng = np.random.default_rng(int(seed))
         self.goal_timeout = int(goal_timeout)
@@ -342,6 +347,10 @@ class CrafterTeacherV2:
         # Stockpiling coal and iron for the sword as well dies in the cave
         # before either craft (M20 seeds 2 and 3).
         self.craft_now = bool(craft_now)
+        # Carry wood and stone for a table and furnace, and place them beside
+        # the ore. The home station is outside the actor's 9x7 crop, so a
+        # walk back there does not transfer (M21 seeds 3 and 6).
+        self.field_craft = bool(field_craft)
         self.reset()
 
     def reset(self) -> None:
@@ -475,6 +484,22 @@ class CrafterTeacherV2:
             return ACTION_INDEX[f"make_{tool}"]
         self._last_nearby_dist = -1
         act = self._go_nearby(player, utils)
+        # 9x7 crop is about four tiles across. A station farther than that
+        # is outside the view the actor is cloning.
+        local = act is not None and 0 <= self._last_nearby_dist <= 4
+        if self.field_craft and tool.startswith("iron") and not local:
+            lack = self._field_pack_lack(player, at_ore=True)
+            if lack == "wood":
+                return self._collect(player, "tree")
+            if lack == "stone":
+                return self._collect(player, "stone")
+            for util in utils:
+                if util in nearby:
+                    continue
+                if util == "furnace" and "table" not in nearby:
+                    return self._field_place(player, "table")
+                return self._field_place(player, util)
+            return self._explore(player.world, _pos(player))
         far = act is None or self._last_nearby_dist > 25
         if far:
             for util in utils:
@@ -488,6 +513,51 @@ class CrafterTeacherV2:
                 if all(v >= 0 for v in spare.values()):
                     return self._place_facing(player, util)
         return act
+
+    def _field_place(self, player: Any, name: str) -> int:
+        """Place `name` on the faced tile, mining a side stone if that is what we face.
+
+        A mined ore cell is path, which is a legal table and furnace tile.
+        Moving into stone turns the player without stepping, so the next
+        swing clears a second pad inside the same 3x3.
+        """
+        world = player.world
+        here = _pos(player)
+        info = crafter_constants.place[name]
+        faced = _facing_cell(player)
+        material, obj = world[faced]
+        if obj is None and material in info["where"]:
+            return ACTION_INDEX[f"place_{name}"]
+        for (dx, dy), move_name in _DIRS:
+            cell = (here[0] + dx, here[1] + dy)
+            side_mat, side_obj = world[cell]
+            if side_obj is None and side_mat == "stone":
+                if faced != cell:
+                    return ACTION_INDEX[move_name]
+                return ACTION_INDEX["do"]
+        return self._explore(world, here)
+
+    def _field_pack_lack(self, player: Any, *, at_ore: bool) -> str | None:
+        """Wood, and at the ore the stone, still needed to craft on the spot.
+
+        Wood is packed before the cave. Stone is mined beside the iron:
+        walking off for four stone before coal is what got the other lives killed.
+        """
+        if not self.field_craft:
+            return None
+        inv = player.inventory
+        if all(int(inv[tool]) >= 1 for tool in ("iron_pickaxe", "iron_sword")):
+            return None
+        mats, _objs = player.world.nearby(player.pos, 1)
+        if at_ore and "table" in mats:
+            wood_need = 1
+        else:
+            wood_need = 1 + int(crafter_constants.place["table"]["uses"]["wood"])
+        if int(inv["wood"]) < wood_need:
+            return "wood"
+        if at_ore and "furnace" not in mats and int(inv["stone"]) < 4:
+            return "stone"
+        return None
 
     def _iron_recipe_ready(self, player: Any) -> bool:
         """True when the next missing iron tool's ingredients are in inventory."""
@@ -592,6 +662,13 @@ class CrafterTeacherV2:
                     )
                 if int(inv[key]) >= need:
                     continue
+                # Top up wood before the cave. Once the ore is in hand this
+                # branch is skipped, so placing the table cannot send the
+                # teacher back out to chop.
+                if self.field_craft:
+                    lack = self._field_pack_lack(player, at_ore=False)
+                    if lack is not None:
+                        return f"field_{lack}", self._collect(player, _ITEM_SOURCE[lack])
                 return key, self._collect(player, key)
             if key == "diamond":
                 if int(ach.get("collect_diamond", 0)) > 0 or int(inv["iron_pickaxe"]) < 1:
@@ -730,6 +807,8 @@ def seed_teacher_episodes(
     It gathers coal and iron for both iron tools before crafting either.
     `version=3` (M21): same life, but crafts the pickaxe as soon as its own
     recipe is in hand and walks home instead of hunting.
+    `version=4` (M22): carries wood and stone for a table and furnace and
+    places them beside the ore, inside the 9x7 crop.
     Failures are still stored: a life that only got wood is real data.
 
     Returns:
@@ -750,12 +829,14 @@ def seed_teacher_episodes(
     }
     if n <= 0:
         return empty
-    if int(version) not in (1, 2, 3):
-        raise ValueError(f"teacher version must be 1, 2, or 3, got {version}")
+    if int(version) not in (1, 2, 3, 4):
+        raise ValueError(f"teacher version must be 1, 2, 3, or 4, got {version}")
     if int(version) == 2:
         teacher_v2 = CrafterTeacherV2(seed=int(seed))
     elif int(version) == 3:
         teacher_v2 = CrafterTeacherV2(seed=int(seed), craft_now=True)
+    elif int(version) == 4:
+        teacher_v2 = CrafterTeacherV2(seed=int(seed), craft_now=True, field_craft=True)
     else:
         teacher_v2 = None
     steps = 0
