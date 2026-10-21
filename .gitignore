@@ -72,3 +72,5 @@ site/
 *.mp4
 *.gif
 !docs/**/*.gif
+# Paper-archive stills stay in git. Checkpoints and results/ stay ignored above.
+!research paper/figures/*.gif

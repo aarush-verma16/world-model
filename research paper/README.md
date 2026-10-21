@@ -127,7 +127,8 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M18 masked + inventory-conditioned** (`configs/m18_masked_inventory.yaml`): **labeled deviation from vanilla DreamerV3**. Budget **500k**. At **~204k**: last-200 gmean **2.34**, table **17%**, pickaxe **0.5%**, stone still **3** lives (finding 45). Do not extend to 1M. `notebooks/11_train_m18_masked_inventory.ipynb`.
 - **M19 facing/nearby + teacher replay** (`configs/m19_facing.yaml`): At **~51k**: last-200 gmean **4.19**, table **52%**, pickaxe **11.5%**, stone **3%**, stone pickaxe **0**, length **175** (finding 47). Do not grind to 500k for 14.5. `notebooks/12_train_m19_facing.ipynb`.
 - **M20 local map + teacher v2 + BC** (`configs/m20_local_map.yaml`): **200k done.** Last-200 **15.66**, stone pickaxe **13.5%**, coal **18.5%**, furnace **4%**, iron **0.5%**, iron pickaxe **0** in that window (finding 50). Do not extend it. `notebooks/13_train_m20_local_map.ipynb`.
-- **M21 craft-now** (`configs/m21_iron_craft.yaml`): loads the M20 final weights, new replay, teacher v3 crafts the pickaxe when its own recipe is in hand (4/8 vs v2 2/8 on seeds 0–7). Budget **100k**. Watch last-200 iron pickaxe. `notebooks/14_train_m21_iron_craft.ipynb`.
+- **M21 craft-now** (`configs/m21_iron_craft.yaml`): **stopped at 22,048 on purpose.** 109 lives, gmean 14.88, iron pickaxe **0**. Teacher v3 walks home to a table outside the 9×7 crop (finding 51). Do not grind to 100k. `notebooks/14_train_m21_iron_craft.ipynb`.
+- **M22 field craft** (`configs/m22_field_craft.yaml`): loads the M20 final weights, new replay, teacher v4 places the table and furnace beside the ore. Three map draws: iron pickaxe 5, 6, 6 versus v3's 3, 5, 4. Budget **100k**. No actor score yet. `notebooks/15_train_m22_field_craft.ipynb`.
 
 ## Conventions
 
