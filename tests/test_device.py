@@ -61,6 +61,16 @@ def test_make_grad_scaler_disabled_except_cuda_fp16() -> None:
     assert make_grad_scaler(torch.device("cpu"), torch.float16).is_enabled() is False
 
 
+def test_configure_runtime_leaves_cudnn_benchmark_off() -> None:
+    if not torch.cuda.is_available():
+        return
+    from training.device import configure_runtime
+
+    configure_runtime(torch.device("cuda"))
+    assert torch.backends.cudnn.benchmark is False
+    assert torch.backends.cudnn.allow_tf32 is True
+
+
 def test_configure_runtime_and_describe_cpu() -> None:
     from training.device import configure_runtime, describe_device
 

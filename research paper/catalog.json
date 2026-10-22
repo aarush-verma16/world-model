@@ -2,7 +2,7 @@
   "title": "World-model findings archive (not the paper)",
   "method": "Fieldcraft",
   "method_sentence": "A DreamerV3 world model whose actor reads a 9x7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles.",
-  "updated": "2026-10-21",
+  "updated": "2026-10-22",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -636,6 +636,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M21 at 22k: iron pickaxe 0/109, gmean 14.88. Three draws v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4. A fresh-world draw went 3/8 versus 4/8. Eight lives are not a win.",
       "paper_spin": "The craft has to happen inside the 9x7 crop. Cloning a walk back to a table the actor cannot see did not produce an iron pickaxe in 109 lives."
+    },
+    {
+      "id": "52",
+      "file": "findings/52-cudnn-autotune-locked-the-step.md",
+      "title": "cuDNN autotune, not the replay, slowed the XL step",
+      "tags": ["compute", "negative-result"],
+      "one_liner": "Autotune off is 1.17 env/s on the M22 checkpoint; autotune on is ~0.77. The interrupted run locked at 0.406. 94 lives, gmean 17.75, iron pickaxe 0/94. Replay sample is 2 ms.",
+      "paper_spin": "At train_ratio 512 this box is ~1.2 env/s with cuDNN autotune off. The 0.41 lock was not the replay. Iron pickaxe had not transferred in 94 lives."
     }
   ],
   "do_not_revive": [
@@ -747,6 +755,8 @@
     "Grinding M20 past 200k for iron pickaxe (last window stone pickaxe 16.5% to 13.2%, iron pickaxe already gone)",
     "Resuming the M20 replay into M21 (those teacher lives stockpile the sword before the pickaxe)",
     "Grinding M21 to 100k (22k was iron pickaxe 0/109 at ~0.36 env/s)",
-    "Resuming the M21 replay into M22 (those teacher lives walk home to craft)"
+    "Resuming the M21 replay into M22 (those teacher lives walk home to craft)",
+    "Turning cudnn.benchmark back on for the XL batch-8 seq-64 step (0.77 env/s; the live M22 run then locked at 0.41)",
+    "Grinding the M22 process that locked at 0.41 env/s (20k was iron pickaxe 0/94)"
   ]
 }

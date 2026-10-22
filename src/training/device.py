@@ -28,12 +28,17 @@ def get_device() -> torch.device:
 
 
 def configure_runtime(device: torch.device) -> None:
-    """Enable CUDA speed defaults (TF32, cuDNN autotune). No-op on CPU/MPS."""
+    """Enable TF32. Leave cuDNN autotune off. No-op on CPU/MPS.
+
+    On this 5080, `cudnn.benchmark = True` locked a slower conv for the XL
+    batch-8 seq-64 step than the heuristic: 0.77 env/s versus 1.17
+    (2026-10-22, finding 52). The M22 run then sat at 0.41.
+    """
     if device.type != "cuda":
         return
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
     torch.set_float32_matmul_precision("high")
 
 
