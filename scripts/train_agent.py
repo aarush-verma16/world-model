@@ -32,6 +32,7 @@ from envs.crafter_env import register_crafter_envs
 from models.world_model import WorldModel
 from training.ckpt import resolve_outer_resume
 from training.collect import Collector
+from training.crafter_teacher import CrafterTeacherV2
 from training.device import (
     configure_runtime,
     describe_device,
@@ -414,6 +415,8 @@ def record_finished_episodes(
             ep_return=float(ep["return"]),
             counts=counts,
         )
+        if ep.get("assisted"):
+            jl["assisted"] = 1
         append_jsonl(episodes_path, jl)
         collect_log.append(jl)
     return collect_log
@@ -549,6 +552,13 @@ def main() -> None:
         )
         wm_steps += pre_wm
         ac_steps += pre_ac
+    craft_assist_prob = float(train.get("craft_assist", 0.0) or 0.0)
+    craft_teacher = None
+    if craft_assist_prob > 0.0:
+        craft_teacher = CrafterTeacherV2(
+            seed=int(cfg["seed"]), craft_now=True, field_craft=True
+        )
+        print(f"craft assist {craft_assist_prob:.2f}: teacher finishes after a stone pickaxe")
     collector = Collector(
         collect_env,
         world_model,
@@ -558,6 +568,8 @@ def main() -> None:
         max_episode_steps=int(train["max_episode_steps"]),
         amp_dtype=amp_dtype,
         seed=collect_seed,
+        craft_teacher=craft_teacher,
+        craft_assist_prob=craft_assist_prob,
     )
 
     writer = SummaryWriter(log_dir=str(log_dir))

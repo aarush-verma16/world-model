@@ -550,6 +550,7 @@ def test_m22_loads_m20_and_crafts_at_the_ore() -> None:
     assert cfg["world_model_config"] == "configs/sizes/dreamer_xl_paper_local.yaml"
     assert int(train["teacher_version"]) == 4
     assert float(train["bc_scale"]) == 1.0
+    assert float(train["craft_assist"]) == 1.0
     assert int(train["env_steps"]) == 100000
     assert cfg["reset_actor"] is False
     assert cfg["seed_replay"] is None

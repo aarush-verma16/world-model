@@ -14,7 +14,8 @@ from models.world_model import WorldModel
 from training.actor_input import features_from_batch
 from training.device import autocast_context, to_device
 from training.imagine import freeze_world_model, imagine_ahead
-from training.losses import behavior_clone_loss
+from training.crafter_rules import FIELD_CRAFT_ACTIONS
+from training.losses import bc_step_weight, behavior_clone_loss
 from training.returns import PercentileReturnNorm, imagined_targets
 
 
@@ -154,8 +155,12 @@ def actor_critic_step(
         if float(bc_scale) > 0.0 and "teacher" in batch:
             if start_mode != "all":
                 raise ValueError("bc_scale > 0 needs start_mode='all' (posteriors per step)")
-            teacher_w = batch["teacher"].float()
-            bc_frac = float(teacher_w.mean())
+            teacher_w = bc_step_weight(
+                batch["teacher"],
+                batch["actions"],
+                craft_ids=tuple(sorted(FIELD_CRAFT_ACTIONS)),
+            )
+            bc_frac = float((batch["teacher"].float() > 0).float().mean())
             if bc_frac > 0.0:
                 b_n, t_n = batch["actions"].shape[:2]
                 post_feat = rollout.feat[:, 0].detach().reshape(b_n, t_n, -1)

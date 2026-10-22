@@ -300,6 +300,32 @@ def behavior_clone_loss(
     return (ce * w).sum() / w.sum().clamp_min(1.0)
 
 
+def bc_step_weight(
+    teacher: Tensor,
+    actions: Tensor,
+    *,
+    craft_ids: tuple[int, ...] = (),
+    craft_scale: float = 8.0,
+) -> Tensor:
+    """`[B, T]` behavior-cloning weights.
+
+    Teacher steps weigh 1. Field-craft actions (`place_furnace`,
+    `make_iron_pickaxe`, `make_iron_sword`) weigh `craft_scale`, so one
+    craft button is not 1/64 of a window of walking.
+    """
+    w = teacher.to(dtype=torch.float32)
+    if craft_ids and float(craft_scale) != 1.0:
+        craft = torch.zeros_like(actions, dtype=torch.bool)
+        for action_id in craft_ids:
+            craft |= actions.long() == int(action_id)
+        w = w * torch.where(
+            craft,
+            torch.full((), float(craft_scale), dtype=w.dtype, device=w.device),
+            torch.ones((), dtype=w.dtype, device=w.device),
+        )
+    return w
+
+
 def world_model_loss(
     *,
     obs: Tensor,

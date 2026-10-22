@@ -15,6 +15,7 @@ import torch
 from torch import Tensor
 
 from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
+from training.crafter_rules import FIELD_CRAFT_ACTIONS
 from training.crafter_rules import (
     ITEM_NAMES,
     LOCAL_CELLS,
@@ -184,6 +185,8 @@ class ReplayBuffer:
         self._live_has_local: list[float] = []
         self._teacher_starts_key: tuple[int, int, int, int] | None = None
         self._teacher_starts: np.ndarray | None = None
+        self._craft_starts_key: tuple[int, int, int, int] | None = None
+        self._craft_starts: np.ndarray | None = None
 
     def __len__(self) -> int:
         return len(self._episodes) + (1 if self._live_obs else 0)
@@ -242,11 +245,20 @@ class ReplayBuffer:
         self._live_local_obj = []
         self._live_has_local = []
 
-    def close_episode(self) -> None:
-        """Freeze the in-progress life so FIFO eviction can drop it later."""
+    def close_episode(self, *, teacher: bool = False) -> None:
+        """Freeze the in-progress life so FIFO eviction can drop it later.
+
+        `teacher=True` marks a life the field-craft teacher finished (the
+        actor had a stone pickaxe and the teacher took the late chain).
+        Those lives stay in the buffer and are eligible for craft-window
+        behavior cloning. The collect log tags them `assisted` so they are
+        not the actor's score.
+        """
         live = self._live_batch()
         if live is None:
             return
+        if teacher:
+            live.teacher = True
         self._episodes.append(live)
         self._total_steps += int(live.obs.shape[0])
         self._clear_live()
@@ -511,6 +523,50 @@ class ReplayBuffer:
         self._teacher_starts = result
         return result
 
+    def _craft_window_starts(self, seq_len: int) -> np.ndarray:
+        """Window starts that end on a field-craft action in a teacher life.
+
+        A uniform slice of a 200–800 step teacher life almost never contains
+        `place_furnace` / `make_iron_pickaxe` (one step near the end). The
+        cloning loss then goes to ~0 on wood and walking, which the actor
+        already does. These windows put that button at the last index.
+        """
+        seq_len = int(seq_len)
+        key = (seq_len, len(self._episodes), int(self._total_steps), len(self._live_obs))
+        if self._craft_starts_key == key and self._craft_starts is not None:
+            return self._craft_starts
+        n_starts = self.num_steps - seq_len + 1
+        if n_starts <= 0:
+            empty = np.zeros(0, dtype=np.int64)
+            self._craft_starts_key = key
+            self._craft_starts = empty
+            return empty
+        cursor = 0
+        starts: list[int] = []
+        for ep in self._parts():
+            length = int(ep.obs.shape[0])
+            if ep.teacher:
+                actions = ep.actions
+                for i in range(length):
+                    if int(actions[i]) not in FIELD_CRAFT_ACTIONS:
+                        continue
+                    global_i = cursor + i
+                    start = global_i - seq_len + 1
+                    if start < 0:
+                        start = 0
+                    if start >= n_starts:
+                        start = n_starts - 1
+                    if start <= global_i <= start + seq_len - 1:
+                        starts.append(int(start))
+            cursor += length
+        if not starts:
+            result = np.zeros(0, dtype=np.int64)
+        else:
+            result = np.unique(np.asarray(starts, dtype=np.int64))
+        self._craft_starts_key = key
+        self._craft_starts = result
+        return result
+
     def sample(
         self,
         batch_size: int,
@@ -545,10 +601,12 @@ class ReplayBuffer:
         n_starts = total - int(seq_len) + 1
         frac = float(teacher_fraction)
         overlap = self._teacher_overlap_starts(int(seq_len)) if frac > 0.0 else None
+        craft = self._craft_window_starts(int(seq_len)) if frac > 0.0 else None
         rows: list[dict[str, Tensor]] = []
         for _ in range(batch_size):
             if overlap is not None and overlap.size and float(self._rng.random()) < frac:
-                start = int(self._rng.choice(overlap))
+                pool = craft if craft is not None and craft.size else overlap
+                start = int(self._rng.choice(pool))
             else:
                 start = int(self._rng.integers(0, n_starts))
             rows.append(self._gather(parts, start, int(seq_len)))

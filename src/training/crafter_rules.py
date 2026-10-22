@@ -35,6 +35,11 @@ import crafter.constants as crafter_constants
 ACTION_NAMES: tuple[str, ...] = tuple(str(n) for n in crafter_constants.actions)
 ACTION_INDEX: dict[str, int] = {n: i for i, n in enumerate(ACTION_NAMES)}
 ACTION_DIM: int = len(ACTION_NAMES)
+# The field-craft sequence the uniform 64-step window almost never contains.
+# Early `place_table` is left out: that button is already in the actor.
+FIELD_CRAFT_ACTIONS: frozenset[int] = frozenset(
+    ACTION_INDEX[name] for name in ("place_furnace", "make_iron_pickaxe", "make_iron_sword")
+)
 
 ITEM_NAMES: tuple[str, ...] = tuple(str(n) for n in crafter_constants.items)
 ITEM_INDEX: dict[str, int] = {n: i for i, n in enumerate(ITEM_NAMES)}

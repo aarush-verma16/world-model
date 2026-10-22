@@ -788,6 +788,25 @@ class CrafterTeacherV2:
         return self._go_act(player, cows, "do", tunnel=False)
 
 
+def craft_assist_active(info: dict[str, Any] | None) -> bool:
+    """True once this life has a stone pickaxe and no iron pickaxe yet.
+
+    That is the stretch the actor does not finish: coal, iron, and the
+    field table/furnace. The collector can hand those steps to the teacher.
+    """
+    if not info:
+        return False
+    inv = info.get("inventory")
+    if not isinstance(inv, dict):
+        return False
+    try:
+        stone_px = int(inv.get("stone_pickaxe", 0))
+        iron_px = int(inv.get("iron_pickaxe", 0))
+    except (TypeError, ValueError):
+        return False
+    return stone_px >= 1 and iron_px < 1
+
+
 def seed_teacher_episodes(
     env: Any,
     buffer: ReplayBuffer,

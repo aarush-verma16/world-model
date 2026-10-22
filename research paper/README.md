@@ -106,6 +106,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 50. [M20 200k iron pickaxe left the window](findings/50-m20-200k-iron-pickaxe-left-the-window.md) — last-200 15.7, stone pickaxe 13.5%, coal 18.5%, iron pickaxe 0. Teacher v3 is 4/8 versus v2's 2/8.
 51. [Field craft versus the walk home](findings/51-field-craft-beats-the-walk-home.md) — M21 at 22k is iron pickaxe 0/109. Three draws favor v4; one fresh-world draw does not. Eight lives are not a win.
 52. [cuDNN autotune slowed the XL step](findings/52-cudnn-autotune-locked-the-step.md) — heuristic is 1.17 env/s, autotune ~0.77. M22 locked at 0.41; 94 lives, iron pickaxe 0. Replay sample is 2 ms.
+53. [Cloning loss never saw the craft](findings/53-cloning-loss-never-saw-the-craft.md) — bc ~0 at 20k, iron pickaxe 0/94. 22/32 teacher lives craft near step 200; a random 64-step window misses it. Assisted lives are not the actor score.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 

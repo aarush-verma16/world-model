@@ -529,7 +529,10 @@ flowchart LR
         body:"M21 at 22,048: 109 lives, gmean 14.88, iron pickaxe 0. Three draws: v4 iron pickaxe 5, 6, 6 versus v3's 3, 5, 4. A fresh-world draw went 3/8 versus 4/8. Not an M22 score." },
       { id:"52", tags:["compute","negative-result"], title:"cuDNN autotune, not the replay, slowed the XL step",
         file:"findings/52-cudnn-autotune-locked-the-step.md",
-        body:"Autotune off is 1.17 env/s on the M22 checkpoint; autotune on is ~0.77. The interrupted run locked at 0.406. 94 lives, gmean 17.75, iron pickaxe 0/94. Replay sample is 2 ms." }
+        body:"Autotune off is 1.17 env/s on the M22 checkpoint; autotune on is ~0.77. The interrupted run locked at 0.406. 94 lives, gmean 17.75, iron pickaxe 0/94. Replay sample is 2 ms." },
+      { id:"53", tags:["eval","negative-result"], title:"The cloning loss was already zero, and it was not looking at the craft",
+        file:"findings/53-cloning-loss-never-saw-the-craft.md",
+        body:"M22 at 20k: bc loss ~0, iron pickaxe 0/94. 22/32 teacher lives do craft, around step 170-245. A random 64-step window misses that button. Assisted lives are not the actor score." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -622,7 +625,9 @@ flowchart LR
       "Grinding M21 to 100k (iron pickaxe 0/109 at 22k)",
       "Resuming the M21 replay into M22",
       "Turning cudnn.benchmark back on for the XL batch-8 seq-64 step",
-      "Grinding the M22 process that locked at 0.41 env/s"
+      "Grinding the M22 process that locked at 0.41 env/s",
+      "Reading a near-zero cloning loss as the iron craft being learned",
+      "Counting assisted lives as the actor's iron pickaxe"
     ];
 
     let tag = "all";

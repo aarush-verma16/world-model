@@ -21,6 +21,7 @@ from models.rssm import RSSMState
 from models.world_model import WorldModel
 from training.actor_input import features_real
 from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
+from training.crafter_teacher import craft_assist_active
 from training.crafter_rules import (
     inventory_vector,
     legal_action_mask,
@@ -115,6 +116,8 @@ class Collector:
         max_episode_steps: int = 400,
         amp_dtype: torch.dtype | None = None,
         seed: int = 0,
+        craft_teacher: Any = None,
+        craft_assist_prob: float = 0.0,
     ) -> None:
         self.env = env
         self.world_model = world_model
@@ -124,6 +127,13 @@ class Collector:
         self.max_episode_steps = int(max_episode_steps)
         self.amp_dtype = amp_dtype
         self.next_seed = int(seed)
+        # v4 teacher. When an episode is selected, it takes over after the
+        # actor has a stone pickaxe and plays until the iron pickaxe exists.
+        self.craft_teacher = craft_teacher
+        self.craft_assist_prob = float(craft_assist_prob)
+        self._rng = np.random.default_rng(int(seed))
+        self._assist_episode = False
+        self._assisted = False
         self._obs: np.ndarray | None = None
         self._info: dict[str, Any] | None = None
         self._state: RSSMState | None = None
@@ -152,6 +162,11 @@ class Collector:
         self._cont_buf = []
         self._ep_steps = 0
         self._need_reset = False
+        self._assisted = False
+        self._assist_episode = False
+        if self.craft_teacher is not None and self.craft_assist_prob > 0.0:
+            self.craft_teacher.reset()
+            self._assist_episode = float(self._rng.random()) < self.craft_assist_prob
 
     def step(self) -> dict[str, Any]:
         """One env step. Transitions go into replay immediately (`add_step`)."""
@@ -175,6 +190,11 @@ class Collector:
             amp_dtype=self.amp_dtype,
             info=pre_info,
         )
+        if self._assist_episode and craft_assist_active(pre_info):
+            action_i = int(self.craft_teacher.act(self.env))
+            action_oh = torch.zeros_like(action_oh)
+            action_oh[0, action_i] = 1.0
+            self._assisted = True
         next_obs, reward, terminated, truncated, info = self.env.step(action_i)
         self._info = info if isinstance(info, dict) else None
         terminated = bool(terminated)
@@ -211,7 +231,7 @@ class Collector:
         if done:
             ep_len = len(self._obs_buf)
             ep_ret = float(sum(self._rew_buf))
-            self.buffer.close_episode()
+            self.buffer.close_episode(teacher=self._assisted)
             ach_counts = achievement_counts_from_info(
                 info if isinstance(info, dict) else None
             )
@@ -226,6 +246,7 @@ class Collector:
                 ),
                 "achievement_counts": ach_counts,
                 "achievement_counts_raw": raw,
+                "assisted": bool(self._assisted),
             }
             self._need_reset = True
             self._obs = None

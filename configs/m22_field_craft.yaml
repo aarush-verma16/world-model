@@ -61,6 +61,10 @@ train:
   teacher_inject_every: 25000
   teacher_inject_episodes: 8
   bc_scale: 1.0
+  # Once a life has a stone pickaxe, v4 plays the rest (coal, iron, field
+  # table and furnace, iron pickaxe). Those lives are tagged assisted and
+  # are not the actor score. Behavior cloning trains on that craft window.
+  craft_assist: 1.0
   pretrain_steps: 100
   pretrain_wm_steps: 100
   replay_max_steps: 1000000

@@ -7,7 +7,9 @@ import numpy as np
 import torch
 
 from envs.crafter_env import register_crafter_envs
-from training.crafter_teacher import seed_teacher_episodes
+from training.crafter_rules import ACTION_INDEX, FIELD_CRAFT_ACTIONS
+from training.crafter_teacher import craft_assist_active, seed_teacher_episodes
+from training.losses import bc_step_weight
 from training.replay_buffer import ReplayBuffer
 
 
@@ -144,3 +146,43 @@ def test_teacher_fraction_hits_the_marked_episode_and_eviction_keeps_it() -> Non
         )
     assert any(ep.teacher for ep in buf._episodes)
     assert buf.num_steps <= 20 + 8
+
+
+def test_teacher_fraction_draws_the_iron_craft_not_a_random_slice() -> None:
+    craft = int(ACTION_INDEX["make_iron_pickaxe"])
+    actions = torch.zeros(200, dtype=torch.int64)
+    actions[180] = craft
+    buf = ReplayBuffer(seed=0)
+    buf.add_episode(
+        torch.zeros(200, 64, 64, 3, dtype=torch.uint8),
+        actions,
+        torch.zeros(200),
+        torch.ones(200),
+        teacher=True,
+    )
+    buf.add_episode(
+        torch.zeros(200, 64, 64, 3, dtype=torch.uint8),
+        torch.zeros(200, dtype=torch.int64),
+        torch.zeros(200),
+        torch.ones(200),
+    )
+    batch = buf.sample(16, 64, teacher_fraction=1.0)
+    assert bool((batch["actions"] == craft).any(dim=1).all())
+    # The craft is the last step of the window, not a random hit in the middle.
+    assert bool((batch["actions"][:, -1] == craft).all())
+
+
+def test_bc_weight_ups_the_craft_button() -> None:
+    actions = torch.tensor([[0, ACTION_INDEX["make_iron_pickaxe"], 5]])
+    teacher = torch.tensor([[1.0, 1.0, 0.0]])
+    w = bc_step_weight(teacher, actions, craft_ids=tuple(sorted(FIELD_CRAFT_ACTIONS)))
+    assert float(w[0, 0]) == 1.0
+    assert float(w[0, 1]) == 8.0
+    assert float(w[0, 2]) == 0.0
+
+
+def test_craft_assist_turns_on_after_the_stone_pickaxe() -> None:
+    assert craft_assist_active(None) is False
+    assert craft_assist_active({"inventory": {"stone_pickaxe": 0}}) is False
+    assert craft_assist_active({"inventory": {"stone_pickaxe": 1, "iron_pickaxe": 0}}) is True
+    assert craft_assist_active({"inventory": {"stone_pickaxe": 1, "iron_pickaxe": 1}}) is False
