@@ -658,7 +658,7 @@
       "file": "findings/54-m22-51k-assist-crafts-actor-once.md",
       "title": "At 51k the takeover crafts iron; the actor has done it once",
       "tags": ["eval"],
-      "one_liner": "M22 interrupt at env 51,312: teacher finished iron pickaxe in 7/18 assisted lives. One unassisted life (env 25,024) did iron pickaxe, iron sword, and diamond. Held-out at 50k is iron pickaxe 0/10.",
+      "one_liner": "M22 at env 60,928: teacher iron pickaxe 11/24 assisted (5/7 since 51k). The actor's only iron-pickaxe life is still env 25,024. Held-out at 50k is 0/10. The step slid to ~0.53 on the last thousand steps.",
       "paper_spin": "The station can be finished from a stone-pickaxe state the policy already reaches. The policy's own iron pickaxe is one life, and the 50k held-out bag did not contain it."
     }
   ],

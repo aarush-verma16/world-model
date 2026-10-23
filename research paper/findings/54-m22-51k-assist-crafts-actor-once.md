@@ -1,6 +1,6 @@
 # At 51k the takeover crafts iron; the actor has done it once
 
-**Claim.** At the 2026-10-23 interrupt (env 51,312) teacher v4, taking over after a stone pickaxe, made an iron pickaxe in 7 of 18 assisted lives. One unassisted collect life, env 25,024, length 196, made an iron pickaxe, an iron sword, and a diamond. The 50k held-out bag of 10 did not.
+**Claim.** At the 2026-10-23 interrupt (env 51,312) teacher v4, taking over after a stone pickaxe, made an iron pickaxe in 7 of 18 assisted lives. One unassisted collect life, env 25,024, length 196, made an iron pickaxe, an iron sword, and a diamond. The 50k held-out bag of 10 did not. By env 60,928 the takeover was 11/24, including 5/7 since 51k, and the actor still had no second iron-pickaxe life.
 
 ## Why this is not the paper
 
@@ -15,6 +15,8 @@ Actor-only collect: 212 lives, geometric mean 17.62, length 216. Since the resum
 The one actor iron-pickaxe life is env 25,024. It is not tagged `assisted`. It also has `make_iron_sword` and `collect_diamond`. `actor_px` stayed 1 from step 25,088 through 51,200, so no second actor life did it. Held-out at 25,008: score 20.79, iron 1/10, iron pickaxe 0/10. Held-out at 50,000: score 12.84, coal 0, furnace 0, iron 0, stone pickaxe 2/10. Ten lives swing that much; it is not a collapse.
 
 Assisted lives: 18, length 305, geometric mean 43. Coal 12/18, furnace 13/18, iron pickaxe 7/18. The seventh finished at env 51,312, after the last log line (that line still said 6). Eleven assisted lives reached a stone pickaxe and still did not craft.
+
+At env 60,928 (log still open, 2026-10-23 16:28): actor iron pickaxe still 1. Since env 51,200, 31 actor lives, iron pickaxe 0, stone pickaxe 0. The 7 new assisted lives are every stone-pickaxe life in that stretch, and 5 of them made an iron pickaxe (coal 6/7, furnace 6/7). Total assisted iron pickaxe 11/24. Actor last-200 geometric mean 16.87, length 217, stone pickaxe 12/200. Actor entropy on the log is 0.10. The step was ~1.0 env/s around 54k, ~0.74 through the late 50ks, and 0.52–0.53 on the four lines from 60,160 to 60,928.
 
 ## Failed alternatives
 
