@@ -2,7 +2,7 @@
   "title": "World-model findings archive (not the paper)",
   "method": "Fieldcraft",
   "method_sentence": "A DreamerV3 world model whose actor reads a 9x7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles.",
-  "updated": "2026-10-22",
+  "updated": "2026-10-23",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -652,6 +652,14 @@
       "tags": ["eval", "negative-result"],
       "one_liner": "M22 at 20k: bc loss ~0, iron pickaxe 0/94. 22/32 teacher lives do craft, around step 170-245. A random 64-step window misses that button. Assisted lives are not the actor score.",
       "paper_spin": "A mean cloning loss over the whole teacher life can go to zero while the one craft button is never in the window."
+    },
+    {
+      "id": 54,
+      "file": "findings/54-m22-51k-assist-crafts-actor-once.md",
+      "title": "At 51k the takeover crafts iron; the actor has done it once",
+      "tags": ["eval"],
+      "one_liner": "M22 interrupt at env 51,312: teacher finished iron pickaxe in 7/18 assisted lives. One unassisted life (env 25,024) did iron pickaxe, iron sword, and diamond. Held-out at 50k is iron pickaxe 0/10.",
+      "paper_spin": "The station can be finished from a stone-pickaxe state the policy already reaches. The policy's own iron pickaxe is one life, and the 50k held-out bag did not contain it."
     }
   ],
   "do_not_revive": [
@@ -767,6 +775,8 @@
     "Turning cudnn.benchmark back on for the XL batch-8 seq-64 step (0.77 env/s; the live M22 run then locked at 0.41)",
     "Grinding the M22 process that locked at 0.41 env/s (20k was iron pickaxe 0/94)",
     "Reading a near-zero behavior-cloning loss as evidence the iron craft was learned (the window was wood and walking)",
-    "Counting assisted lives, where the teacher finished after a stone pickaxe, as the actor's iron pickaxe"
+    "Counting assisted lives, where the teacher finished after a stone pickaxe, as the actor's iron pickaxe",
+    "Reading M22 actor-only stone pickaxe 2/118 since the resume as the skill dying (those lives are the assisted bucket; combined stone pickaxe is 20/136)",
+    "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k (n=10, coal 0) as a collapse"
   ]
 }
