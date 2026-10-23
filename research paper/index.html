@@ -535,7 +535,10 @@ flowchart LR
         body:"M22 at 20k: bc loss ~0, iron pickaxe 0/94. 22/32 teacher lives do craft, around step 170-245. A random 64-step window misses that button. Assisted lives are not the actor score." },
       { id:"54", tags:["eval"], title:"At 51k the takeover crafts iron; the actor has done it once",
         file:"findings/54-m22-51k-assist-crafts-actor-once.md",
-        body:"At env 60,928 the teacher has iron pickaxe on 11/24 assisted lives (5/7 since 51k). The actor's only one is still env 25,024. Held-out at 50k is 0/10. Last-200 actor gmean 16.87. The step slid to ~0.53 over the last thousand steps." }
+        body:"At env 60,928 the teacher has iron pickaxe on 11/24 assisted lives (5/7 since 51k). The actor's only one is still env 25,024. Held-out at 50k is 0/10. Last-200 actor gmean 16.87. The step slid to ~0.53 over the last thousand steps." },
+      { id:"55", tags:["compute","eval"], title:"The 0.5 env/s was a full card in a long process; lives die in combat",
+        file:"findings/55-m22-60k-half-env-and-combat-deaths.md",
+        body:"Fresh process on the 60k checkpoint is 0.87 env/s at 2910 MHz, 15.8/16.3 GiB, ~150 W. The live log had slid to 0.52. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -632,7 +635,10 @@ flowchart LR
       "Reading a near-zero cloning loss as the iron craft being learned",
       "Counting assisted lives as the actor's iron pickaxe",
       "Reading M22 actor-only stone pickaxe 2/118 as the skill dying (those lives are assisted)",
-      "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k as a collapse"
+      "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k as a collapse",
+      "Reading M22 0.52 env/s at 60k as the step itself (a fresh process is 0.87)",
+      "expandable_segments, encoder checkpointing, or batch 4 to speed the XL step",
+      "Counting a life the teacher saved at health <= 3 as the actor's length or iron pickaxe"
     ];
 
     let tag = "all";

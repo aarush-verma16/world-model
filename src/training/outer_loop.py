@@ -136,12 +136,19 @@ def outer_cycle(
     wm_max_grad_norm: float = 1000.0,
     ac_max_grad_norm: float = 100.0,
     teacher_fraction: float = 0.0,
+    craft_window_fraction: float = 0.5,
     bc_scale: float = 0.0,
 ) -> OuterCycleResult:
     """Collect `collect_every` env steps, then `wm_updates` WM and `ac_updates` AC.
 
     Returns the last WM / AC metric dicts (or None if that side ran 0 updates).
     """
+    # The 60k run slid from ~0.9 to 0.5 env/s while a fresh process on the
+    # same checkpoint holds ~0.87 (finding 55). The card stays full
+    # (reserved ~14.7 GiB). Give the caching allocator its unused blocks
+    # back once per cycle. This does not make a fresh process faster.
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     collect_stats = collector.collect(int(collect_every))
 
     wm_metrics: dict[str, float] | None = None
@@ -149,7 +156,10 @@ def outer_cycle(
     for i in range(n_wm):
         unfreeze_world_model(world_model)
         batch = buffer.sample(
-            int(batch_size), int(seq_len), teacher_fraction=float(teacher_fraction)
+            int(batch_size),
+            int(seq_len),
+            teacher_fraction=float(teacher_fraction),
+            craft_window_fraction=float(craft_window_fraction),
         )
         _loss, wm_metrics = world_model_step(
             world_model,
@@ -168,7 +178,10 @@ def outer_cycle(
     n_ac = int(ac_updates)
     for i in range(n_ac):
         batch = buffer.sample(
-            int(batch_size), int(seq_len), teacher_fraction=float(teacher_fraction)
+            int(batch_size),
+            int(seq_len),
+            teacher_fraction=float(teacher_fraction),
+            craft_window_fraction=float(craft_window_fraction),
         )
         _loss, ac_metrics, rollout = actor_critic_step(
             world_model,

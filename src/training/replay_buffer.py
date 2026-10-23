@@ -573,6 +573,7 @@ class ReplayBuffer:
         seq_len: int,
         *,
         teacher_fraction: float = 0.0,
+        craft_window_fraction: float = 0.5,
     ) -> dict[str, Tensor]:
         """Sample contiguous windows, including across episode boundaries.
 
@@ -600,12 +601,22 @@ class ReplayBuffer:
         total = self.num_steps
         n_starts = total - int(seq_len) + 1
         frac = float(teacher_fraction)
+        craft_frac = float(craft_window_fraction)
         overlap = self._teacher_overlap_starts(int(seq_len)) if frac > 0.0 else None
         craft = self._craft_window_starts(int(seq_len)) if frac > 0.0 else None
         rows: list[dict[str, Tensor]] = []
         for _ in range(batch_size):
             if overlap is not None and overlap.size and float(self._rng.random()) < frac:
-                pool = craft if craft is not None and craft.size else overlap
+                # Craft-only rows leave eat / sleep / fight out of the cloning
+                # loss, and the actor keeps dying at the combat wall. Half the
+                # teacher rows stay on the craft button. The other half are
+                # ordinary slices of the teacher life.
+                use_craft = (
+                    craft is not None
+                    and craft.size
+                    and float(self._rng.random()) < craft_frac
+                )
+                pool = craft if use_craft else overlap
                 start = int(self._rng.choice(pool))
             else:
                 start = int(self._rng.integers(0, n_starts))

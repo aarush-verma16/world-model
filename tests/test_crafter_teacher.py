@@ -8,7 +8,7 @@ import torch
 
 from envs.crafter_env import register_crafter_envs
 from training.crafter_rules import ACTION_INDEX, FIELD_CRAFT_ACTIONS
-from training.crafter_teacher import craft_assist_active, seed_teacher_episodes
+from training.crafter_teacher import craft_assist_active, seed_teacher_episodes, survival_assist_active
 from training.losses import bc_step_weight
 from training.replay_buffer import ReplayBuffer
 
@@ -166,7 +166,7 @@ def test_teacher_fraction_draws_the_iron_craft_not_a_random_slice() -> None:
         torch.zeros(200),
         torch.ones(200),
     )
-    batch = buf.sample(16, 64, teacher_fraction=1.0)
+    batch = buf.sample(16, 64, teacher_fraction=1.0, craft_window_fraction=1.0)
     assert bool((batch["actions"] == craft).any(dim=1).all())
     # The craft is the last step of the window, not a random hit in the middle.
     assert bool((batch["actions"][:, -1] == craft).all())
@@ -179,6 +179,31 @@ def test_bc_weight_ups_the_craft_button() -> None:
     assert float(w[0, 0]) == 1.0
     assert float(w[0, 1]) == 8.0
     assert float(w[0, 2]) == 0.0
+
+
+def test_half_the_teacher_rows_are_not_forced_onto_the_craft() -> None:
+    """craft_window_fraction 0 keeps survival slices in the cloning batch."""
+    craft = int(ACTION_INDEX["make_iron_pickaxe"])
+    actions = torch.zeros(200, dtype=torch.int64)
+    actions[180] = craft
+    buf = ReplayBuffer(seed=0)
+    buf.add_episode(
+        torch.zeros(200, 64, 64, 3, dtype=torch.uint8),
+        actions,
+        torch.zeros(200),
+        torch.ones(200),
+        teacher=True,
+    )
+    batch = buf.sample(32, 64, teacher_fraction=1.0, craft_window_fraction=0.0)
+    assert not bool((batch["actions"][:, -1] == craft).all())
+
+
+def test_survival_assist_turns_on_when_health_is_low() -> None:
+    assert survival_assist_active(None) is False
+    assert survival_assist_active({"inventory": {"health": 9}}) is False
+    assert survival_assist_active({"inventory": {"health": 4}}) is False
+    assert survival_assist_active({"inventory": {"health": 3}}) is True
+    assert survival_assist_active({"inventory": {"health": 0}}) is True
 
 
 def test_craft_assist_turns_on_after_the_stone_pickaxe() -> None:

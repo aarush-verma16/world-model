@@ -61,10 +61,17 @@ train:
   teacher_inject_every: 25000
   teacher_inject_episodes: 8
   bc_scale: 1.0
-  # Once a life has a stone pickaxe, v4 plays the rest (coal, iron, field
-  # table and furnace, iron pickaxe). Those lives are tagged assisted and
-  # are not the actor score. Behavior cloning trains on that craft window.
+  # Once a life has a stone pickaxe, v4 plays through the iron pickaxe.
+  # Health at 3 or below also hands the step to the teacher (the combat
+  # death around step 200). Those lives are tagged assisted and are not
+  # the actor score. The life ends 32 steps after the pickaxe, so the
+  # actor's leftover tail is not stored as a teacher episode.
+  # Half of the cloning rows are whole-life slices (eat / sleep / fight).
+  # The other half still end on the craft button.
   craft_assist: 1.0
+  craft_window_fraction: 0.5
+  assist_tail_steps: 32
+  assist_idle_stop: 200
   pretrain_steps: 100
   pretrain_wm_steps: 100
   replay_max_steps: 1000000

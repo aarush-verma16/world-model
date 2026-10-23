@@ -660,6 +660,14 @@
       "tags": ["eval"],
       "one_liner": "M22 at env 60,928: teacher iron pickaxe 11/24 assisted (5/7 since 51k). The actor's only iron-pickaxe life is still env 25,024. Held-out at 50k is 0/10. The step slid to ~0.53 on the last thousand steps.",
       "paper_spin": "The station can be finished from a stone-pickaxe state the policy already reaches. The policy's own iron pickaxe is one life, and the 50k held-out bag did not contain it."
+    },
+    {
+      "id": 55,
+      "file": "findings/55-m22-60k-half-env-and-combat-deaths.md",
+      "title": "The 0.5 env/s was a full card in a long process; lives die in combat",
+      "tags": ["compute", "eval"],
+      "one_liner": "Fresh process on the 60k checkpoint is 0.87 env/s at 2910 MHz and 15.8/16.3 GiB. The live process had slid to 0.52. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower.",
+      "paper_spin": "On 16 GiB the XL step is memory-bandwidth bound near 150 W, and length near 200 is the combat hit, not a truncated episode."
     }
   ],
   "do_not_revive": [
@@ -777,6 +785,9 @@
     "Reading a near-zero behavior-cloning loss as evidence the iron craft was learned (the window was wood and walking)",
     "Counting assisted lives, where the teacher finished after a stone pickaxe, as the actor's iron pickaxe",
     "Reading M22 actor-only stone pickaxe 2/118 since the resume as the skill dying (those lives are the assisted bucket; combined stone pickaxe is 20/136)",
-    "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k (n=10, coal 0) as a collapse"
+    "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k (n=10, coal 0) as a collapse",
+    "Reading M22 0.52 env/s at 60k as the step itself (a fresh process on that checkpoint is 0.87 at 2910 MHz)",
+    "expandable_segments on this Windows build (unsupported), encoder checkpointing, or batch 4 to speed the XL step (0.80s and 0.82s vs 0.72s)",
+    "Counting a life the teacher saved at health <= 3 as the actor's length or the actor's iron pickaxe"
   ]
 }

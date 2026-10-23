@@ -570,6 +570,8 @@ def main() -> None:
         seed=collect_seed,
         craft_teacher=craft_teacher,
         craft_assist_prob=craft_assist_prob,
+        assist_tail_steps=int(train.get("assist_tail_steps", 32) or 0),
+        assist_idle_stop=int(train.get("assist_idle_stop", 200) or 0),
     )
 
     writer = SummaryWriter(log_dir=str(log_dir))
@@ -675,6 +677,7 @@ def main() -> None:
                 wm_max_grad_norm=float(train.get("wm_max_grad_norm", 1000.0)),
                 ac_max_grad_norm=float(train.get("ac_max_grad_norm", 100.0)),
                 teacher_fraction=float(train.get("teacher_fraction", 0.0) or 0.0),
+                craft_window_fraction=float(train.get("craft_window_fraction", 0.5) or 0.0),
                 bc_scale=float(train.get("bc_scale", 0.0) or 0.0),
             )
             prev_steps = env_steps

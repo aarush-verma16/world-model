@@ -108,6 +108,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 52. [cuDNN autotune slowed the XL step](findings/52-cudnn-autotune-locked-the-step.md) — heuristic is 1.17 env/s, autotune ~0.77. M22 locked at 0.41; 94 lives, iron pickaxe 0. Replay sample is 2 ms.
 53. [Cloning loss never saw the craft](findings/53-cloning-loss-never-saw-the-craft.md) — bc ~0 at 20k, iron pickaxe 0/94. 22/32 teacher lives craft near step 200; a random 64-step window misses it. Assisted lives are not the actor score.
 54. [At 51k the takeover crafts; the actor has done it once](findings/54-m22-51k-assist-crafts-actor-once.md) — by env 60,928 the teacher is 11/24 (5/7 since 51k). The actor's only iron-pickaxe life is still env 25,024. Held-out at 50k is 0/10. Last thousand steps ran at ~0.53 env/s.
+55. [0.5 env/s was a full card; lives die in combat](findings/55-m22-60k-half-env-and-combat-deaths.md) — a fresh process on that checkpoint is 0.87 env/s at 2910 MHz and 15.8/16.3 GiB. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 

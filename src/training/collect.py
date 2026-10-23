@@ -21,7 +21,7 @@ from models.rssm import RSSMState
 from models.world_model import WorldModel
 from training.actor_input import features_real
 from training.crafter_rules import ACTION_DIM as CRAFTER_ACTION_DIM
-from training.crafter_teacher import craft_assist_active
+from training.crafter_teacher import craft_assist_active, survival_assist_active
 from training.crafter_rules import (
     inventory_vector,
     legal_action_mask,
@@ -118,6 +118,8 @@ class Collector:
         seed: int = 0,
         craft_teacher: Any = None,
         craft_assist_prob: float = 0.0,
+        assist_tail_steps: int = 32,
+        assist_idle_stop: int = 200,
     ) -> None:
         self.env = env
         self.world_model = world_model
@@ -131,9 +133,15 @@ class Collector:
         # actor has a stone pickaxe and plays until the iron pickaxe exists.
         self.craft_teacher = craft_teacher
         self.craft_assist_prob = float(craft_assist_prob)
+        # After the iron pickaxe, the actor's leftover steps are stored as
+        # teacher data and do not count. End the life soon after the craft.
+        # A stuck teacher (idle_stop) must not run out to max_episode_steps.
+        self.assist_tail_steps = int(assist_tail_steps)
+        self.assist_idle_stop = int(assist_idle_stop)
         self._rng = np.random.default_rng(int(seed))
         self._assist_episode = False
         self._assisted = False
+        self._craft_tail = 0
         self._obs: np.ndarray | None = None
         self._info: dict[str, Any] | None = None
         self._state: RSSMState | None = None
@@ -164,6 +172,7 @@ class Collector:
         self._need_reset = False
         self._assisted = False
         self._assist_episode = False
+        self._craft_tail = 0
         if self.craft_teacher is not None and self.craft_assist_prob > 0.0:
             self.craft_teacher.reset()
             self._assist_episode = float(self._rng.random()) < self.craft_assist_prob
@@ -190,7 +199,12 @@ class Collector:
             amp_dtype=self.amp_dtype,
             info=pre_info,
         )
-        if self._assist_episode and craft_assist_active(pre_info):
+        # Health <= 3 is the combat death (lives end ~200, before hunger).
+        # The teacher already flees, eats, and sleeps. Taking those steps
+        # tags the life assisted, so it stays out of the actor score.
+        if self._assist_episode and (
+            craft_assist_active(pre_info) or survival_assist_active(pre_info)
+        ):
             action_i = int(self.craft_teacher.act(self.env))
             action_oh = torch.zeros_like(action_oh)
             action_oh[0, action_i] = 1.0
@@ -204,6 +218,28 @@ class Collector:
         done = terminated or truncated or hit_cap
         # Truncation / cap still continue=1 (bootstrap); only true death is 0.
         cont = 0.0 if terminated else 1.0
+        if self._assisted and not terminated:
+            inv = info.get("inventory") if isinstance(info, dict) else None
+            have_px = (
+                isinstance(inv, dict) and int(inv.get("iron_pickaxe", 0) or 0) >= 1
+            )
+            if have_px:
+                self._craft_tail += 1
+            else:
+                self._craft_tail = 0
+            teacher_idle = (
+                self.craft_teacher is not None
+                and self.assist_idle_stop > 0
+                and int(self.craft_teacher.idle_steps) >= self.assist_idle_stop
+            )
+            craft_done = (
+                self.assist_tail_steps > 0
+                and self._craft_tail >= self.assist_tail_steps
+            )
+            if teacher_idle or craft_done:
+                done = True
+                truncated = True
+                cont = 1.0
 
         self._obs_buf.append(np.asarray(self._obs, dtype=np.uint8))
         self._act_buf.append(action_i)

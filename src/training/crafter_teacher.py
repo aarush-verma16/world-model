@@ -807,6 +807,26 @@ def craft_assist_active(info: dict[str, Any] | None) -> bool:
     return stone_px >= 1 and iron_px < 1
 
 
+def survival_assist_active(info: dict[str, Any] | None) -> bool:
+    """True when this step would otherwise be the combat death.
+
+    Actor lives end around 200 steps, before the hunger clock at 338.
+    Health starts at 9 and zombie hits land before starvation. At 3 or
+    below the teacher takes the step (fight, flee, eat, sleep). The
+    collector tags that life assisted.
+    """
+    if not info:
+        return False
+    inv = info.get("inventory")
+    if not isinstance(inv, dict):
+        return False
+    try:
+        health = int(inv.get("health", 9))
+    except (TypeError, ValueError):
+        return False
+    return health <= 3
+
+
 def seed_teacher_episodes(
     env: Any,
     buffer: ReplayBuffer,
