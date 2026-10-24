@@ -118,6 +118,7 @@ class Collector:
         seed: int = 0,
         craft_teacher: Any = None,
         craft_assist_prob: float = 0.0,
+        survival_assist: bool = False,
         assist_tail_steps: int = 32,
         assist_idle_stop: int = 200,
     ) -> None:
@@ -133,6 +134,10 @@ class Collector:
         # actor has a stone pickaxe and plays until the iron pickaxe exists.
         self.craft_teacher = craft_teacher
         self.craft_assist_prob = float(craft_assist_prob)
+        # Health takeover tagged nearly every life and added no iron
+        # (11 new assisted lives, 0 iron pickaxes, after env 61k). Off
+        # unless a config explicitly asks for it.
+        self.survival_assist = bool(survival_assist)
         # After the iron pickaxe, the actor's leftover steps are stored as
         # teacher data and do not count. End the life soon after the craft.
         # A stuck teacher (idle_stop) must not run out to max_episode_steps.
@@ -199,12 +204,10 @@ class Collector:
             amp_dtype=self.amp_dtype,
             info=pre_info,
         )
-        # Health <= 3 is the combat death (lives end ~200, before hunger).
-        # The teacher already flees, eats, and sleeps. Taking those steps
-        # tags the life assisted, so it stays out of the actor score.
-        if self._assist_episode and (
-            craft_assist_active(pre_info) or survival_assist_active(pre_info)
-        ):
+        take_over = craft_assist_active(pre_info)
+        if self.survival_assist:
+            take_over = take_over or survival_assist_active(pre_info)
+        if self._assist_episode and take_over:
             action_i = int(self.craft_teacher.act(self.env))
             action_oh = torch.zeros_like(action_oh)
             action_oh[0, action_i] = 1.0

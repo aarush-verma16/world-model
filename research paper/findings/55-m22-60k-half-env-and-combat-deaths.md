@@ -18,7 +18,7 @@ Actor lives with env_steps > 50,000: 36 lives, mean length 224, 18 under 200. Wa
 
 ## What changed
 
-The teacher also takes the step when health is 3 or below. The life ends 32 steps after the iron pickaxe, or after 200 idle teacher steps, instead of running toward 10,000. Half the cloning rows are ordinary teacher-life slices again (eat, sleep, fight). The other half still end on the craft button. Each train cycle returns unused CUDA blocks to the allocator. That does not make a fresh process faster than 0.87.
+The teacher also takes the step when health is 3 or below. That was turned off after the first 2k steps of the Saturday resume: 11 lives tagged, 0 iron pickaxes. The life ends 32 steps after the iron pickaxe, or after 200 idle teacher steps, instead of running toward 10,000. Half the cloning rows are ordinary teacher-life slices again (eat, sleep, fight). The other half still end on the craft button. Each train cycle returns unused CUDA blocks to the allocator. That does not make a fresh process faster than 0.87.
 
 ## Failed alternatives
 

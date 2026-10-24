@@ -570,6 +570,7 @@ def main() -> None:
         seed=collect_seed,
         craft_teacher=craft_teacher,
         craft_assist_prob=craft_assist_prob,
+        survival_assist=bool(train.get("survival_assist", False)),
         assist_tail_steps=int(train.get("assist_tail_steps", 32) or 0),
         assist_idle_stop=int(train.get("assist_idle_stop", 200) or 0),
     )
