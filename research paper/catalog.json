@@ -2,7 +2,7 @@
   "title": "World-model findings archive (not the paper)",
   "method": "Fieldcraft",
   "method_sentence": "A DreamerV3 world model whose actor reads a 9x7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles.",
-  "updated": "2026-10-23",
+  "updated": "2026-10-29",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -668,6 +668,14 @@
       "tags": ["compute", "eval"],
       "one_liner": "Fresh process on the 60k checkpoint is 0.87 env/s at 2910 MHz and 15.8/16.3 GiB. The live process had slid to 0.52. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower.",
       "paper_spin": "On 16 GiB the XL step is memory-bandwidth bound near 150 W, and length near 200 is the combat hit, not a truncated episode."
+    },
+    {
+      "id": 56,
+      "file": "findings/56-m22-100k-handoff-rate-rose.md",
+      "title": "At 100k the stone-pickaxe handoff rose, and the teacher finished about 4 in 10",
+      "tags": ["eval"],
+      "one_liner": "M22 closed at 100k on 2026-10-28. Last quarter: stone pickaxe 24/112, teacher iron pickaxe 10/23 of those handoffs, plus one unaided craft at env 75,024. Actor-only last-200 is 13.1 because tagged lives leave that bucket. Held-out iron pickaxe is 0/10.",
+      "paper_spin": "The actor's measured step is reaching a stone pickaxe, higher in the last quarter than M20's finished window. Field placement finishes the iron pickaxe on about four handoffs in ten. The unaided craft is two lives."
     }
   ],
   "do_not_revive": [
@@ -788,6 +796,10 @@
     "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k (n=10, coal 0) as a collapse",
     "Reading M22 0.52 env/s at 60k as the step itself (a fresh process on that checkpoint is 0.87 at 2910 MHz)",
     "expandable_segments on this Windows build (unsupported), encoder checkpointing, or batch 4 to speed the XL step (0.80s and 0.82s vs 0.72s)",
-    "Counting a life the teacher saved at health <= 3 as the actor's length or the actor's iron pickaxe"
+    "Counting a life the teacher saved at health <= 3 as the actor's length or the actor's iron pickaxe",
+    "Reading M22 actor-only last-200 13.1 at 100k as the policy collapsing (combined last quarter is 24.2; stone pickaxe is 24/112 and the teacher tags the life after that craft)",
+    "Treating the two unaided iron-pickaxe lives (env 25024 and 75024) as a held-out skill (0/10 at 25k, 50k, 75k, and 100k)",
+    "Captioning M22's combined geometric mean 23, which counts the teacher's post-handoff achievements, as the actor's Crafter score",
+    "Grinding M22 past 100k for a third unaided iron pickaxe"
   ]
 }

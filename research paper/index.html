@@ -538,7 +538,10 @@ flowchart LR
         body:"At env 60,928 the teacher has iron pickaxe on 11/24 assisted lives (5/7 since 51k). The actor's only one is still env 25,024. Held-out at 50k is 0/10. Last-200 actor gmean 16.87. The step slid to ~0.53 over the last thousand steps." },
       { id:"55", tags:["compute","eval"], title:"The 0.5 env/s was a full card in a long process; lives die in combat",
         file:"findings/55-m22-60k-half-env-and-combat-deaths.md",
-        body:"Fresh process on the 60k checkpoint is 0.87 env/s at 2910 MHz, 15.8/16.3 GiB, ~150 W. The live log had slid to 0.52. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower." }
+        body:"Fresh process on the 60k checkpoint is 0.87 env/s at 2910 MHz, 15.8/16.3 GiB, ~150 W. The live log had slid to 0.52. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower." },
+      { id:"56", tags:["eval"], title:"At 100k the stone-pickaxe handoff rose, and the teacher finished about 4 in 10",
+        file:"findings/56-m22-100k-handoff-rate-rose.md",
+        body:"M22 closed at 100k on 2026-10-28. Last quarter: stone pickaxe 24/112, teacher iron pickaxe 10/23 handoffs, plus one unaided craft at env 75,024. Actor-only last-200 is 13.1 because tagged lives leave that bucket. Held-out iron pickaxe is 0/10. Combined last-200 is 23.0." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [
@@ -638,7 +641,11 @@ flowchart LR
       "Treating the one env-25024 iron-pickaxe life as a rate, or held-out 12.8 at 50k as a collapse",
       "Reading M22 0.52 env/s at 60k as the step itself (a fresh process is 0.87)",
       "expandable_segments, encoder checkpointing, or batch 4 to speed the XL step",
-      "Counting a life the teacher saved at health <= 3 as the actor's length or iron pickaxe"
+      "Counting a life the teacher saved at health <= 3 as the actor's length or iron pickaxe",
+      "Reading M22 actor-only last-200 13.1 at 100k as the policy collapsing",
+      "Treating the two unaided iron-pickaxe lives as a held-out skill (0/10 at every checkpoint)",
+      "Captioning M22 combined geometric mean 23 as the actor's Crafter score",
+      "Grinding M22 past 100k for a third unaided iron pickaxe"
     ];
 
     let tag = "all";

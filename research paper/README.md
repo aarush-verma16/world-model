@@ -109,6 +109,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 53. [Cloning loss never saw the craft](findings/53-cloning-loss-never-saw-the-craft.md) — bc ~0 at 20k, iron pickaxe 0/94. 22/32 teacher lives craft near step 200; a random 64-step window misses it. Assisted lives are not the actor score.
 54. [At 51k the takeover crafts; the actor has done it once](findings/54-m22-51k-assist-crafts-actor-once.md) — by env 60,928 the teacher is 11/24 (5/7 since 51k). The actor's only iron-pickaxe life is still env 25,024. Held-out at 50k is 0/10. Last thousand steps ran at ~0.53 env/s.
 55. [0.5 env/s was a full card; lives die in combat](findings/55-m22-60k-half-env-and-combat-deaths.md) — a fresh process on that checkpoint is 0.87 env/s at 2910 MHz and 15.8/16.3 GiB. Half of actor lives since 50k die before step 200. Checkpointing and batch 4 are slower.
+56. [At 100k the handoff rate rose](findings/56-m22-100k-handoff-rate-rose.md) — last quarter stone pickaxe 24/112, teacher iron pickaxe 10/23 of those handoffs, one more unaided craft at env 75,024. Actor-only last-200 13.1 is the assist tag. Held-out iron pickaxe 0/10.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
@@ -136,7 +137,7 @@ Catalog (machine-readable): [`catalog.json`](catalog.json).
 - **M19 facing/nearby + teacher replay** (`configs/m19_facing.yaml`): At **~51k**: last-200 gmean **4.19**, table **52%**, pickaxe **11.5%**, stone **3%**, stone pickaxe **0**, length **175** (finding 47). Do not grind to 500k for 14.5. `notebooks/12_train_m19_facing.ipynb`.
 - **M20 local map + teacher v2 + BC** (`configs/m20_local_map.yaml`): **200k done.** Last-200 **15.66**, stone pickaxe **13.5%**, coal **18.5%**, furnace **4%**, iron **0.5%**, iron pickaxe **0** in that window (finding 50). Do not extend it. `notebooks/13_train_m20_local_map.ipynb`.
 - **M21 craft-now** (`configs/m21_iron_craft.yaml`): **stopped at 22,048 on purpose.** 109 lives, gmean 14.88, iron pickaxe **0**. Teacher v3 walks home to a table outside the 9×7 crop (finding 51). Do not grind to 100k. `notebooks/14_train_m21_iron_craft.ipynb`.
-- **M22 field craft** (`configs/m22_field_craft.yaml`): loads the M20 final weights, new replay, teacher v4 places the table and furnace beside the ore. Three map draws: iron pickaxe 5, 6, 6 versus v3's 3, 5, 4. Budget **100k**. No actor score yet. `notebooks/15_train_m22_field_craft.ipynb`.
+- **M22 field craft** (`configs/m22_field_craft.yaml`): **100k done, 2026-10-28.** Last quarter, all lives: geometric mean **24.2**, stone pickaxe **24/112**, teacher iron pickaxe **10/23** handoffs, plus one unaided craft at env **75,024** (finding 56). Actor-only last-200 is **13.1** because tagged lives leave that bucket. Held-out iron pickaxe **0/10**. Do not grind past 100k. `notebooks/15_train_m22_field_craft.ipynb`.
 
 ## Conventions
 
