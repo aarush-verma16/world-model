@@ -18,7 +18,9 @@ Actor lives with env_steps > 50,000: 36 lives, mean length 224, 18 under 200. Wa
 
 ## What changed
 
-The teacher also takes the step when health is 3 or below. That was turned off after the first 2k steps of the Saturday resume: 11 lives tagged, 0 iron pickaxes. The life ends 32 steps after the iron pickaxe, or after 200 idle teacher steps, instead of running toward 10,000. Half the cloning rows are ordinary teacher-life slices again (eat, sleep, fight). The other half still end on the craft button. Each train cycle returns unused CUDA blocks to the allocator. That does not make a fresh process faster than 0.87.
+The teacher also takes the step when health is 3 or below. That was turned off after the first 2k steps of the Saturday resume: 11 lives tagged, 0 iron pickaxes. The life ends 32 steps after the iron pickaxe, or after 200 idle teacher steps, instead of running toward 10,000. Half the cloning rows are ordinary teacher-life slices again (eat, sleep, fight). The other half still end on the craft button. Returning unused CUDA blocks every train cycle did not make a fresh process faster than 0.87, and on the M23 start it synced the driver while the card was full. That call is no longer in the cycle.
+
+M23's first logged windows were 0.18, then 0.28, 0.28, and 0.34 env/s. A finished M22 kernel from 2026-10-28 was still a CUDA process. After env 768 the M23 kernel stopped scheduling: GPU utilization 1%, 40 W, about 910 MHz, every thread waiting. `vram_alloc` on those lines was already 13.78 GiB, so the weights were on the card and the step was not running.
 
 ## Failed alternatives
 

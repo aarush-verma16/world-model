@@ -39,6 +39,7 @@ from training.device import (
     get_device,
     make_grad_scaler,
     parse_amp,
+    require_free_vram,
     vram_peak_gb,
     warn_if_not_cuda,
 )
@@ -458,6 +459,7 @@ def main() -> None:
     configure_runtime(device)
     warn_if_not_cuda(device)
     print(f"device: {describe_device(device)}")
+    print(f"vram free {require_free_vram(device):.2f} GiB before the weights load")
 
     world_model, wm_cfg = load_seed_world_model(cfg, device)
     wm_train_cfg = overlay_wm_train(dict(wm_cfg["train"]), train)

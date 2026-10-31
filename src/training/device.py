@@ -42,6 +42,30 @@ def configure_runtime(device: torch.device) -> None:
     torch.set_float32_matmul_precision("high")
 
 
+def require_free_vram(device: torch.device, min_gib: float = 8.0) -> float:
+    """Refuse an XL start when another kernel already occupies the card.
+
+    Call this before loading weights. One XL step uses about 15 GiB. A
+    leftover notebook context leaves the first convolution on the
+    low-workspace algorithm and the fresh rate near 0.4 env/s.
+
+    Returns:
+        Free GiB. CPU and MPS return 0 and do not raise.
+    """
+    if device.type != "cuda":
+        return 0.0
+    free, total = torch.cuda.mem_get_info(device)
+    free_gib = float(free) / (1024**3)
+    total_gib = float(total) / (1024**3)
+    if free_gib < float(min_gib):
+        raise RuntimeError(
+            f"only {free_gib:.1f} GiB free of {total_gib:.1f} GiB. "
+            "Shut down every other notebook kernel and restart this one. "
+            "One XL trainer fills this card."
+        )
+    return free_gib
+
+
 def describe_device(device: torch.device) -> str:
     """One-line hardware summary for logs and the device notebook."""
     if device.type == "cuda":

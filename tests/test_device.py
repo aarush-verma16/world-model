@@ -36,6 +36,26 @@ def test_to_device_moves_tensors() -> None:
     assert out["label"] == "keep"
 
 
+def test_require_free_vram_skips_cpu() -> None:
+    from training.device import require_free_vram
+
+    assert require_free_vram(torch.device("cpu")) == 0.0
+
+
+def test_require_free_vram_refuses_a_full_card(monkeypatch) -> None:
+    import pytest
+
+    from training.device import require_free_vram
+
+    monkeypatch.setattr(
+        torch.cuda,
+        "mem_get_info",
+        lambda device=None: (1 * 1024**3, 16 * 1024**3),
+    )
+    with pytest.raises(RuntimeError, match="Shut down every other notebook kernel"):
+        require_free_vram(torch.device("cuda"))
+
+
 def test_get_device_returns_torch_device() -> None:
     device = get_device()
     assert isinstance(device, torch.device)

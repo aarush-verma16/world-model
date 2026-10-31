@@ -143,12 +143,10 @@ def outer_cycle(
 
     Returns the last WM / AC metric dicts (or None if that side ran 0 updates).
     """
-    # The 60k run slid from ~0.9 to 0.5 env/s while a fresh process on the
-    # same checkpoint holds ~0.87 (finding 55). The card stays full
-    # (reserved ~14.7 GiB). Give the caching allocator its unused blocks
-    # back once per cycle. This does not make a fresh process faster.
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    # Do not call empty_cache here. A fresh process is already ~0.9 env/s
+    # without it (finding 55). Calling it every cycle syncs the WDDM driver
+    # while the card is full; M23's first cycles sat near 0.3 env/s and the
+    # kernel then wedged with the GPU idle at ~40 W.
     collect_stats = collector.collect(int(collect_every))
 
     wm_metrics: dict[str, float] | None = None

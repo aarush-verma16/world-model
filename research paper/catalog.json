@@ -797,6 +797,7 @@
     "Reading M22 0.52 env/s at 60k as the step itself (a fresh process on that checkpoint is 0.87 at 2910 MHz)",
     "expandable_segments on this Windows build (unsupported), encoder checkpointing, or batch 4 to speed the XL step (0.80s and 0.82s vs 0.72s)",
     "Counting a life the teacher saved at health <= 3 as the actor's length or the actor's iron pickaxe",
+    "Calling torch.cuda.empty_cache at the start of every outer cycle (it does not speed a fresh process, and the M23 kernel then wedged with the GPU idle)",
     "Reading M22 actor-only last-200 13.1 at 100k as the policy collapsing (combined last quarter is 24.2; stone pickaxe is 24/112 and the teacher tags the life after that craft)",
     "Treating the two unaided iron-pickaxe lives (env 25024 and 75024) as a held-out skill (0/10 at 25k, 50k, 75k, and 100k)",
     "Captioning M22's combined geometric mean 23, which counts the teacher's post-handoff achievements, as the actor's Crafter score",

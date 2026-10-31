@@ -623,6 +623,7 @@ def test_m23_and_m24_each_change_one_switch() -> None:
         assert f"teacher_version must be {version}" in text
         assert f"craft_window_fraction must be {window}" in text
         assert "assist_teacher_kwargs" in text
+        assert "require_free_vram" in text
         assert "field_craft=True" not in text
         assert "m22_field_craft" in text
         assert sibling in text
