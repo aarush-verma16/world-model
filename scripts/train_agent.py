@@ -32,7 +32,7 @@ from envs.crafter_env import register_crafter_envs
 from models.world_model import WorldModel
 from training.ckpt import resolve_outer_resume
 from training.collect import Collector
-from training.crafter_teacher import CrafterTeacherV2
+from training.crafter_teacher import CrafterTeacherV2, assist_teacher_kwargs
 from training.device import (
     configure_runtime,
     describe_device,
@@ -555,10 +555,13 @@ def main() -> None:
     craft_assist_prob = float(train.get("craft_assist", 0.0) or 0.0)
     craft_teacher = None
     if craft_assist_prob > 0.0:
-        craft_teacher = CrafterTeacherV2(
-            seed=int(cfg["seed"]), craft_now=True, field_craft=True
+        teacher_version = int(train.get("teacher_version", 2) or 2)
+        teacher_flags = assist_teacher_kwargs(teacher_version)
+        craft_teacher = CrafterTeacherV2(seed=int(cfg["seed"]), **teacher_flags)
+        print(
+            f"craft assist {craft_assist_prob:.2f}: teacher v{teacher_version} "
+            f"craft_now={teacher_flags['craft_now']} field_craft={teacher_flags['field_craft']}"
         )
-        print(f"craft assist {craft_assist_prob:.2f}: teacher finishes after a stone pickaxe")
     collector = Collector(
         collect_env,
         world_model,

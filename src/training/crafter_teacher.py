@@ -807,6 +807,23 @@ def craft_assist_active(info: dict[str, Any] | None) -> bool:
     return stone_px >= 1 and iron_px < 1
 
 
+def assist_teacher_kwargs(version: int) -> dict[str, bool]:
+    """`(craft_now, field_craft)` for the takeover teacher.
+
+    Matches `seed_teacher_episodes`: version 3 crafts the pickaxe and walks
+    home; version 4 places the station inside the 9×7 crop. The collector
+    and the seeded replay must use the same flags or the ablation changes
+    two teachers at once.
+
+    Returns:
+        `craft_now` and `field_craft` booleans.
+    """
+    v = int(version)
+    if v not in (1, 2, 3, 4):
+        raise ValueError(f"teacher version must be 1, 2, 3, or 4, got {version}")
+    return {"craft_now": v >= 3, "field_craft": v >= 4}
+
+
 def survival_assist_active(info: dict[str, Any] | None) -> bool:
     """True when this step would otherwise be the combat death.
 

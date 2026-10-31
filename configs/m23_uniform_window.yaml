@@ -1,0 +1,103 @@
+# M23 — M22 with the craft window turned off.
+#
+# One switch. Teacher v4 still places the table and furnace beside the ore.
+# craft_window_fraction is 0, so a teacher row is an ordinary slice of that
+# life. Half the batch is still teacher lives. Same M20 final weights, fresh
+# replay, 100k, eval never calls the teacher.
+#
+# Do not run beside M22 or M24. One XL trainer already reserves ~15 GiB.
+
+seed: 0
+actor_input_source: truth
+
+world_model_config: configs/sizes/dreamer_xl_paper_local.yaml
+world_model_ckpt: checkpoints/m20_local_map/ckpt_final.pt
+actor_critic_ckpt: checkpoints/m20_local_map/ckpt_final.pt
+reset_actor: false
+seed_replay: null
+
+env:
+  id: CrafterReward-v1
+  action_dim: 17
+
+actor:
+  hidden: 1024
+  layers: 5
+  unimix: 0.01
+
+critic:
+  hidden: 1024
+  layers: 5
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+  slow_target: true
+  slow_target_fraction: 0.02
+  slow_target_update: 1
+
+train:
+  batch_size: 8
+  seq_len: 64
+  amp: bf16
+  env_steps: 100000
+  collect_every: 16
+  train_ratio: 512
+  wm_updates: 16
+  ac_updates: 16
+  ac_warmup_env: 0
+  max_episode_steps: 10000
+  prefill_steps: 2500
+  prefill_mask_illegal: true
+  teacher_episodes: 32
+  teacher_max_steps: 800
+  teacher_fraction: 0.5
+  teacher_version: 4
+  teacher_inject_every: 25000
+  teacher_inject_episodes: 8
+  bc_scale: 1.0
+  # Once a life has a stone pickaxe, v4 plays through the iron pickaxe.
+  # Those lives are tagged assisted and are not the actor score. The life
+  # ends 32 steps after the pickaxe, so the leftover tail is not stored as
+  # a teacher episode. survival_assist (health <= 3) tagged 11 lives after
+  # env 61k and added 0 iron pickaxes, so it stays off.
+  # Every teacher row is an ordinary slice. The craft button is not anchored.
+  craft_assist: 1.0
+  survival_assist: false
+  craft_window_fraction: 0.0
+  assist_tail_steps: 32
+  assist_idle_stop: 200
+  pretrain_steps: 100
+  pretrain_wm_steps: 100
+  replay_max_steps: 1000000
+  eval_every: 25000
+  eval_episodes: 10
+  eval_max_steps: 10000
+  eval_seed: 100000
+  horizon: 15
+  start_mode: all
+  imag_gradient: reinforce
+  wm_lr: 1.0e-4
+  actor_lr: 3.0e-5
+  critic_lr: 3.0e-5
+  entropy_scale: 3.0e-4
+  lam: 0.95
+  discount: 0.997
+  dyn_scale: 0.5
+  rep_scale: 0.1
+  free_nats: 1.0
+  inventory_scale: 1.0
+  spatial_scale: 1.0
+  local_scale: 1.0
+  local_object_weight: 4.0
+  wm_max_grad_norm: 1000.0
+  ac_max_grad_norm: 100.0
+  log_every: 256
+  # A figure on every log (256) blocks the notebook channel (finding 08, 49).
+  dashboard_every: 5000
+  image_every: 50000
+  checkpoint_every: 25000
+  replay_every: 50000
+  log_dir: runs/m23_uniform_window
+  checkpoint_dir: checkpoints/m23_uniform_window
+  results_dir: results/m23_uniform_window
+  replay_out: data/m23_uniform_window_replay.pt

@@ -570,3 +570,64 @@ def test_m22_loads_m20_and_crafts_at_the_ore() -> None:
     assert "clear_output(wait=True)" in text
     assert "if history:" in text
 
+
+def test_m23_and_m24_each_change_one_switch() -> None:
+    import ast
+    import json
+
+    import yaml
+
+    from training.crafter_teacher import assist_teacher_kwargs
+
+    assert assist_teacher_kwargs(3) == {"craft_now": True, "field_craft": False}
+    assert assist_teacher_kwargs(4) == {"craft_now": True, "field_craft": True}
+
+    specs = (
+        (
+            "configs/m23_uniform_window.yaml",
+            "notebooks/16_train_m23_uniform_window.ipynb",
+            "m23_uniform_window",
+            4,
+            0.0,
+            "m24_walk_home",
+        ),
+        (
+            "configs/m24_walk_home.yaml",
+            "notebooks/17_train_m24_walk_home.ipynb",
+            "m24_walk_home",
+            3,
+            0.5,
+            "m23_uniform_window",
+        ),
+    )
+    for yaml_path, nb_path, slug, version, window, sibling in specs:
+        cfg = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
+        train = cfg["train"]
+        assert int(train["teacher_version"]) == version
+        assert float(train["craft_window_fraction"]) == window
+        assert float(train["craft_assist"]) == 1.0
+        assert train["survival_assist"] is False
+        assert int(train["env_steps"]) == 100_000
+        assert cfg["reset_actor"] is False
+        assert cfg["seed_replay"] is None
+        assert "m20_local_map" in str(cfg["world_model_ckpt"]).replace("\\", "/")
+        assert "m20_local_map" in str(cfg["actor_critic_ckpt"]).replace("\\", "/")
+        for key in ("checkpoint_dir", "log_dir", "results_dir", "replay_out"):
+            path = str(train[key]).replace("\\", "/")
+            assert slug in path
+            assert "m22_field_craft" not in path
+            assert "m20_local_map" not in path
+        nb = json.loads(Path(nb_path).read_text(encoding="utf-8"))
+        text = "\n".join("".join(cell["source"]) for cell in nb["cells"])
+        assert f"configs/{slug}.yaml" in text
+        assert f"teacher_version must be {version}" in text
+        assert f"craft_window_fraction must be {window}" in text
+        assert "assist_teacher_kwargs" in text
+        assert "field_craft=True" not in text
+        assert "m22_field_craft" in text
+        assert sibling in text
+        assert 'RESUME = \\"auto\\"' in Path(nb_path).read_text(encoding="utf-8") or 'RESUME = "auto"' in text
+        for cell in nb["cells"]:
+            if cell["cell_type"] == "code":
+                ast.parse("".join(cell["source"]))
+
