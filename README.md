@@ -1,10 +1,10 @@
-# Fieldcraft
+# PROSPECT
 
-Fieldcraft is a Dreamer agent for [Crafter](https://github.com/danijar/crafter) that crafts inside the tiles it can see. The world model is DreamerV3's RSSM: it learns a compressed predictive model from pixels and trains its policy inside imagined rollouts. The actor also reads a 9×7 symbolic map of those tiles, and is behavior-cloned from a teacher that places the crafting station on the map. A craft that happens outside that view never becomes an action the actor can copy.
+**PROSPECT** (Policy Readout of Observed Spatial Patches Executes Crafts on Tiles) is a Dreamer agent for [Crafter](https://github.com/danijar/crafter) that crafts inside the tiles it can see. A prospect is the ground in view, searched for what can be taken from it. The world model is DreamerV3's RSSM: it learns a compressed predictive model from pixels and trains its policy inside imagined rollouts. The actor also reads a 9×7 symbolic map of those tiles, and is behavior-cloned from a teacher that places the crafting station on the map. A craft that happens outside that view never becomes an action the actor can copy.
 
-Working title: *Fieldcraft: teaching a Dreamer agent to craft inside the tiles it can see.*
+Working title: *PROSPECT: Policy Readout of Observed Spatial Patches Executes Crafts on Tiles.*
 
-Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally. M20–M22 are the Fieldcraft runs. M6–M19 are the Dreamer baseline those runs are measured against. The problem and method are in [`research paper/PROBLEM.md`](research%20paper/PROBLEM.md). The evidence archive is [`research paper/`](research%20paper/README.md).
+Built in PyTorch for **Windows + NVIDIA CUDA** (RTX 5080). No cloud APIs in the training or inference path — everything runs locally. M20–M22 are the PROSPECT runs. M6–M19 are the Dreamer baseline those runs are measured against. The problem and method are in [`research paper/PROBLEM.md`](research%20paper/PROBLEM.md). The evidence archive is [`research paper/`](research%20paper/README.md).
 
 <p align="center">
   <img src="results/m1/recon_final.png" alt="Real vs reconstructed Crafter frames" width="720" />
@@ -159,7 +159,7 @@ notebooks/     Interactive exploration (inline figures)
 scripts/       CLI entry points (including setup_windows.ps1)
 results/       Figures and rollouts
 docs/          MkDocs source
-research paper/  Findings archive for the Fieldcraft draft
+research paper/  Findings archive for the PROSPECT draft
 paper/         Paper draft and figures
 ```
 

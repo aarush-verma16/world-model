@@ -2,7 +2,7 @@
 
 This folder is **not the paper**. It is a living dump of *our* findings — mechanisms, negative results, and workstation-scale facts that are **not** restatements of DreamerV3 — so a later arXiv draft can be spun from evidence instead of memory.
 
-The method name is **Fieldcraft**. It is a DreamerV3 world model whose actor also reads a 9×7 symbolic map of the tiles in view, and is behavior-cloned from a teacher that places the crafting station on those tiles. The RSSM is still Dreamer's. Fieldcraft is the policy-side change: a craft that happens outside that map does not show up as an action the actor can copy. Working title: *Fieldcraft: teaching a Dreamer agent to craft inside the tiles it can see.*
+The method name is **PROSPECT**: Policy Readout of Observed Spatial Patches Executes Crafts on Tiles. A prospect is the ground in view, searched for what can be taken from it. It is a DreamerV3 world model whose actor also reads a 9×7 symbolic map of the tiles in view, and is behavior-cloned from a teacher that places the crafting station on those tiles. The RSSM is still Dreamer's. PROSPECT is the policy-side change: a craft that happens outside that map does not show up as an action the actor can copy. Working title: *PROSPECT: Policy Readout of Observed Spatial Patches Executes Crafts on Tiles.*
 
 The problem, the method, and which numbers are allowed in the draft are in [`PROBLEM.md`](PROBLEM.md). Actor scores below were recomputed from the collect logs on 2026-10-21. Teacher counts of 8 lives are not a result.
 
