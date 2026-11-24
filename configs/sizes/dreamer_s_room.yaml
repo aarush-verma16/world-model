@@ -1,0 +1,53 @@
+# Size S with the room's 4x4 field. Five actions. No Crafter inventory head.
+# Do not point a Crafter run at this file.
+
+seed: 0
+
+encoder:
+  embed_dim: 4096
+  channels: [32, 64, 128, 256]
+  blocks: 1
+
+rssm:
+  deter_dim: 512
+  stoch: 32
+  classes: 32
+  hidden: 512
+  unimix: 0.01
+  act: silu
+  initial: learned
+  rec_depth: 1
+  prior_layers: 2
+
+decoder:
+  channels: [256, 128, 64, 32]
+  blocks: 1
+  output_activation: linear
+
+heads:
+  hidden: 512
+  layers: 2
+  reward_bins: 255
+  reward_low: -20.0
+  reward_high: 20.0
+
+local_map:
+  cells: 16
+  n_material_classes: 4
+  n_object_classes: 2
+
+env:
+  id: room
+  action_dim: 5
+
+train:
+  dyn_scale: 1.0
+  rep_scale: 0.5
+  free_nats: 1.0
+  free_nats_dyn: 0.0
+  recon_scale: 1.0
+  reward_scale: 1.0
+  continue_scale: 1.0
+  kl_scale: 1.0
+  local_scale: 1.0
+  local_object_weight: 4.0

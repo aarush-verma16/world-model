@@ -2,7 +2,7 @@
   "title": "World-model findings archive (not the paper)",
   "method": "Fieldcraft",
   "method_sentence": "A DreamerV3 world model whose actor reads a 9x7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles.",
-  "updated": "2026-10-29",
+  "updated": "2026-11-23",
   "diagnostics": {
     "advantage_alignment": {
       "script": "scripts/diag_advantage_alignment.py",
@@ -676,6 +676,70 @@
       "tags": ["eval"],
       "one_liner": "M22 closed at 100k on 2026-10-28. Last quarter: stone pickaxe 24/112, teacher iron pickaxe 10/23 of those handoffs, plus one unaided craft at env 75,024. Actor-only last-200 is 13.1 because tagged lives leave that bucket. Held-out iron pickaxe is 0/10.",
       "paper_spin": "The actor's measured step is reaching a stone pickaxe, higher in the last quarter than M20's finished window. Field placement finishes the iron pickaxe on about four handoffs in ten. The unaided craft is two lives."
+    },
+    {
+      "id": 57,
+      "file": "findings/57-m23-uniform-window-same-two-lives.md",
+      "title": "With the craft window off, the unaided iron craft is still two lives",
+      "tags": ["eval"],
+      "one_liner": "M23 closed at 100k on 2026-11-03 with ordinary teacher slices. Last quarter stone pickaxe 37/111 and iron pickaxe 14/111, two of them unaided (env 25,136 and 75,024). Held-out iron pickaxe is 0/10, the same unaided outcome as M22 with the craft button anchored.",
+      "paper_spin": "Anchoring the craft button did not change the unaided result: two collect lives, held-out iron pickaxe 0/10. The station-placement switch is the one this pair does not measure."
+    },
+    {
+      "id": 58,
+      "file": "findings/58-m24-45k-walk-home-one-in-five.md",
+      "title": "At 45k the walk-home teacher finishes iron on about 1 handoff in 5",
+      "tags": ["eval"],
+      "one_liner": "M24 paused at env 44,800 on 2026-11-07. Stone pickaxe 62/231. Walk-home teacher iron pickaxe 11/60 handoffs. Actor iron pickaxe 0/171. Held-out at 25k is 21.3 with iron pickaxe 0/10. Step rate about 0.9 env/s.",
+      "paper_spin": "Walking the station home has not stopped the handoff. At the halfway save the teacher finishes iron less often than the field teacher's full run, and the actor has no unaided iron pickaxe yet."
+    },
+    {
+      "id": 59,
+      "file": "findings/59-m24-70k-one-unaided-craft.md",
+      "title": "By 70k the walk-home actor has one unaided iron pickaxe",
+      "tags": ["eval"],
+      "one_liner": "M24 is at env 69,888 on 2026-11-13 and still stepping. One untagged iron pickaxe at env 50,016 (length 100). Latest window the teacher finished 6 of 16 handoffs. Held-out iron pickaxe is 0/10 at 50k. Stone pickaxe is 82/334.",
+      "paper_spin": "Walking the station home has not blocked one unaided craft. At 70k that craft is a single short life, and the held-out iron pickaxe is still 0/10."
+    },
+    {
+      "id": 60,
+      "file": "findings/60-m24-100k-teacher-finish-halved.md",
+      "title": "Walking the station home halved the teacher's finish rate and left two short actor crafts",
+      "tags": ["eval"],
+      "one_liner": "M24 closed at 100k on 2026-11-14. Teacher iron pickaxe 23/114 handoffs, against 23/60 and 44/121 with the station in the crop. Untagged crafts at env 50,016 (length 100) and 75,024 (length 74). Held-out iron pickaxe 0/10 at every checkpoint. Last quarter stone pickaxe 30/107.",
+      "paper_spin": "The crop switch cut the teacher's finish rate from about two handoffs in five to about one in five. The actor's unaided count stayed at two, both short, and held-out iron pickaxe stayed 0/10."
+    },
+    {
+      "id": 61,
+      "file": "findings/61-field-head-names-grass-not-the-station.md",
+      "title": "The field head names grass, and puts almost no probability on the station or the ore",
+      "tags": ["qualitative"],
+      "one_liner": "On eight teacher lives the mode of z_posterior names materials at 72% of cells, against a 54% grass baseline. Table probability is 0.13 to 0.16. Coal, iron, and furnace are near 0.03, 0.01, and 0.05. M22, M23, and M24 agree. By imagination step 15 the field is back at the grass baseline.",
+      "paper_spin": "The latent carries the terrain. The average field loss hides that it does not carry the station or the ore, because most cells are grass. Imagination trains the actor on this field."
+    },
+    {
+      "id": 62,
+      "file": "findings/62-room-crop-is-one-tile.md",
+      "title": "The room station is one 16×16 tile, in the crop or one cell behind the agent",
+      "tags": ["geometry"],
+      "one_liner": "RoomEnv renders the 4×4 tiles in front of the agent at 16×16 pixels. The training env only scores the pose the config asked for. Both teachers share the three-step walk, then a 48-step hold and use, so a 32-step anchored window sees only that pose. The training result is finding 63.",
+      "paper_spin": "This is the geometry of the second setting. The training read is finding 63. The station fills one encoder cell when it is in the crop, and it is absent from the image when the agent faces away."
+    },
+    {
+      "id": 63,
+      "file": "findings/63-room-field-names-the-station.md",
+      "title": "The room field head names the station tile; the policy comparison does not",
+      "tags": ["qualitative", "eval"],
+      "one_liner": "On a correct teacher episode the mode of z_posterior names the station cell (probability about 1 on the trained pose, false station 0). A 15-step z_prior rollout keeps that field. Actor use at 8k is 14/56, 5/53, 12/56, and 6/54, and the last evals are 3/8, 2/8, 2/8, 2/8. Half the teacher episodes are 160 no-ops, so the window gap is not identified.",
+      "paper_spin": "The second setting's latent names a tile that fills one encoder cell. The Crafter field head did not. The action half of the 2×2 waits on a rerun whose demonstrations all leave the start. That rerun is finding 64."
+    },
+    {
+      "id": 64,
+      "file": "findings/64-room-use-learned-in-every-cell.md",
+      "title": "In the room, use is learned with the station behind the agent and with the window off",
+      "tags": ["eval", "qualitative"],
+      "one_liner": "The 2026-11-23 rerun has 8/8 real teacher episodes in every cell. Actor use is 124/147, 85/110, 185/190, and 130/138. Final eval is 8/8 in all four. Posterior station recall is 1 and false station is 0. Anchored successes cluster near 36–38 steps; uniform lengths spread out. Real eval still reads the environment field.",
+      "paper_spin": "Once the station fills an encoder cell and the episode is short, use is learned with the station behind the agent and with an ordinary window. The window changes the length of the successful episode. The benchmark sentence stays findings 57, 60, and 61."
     }
   ],
   "do_not_revive": [
@@ -801,6 +865,30 @@
     "Reading M22 actor-only last-200 13.1 at 100k as the policy collapsing (combined last quarter is 24.2; stone pickaxe is 24/112 and the teacher tags the life after that craft)",
     "Treating the two unaided iron-pickaxe lives (env 25024 and 75024) as a held-out skill (0/10 at 25k, 50k, 75k, and 100k)",
     "Captioning M22's combined geometric mean 23, which counts the teacher's post-handoff achievements, as the actor's Crafter score",
-    "Grinding M22 past 100k for a third unaided iron pickaxe"
+    "Grinding M22 past 100k for a third unaided iron pickaxe",
+    "Reading M23 actor-only stone pickaxe 3/322 as the handoff dying (combined last quarter is 37/111; the teacher tags the life after that craft)",
+    "Reading M23's 44 assisted iron pickaxes or combined geometric mean 26 as the actor's score",
+    "Treating M23's two unaided iron-pickaxe lives as evidence the craft window does not matter for a held-out skill (held-out is 0/10 with the window and 0/10 without it)",
+    "Grinding M23 past 100k because the last actor entropy is 0.057",
+    "Reading M24 actor-only score 12.8 or stone pickaxe 2/171 at env 45k as the handoff dying (combined stone pickaxe is 62/231)",
+    "Treating M24's 11/60 walk-home iron pickaxes at env 45k as the finished comparison to the field teacher's full-run four in ten",
+    "Counting M24 assisted iron pickaxes as the actor's craft (through env 70k the untagged iron pickaxe is one life, env 50,016, length 100)",
+    "Treating M24's env 50,016 iron pickaxe as a held-out skill (held-out iron pickaxe is 0/10 at 0, 25k, and 50k)",
+    "Reading M24's 50k held-out score 15.4 as a collapse after 21.3 at 25k (one bag of 10 lives)",
+    "Reading M24 actor-only last-200 13.9 or stone pickaxe 4/349 as the handoff dying (last quarter stone pickaxe is 30/107)",
+    "Reading M24's 23 assisted iron pickaxes or combined geometric mean 25.5 as the actor's score",
+    "Treating M24's two short unaided lives (env 50,016 length 100 and env 75,024 length 74) as a held-out skill (0/10 at every checkpoint)",
+    "Reading the walk-home switch as an actor iron-pickaxe count of zero (the matched count is two, the same as M22 and M23)",
+    "Grinding M24 past 100k",
+    "Reading field-head cell accuracy of 72% as the latent naming the station (table probability is 0.13 to 0.16; iron is about 0.01)",
+    "Reading object accuracy 97.6% as the field head seeing creatures (114,205 of 116,235 cells are empty)",
+    "Reading wm_local near 0.02 at 100k as the station being named (that average is mostly grass)",
+    "Loading a Crafter 17-action checkpoint into the room (the room has 5 actions and a 4×4 field)",
+    "Reading the room use counts 14/56, 5/53, 12/56, and 6/54 as the loss window transferring the action (half the teacher episodes are 160 no-ops, and the n=8 evals are 3/8, 2/8, 2/8, 2/8)",
+    "Reading room eval success near 0.25 as a solved room",
+    "Resuming the 2026-11-17 room checkpoints (the replay still holds the no-op teacher episodes)",
+    "Reading the 2026-11-17 room counts as the rerun (the 2026-11-23 actor use counts are 124/147, 85/110, 185/190, and 130/138, and the final eval is 8/8 in every cell)",
+    "Reading the room eval of 8/8 as the benchmark rare action (held-out iron pickaxe stayed 0/10, and that field head did not name the station)",
+    "Reading the away-pose room successes as imagination acting without the station (eval steps are given the environment field, which on those successes does not contain the station)"
   ]
 }

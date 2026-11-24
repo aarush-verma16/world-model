@@ -66,6 +66,7 @@ def actor_critic_step(
     scaler: torch.amp.GradScaler,
     max_grad_norm: float = 100.0,
     bc_scale: float = 0.0,
+    craft_ids: tuple[int, ...] | None = None,
     metrics: bool = True,
 ) -> tuple[ActorCriticLoss, dict[str, float], Any]:
     """Imagine `horizon` steps and update actor + critic. World model frozen.
@@ -155,10 +156,11 @@ def actor_critic_step(
         if float(bc_scale) > 0.0 and "teacher" in batch:
             if start_mode != "all":
                 raise ValueError("bc_scale > 0 needs start_mode='all' (posteriors per step)")
+            ids = FIELD_CRAFT_ACTIONS if craft_ids is None else craft_ids
             teacher_w = bc_step_weight(
                 batch["teacher"],
                 batch["actions"],
-                craft_ids=tuple(sorted(FIELD_CRAFT_ACTIONS)),
+                craft_ids=tuple(sorted(ids)),
             )
             bc_frac = float((batch["teacher"].float() > 0).float().mean())
             if bc_frac > 0.0:

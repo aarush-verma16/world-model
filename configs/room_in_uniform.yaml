@@ -1,0 +1,45 @@
+# Station in the crop, ordinary slices of the teacher episode.
+# One switch from room_in_anchored: craft_window_fraction is 0.
+
+name: room_in_uniform
+seed: 0
+station_in_view: true
+actor_input_source: truth
+resume: auto
+world_model_config: configs/sizes/dreamer_s_room.yaml
+
+dirs:
+  checkpoints: checkpoints/room_in_uniform
+  results: results/room_in_uniform
+
+actor:
+  hidden: 256
+  layers: 2
+  unimix: 0.01
+critic:
+  hidden: 256
+  layers: 2
+  num_bins: 255
+  low: -20.0
+  high: 20.0
+
+train:
+  env_steps: 8000
+  collect_every: 160
+  batch_size: 8
+  seq_len: 32
+  train_ratio: 256
+  horizon: 8
+  teacher_episodes: 8
+  teacher_fraction: 0.5
+  craft_window_fraction: 0.0
+  bc_scale: 1.0
+  entropy_scale: 3.0e-4
+  hold_steps: 48
+  max_episode_steps: 160
+  eval_every: 2000
+  eval_episodes: 8
+  log_every: 256
+  checkpoint_every: 4000
+  amp: bf16
+  lr: 1.0e-4

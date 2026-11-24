@@ -116,7 +116,7 @@ def features_real(
             parts.append(_spatial_columns(face_t, obj_t, near_t.unsqueeze(0), n_materials=n, dtype=feat.dtype))
     if world_model.local_map_head is not None:
         head = world_model.local_map_head
-        parsed_local = local_map_from_info(info)
+        parsed_local = local_map_from_info(info, cells=int(head.cells))
         if parsed_local is None:
             width = head.cells * (head.n_material_classes + head.n_object_classes)
             parts.append(torch.zeros(1, width, device=feat.device, dtype=feat.dtype))

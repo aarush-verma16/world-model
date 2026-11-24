@@ -215,7 +215,10 @@ def spatial_from_info(
     return MATERIAL_INDEX[name], occupied, nearby
 
 
-def local_map_from_info(info: dict[str, Any] | None) -> tuple[np.ndarray, np.ndarray] | None:
+def local_map_from_info(
+    info: dict[str, Any] | None,
+    cells: int = LOCAL_CELLS,
+) -> tuple[np.ndarray, np.ndarray] | None:
     """`info` -> `(materials [LOCAL_CELLS] uint8, objects [LOCAL_CELLS] uint8)`.
 
     Flattened x-major (`x * 7 + y`). `None` when the env did not report a
@@ -225,7 +228,7 @@ def local_map_from_info(info: dict[str, Any] | None) -> tuple[np.ndarray, np.nda
         return None
     mats = np.asarray(info["local_materials"], dtype=np.uint8).reshape(-1)
     objs = np.asarray(info["local_objects"], dtype=np.uint8).reshape(-1)
-    if mats.shape != (LOCAL_CELLS,) or objs.shape != (LOCAL_CELLS,):
+    if mats.shape != (int(cells),) or objs.shape != (int(cells),):
         return None
     return mats, objs
 
