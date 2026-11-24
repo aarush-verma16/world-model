@@ -2,6 +2,8 @@
 
 **Claim.** M24 finished env 100,000 on 2026-11-14. The station is walked home, outside the 9×7 crop, and the craft window stays on. The teacher made an iron pickaxe on 23 of 114 stone-pickaxe handoffs (20%). M22 was 23/60 and M23 was 44/121, both about 37%. The actor's own iron pickaxe is two lives, env 50,016 (length 100, return 7.0) and env 75,024 (length 74, return 6.0). Held-out iron pickaxe is 0/10 at every checkpoint. Last quarter stone pickaxe is 30/107.
 
+**Correction (2026-11-24).** "Outside the 9×7 crop" holds for the walk home, not for the craft. Crafter's `make_*` checks `world.nearby(pos, 1)`, the 3×3 around the player, and that is always inside the 9×7. In M24 the station is out of the field while the teacher walks back from the ore and in the field for the last steps before the craft. Only the room (finding 64) puts the station outside the image at the action.
+
 ## Why this is not the paper
 
 Two unaided lives is the same count as both field-station runs, and the held-out iron pickaxe is zero in all three. The crop switch separated the teacher's finish rate. It did not separate the actor's iron pickaxe into a zero.

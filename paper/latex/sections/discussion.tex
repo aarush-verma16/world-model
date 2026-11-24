@@ -1,0 +1,41 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What the latent has to contain.}
+A Dreamer-style actor learns from imagined rollouts, so an action can only acquire value in imagination if the imagined state distinguishes the situation in which the action pays off.
+In \method{} we can read that distinction directly from the field head.
+On the benchmark, the field head trained on the latent reached 72\% of cells, nearly all of the margin over the grass baseline came from terrain, and the station was named with probability 0.13--0.16 in the posterior and recall 0.08 after fifteen imagined steps.
+In the room, where the station fills one encoder cell, it was named with probability above 0.98.
+The actor learned the rare action where the station was named and did not where it was not, across both training conditions in each setting.
+That co-occurrence is the paper's main observation.
+It is consistent with the latent being the bottleneck, but two settings that differ in many ways cannot establish it.
+
+\paragraph{What the benchmark runs do and do not show.}
+They show that, at 100k steps from a shared checkpoint, neither anchoring the cloning window on the rare action nor placing the station beside the resource changed what the latent names or how often the actor performs the rare action.
+They show that placement changed how often the demonstrations that enter replay contain the rare action.
+They do not show that either condition is irrelevant in general: each is a single seed, the training-time unaided count is censored by the handoff, held-out evaluation is ten lives, and the benchmark's rare craft comes only after a long sequence of earlier achievements and survival.
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item \emph{The actor reads the true field on real steps.} Every reported run gives the acting policy the environment's field, including at evaluation. The policy is trained on the predicted field in imagination, and the cloning term uses the true field. A run in which real steps read the predicted field would test whether the model alone can act, and we have not reported one.
+  \item \emph{A second route on the benchmark.} In imagination, the benchmark's crafting actions are masked using the model's predicted inventory and neighborhood (\cref{sec:setup-crafter}). If that head does not predict the station nearby, the rare craft cannot be chosen in an imagined rollout at all. That would be a deficit of the same kind as the field head's, through a different head; we did not probe it. The room has no mask.
+  \item \emph{One seed per configuration.} The differences between conditions that we report as absent are absent in one seed; the differences in the room's success timing are also from one seed.
+  \item \emph{Small held-out sets.} Ten lives per benchmark checkpoint and eight episodes per room evaluation bound the resolution of every success rate we report.
+  \item \emph{The room is easy.} It has a fixed layout and a single action. It isolates the station's visibility and the window, and nothing else from the benchmark.
+  \item \emph{Model scale differs between settings.} The benchmark uses the XL configuration and the room a small one, chosen for the size of each observation's content; we do not vary scale within a setting.
+\end{itemize}
+
+\paragraph{Directions.}
+Four experiments follow directly.
+Probing the benchmark's neighborhood head, with the same protocol as the field head, would show whether the action mask removed the rare craft from imagined rollouts.
+Running the actor on the predicted field at real steps would remove the privileged input and test the model alone.
+Weighting the field loss toward rare classes, or raising the encoder's spatial resolution so a tile is no smaller than a latent cell, would test whether naming the station on the benchmark changes the actor's count.
+Repeating the benchmark comparison over several seeds would turn the absence of an effect into an estimate of its size.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+\method{} adds a local symbolic field head to a Dreamer world model, lets the actor read that field, and uses it to ask what the latent names.
+On Crafter, the latent names terrain and not the crafting station, and neither anchoring demonstrations on the rare action nor placing the station beside the resource changed that or the actor's unaided count.
+In a room where the station fills one encoder cell, the latent names it and the same recipe learns the rare action in every condition, including with the station behind the agent.
+Probing the field a policy is trained on, rather than its reconstructions, is a direct way to see which of these two situations a world model is in.

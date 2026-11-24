@@ -1,0 +1,96 @@
+\section{\method{}}
+\label{sec:method}
+
+\method{} is a DreamerV3 world model \citep{hafner2023dreamerv3} with one extra prediction head and one change to how demonstrations enter replay.
+\Cref{fig:architecture} shows the graph.
+This section names no item from either environment; \cref{sec:setup} does.
+
+\begin{figure}[t]
+  \centering
+  \input{sections/fig_architecture}
+  \caption{\method{}. The encoder embedding $e_t$ enters only the posterior. One decoder and every head read $\mathrm{feat}_t=[h_t, z_t]$. The field head predicts a material and an object class for each of $C$ cells around the agent. The actor reads $\mathrm{feat}_t$ and a field $\phi_t$. In imagination, $\phi_t$ is the field head's softmax on $[h_t,\zprior_t]$. On real steps in every reported run, $\phi_t$ is the environment's field (dashed).}
+  \label{fig:architecture}
+\end{figure}
+
+\subsection{World model}
+\label{sec:method-wm}
+
+Observations $x_t$ are $64\times64$ RGB frames.
+A convolutional encoder maps each frame to an embedding $e_t$.
+The RSSM \citep{hafner2019planet} carries a deterministic state $h_t$ and a stochastic state of 32 categorical variables with 32 classes each \citep{hafner2021dreamerv2}:
+\begin{align}
+  h_t &= f_\theta(h_{t-1}, z_{t-1}, a_{t-1}) && \text{(GRU \citep{cho2014gru})} \\
+  \zpost_t &\sim q_\theta(z_t \mid h_t, e_t) && \text{(posterior, real data)} \\
+  \zprior_t &\sim p_\theta(z_t \mid h_t) && \text{(prior, imagination)}
+\end{align}
+The posterior sees the current frame through $e_t$; the prior does not, and imagination rolls the prior alone.
+Samples are drawn with straight-through gradients \citep{bengio2013estimating}.
+A single decoder reconstructs $x_t$ from $\mathrm{feat}_t = [h_t, z_t]$ and from nothing else, together with reward and continuation heads on the same features.
+The decoder input is a design constraint, not a default: any second reconstruction path that bypasses $\zpost_t$ gives the optimizer a way to lower pixel loss without putting information into the latent (\cref{app:bypass}).
+
+The world-model loss is the DreamerV3 objective plus the field term below:
+\begin{equation}
+  \mathcal{L}_{\mathrm{wm}} = \mathcal{L}_{\mathrm{img}} + \mathcal{L}_{\mathrm{rew}} + \mathcal{L}_{\mathrm{cont}} + \lambda_{\mathrm{f}}\mathcal{L}_{\mathrm{field}}
+  + \beta_{\mathrm{dyn}}\max\!\big(1, \mathrm{KL}[\mathrm{sg}(q)\,\|\,p]\big) + \beta_{\mathrm{rep}}\max\!\big(1, \mathrm{KL}[q\,\|\,\mathrm{sg}(p)]\big),
+\end{equation}
+where $\mathrm{sg}$ stops gradients and each KL, summed over the 32 latent variables, is floored at one nat as in DreamerV3 (the room model drops the floor on the dynamics term; \cref{app:hyper}).
+$\mathcal{L}_{\mathrm{img}}$ is the squared error summed over pixels.
+
+\subsection{Field head}
+\label{sec:method-field}
+
+The field is a $C$-cell grid around the agent, in the agent's frame.
+Each cell $c$ has a material label $m_c \in \{1,\dots,M\}$ and an object label $o_c \in \{1,\dots,O\}$, read from the environment during training.
+The field head is an MLP on $\mathrm{feat}_t$ that outputs $C$ categorical distributions over materials and $C$ over objects:
+\begin{equation}
+  \mathcal{L}_{\mathrm{field}} = \frac{1}{C}\sum_{c=1}^{C} \Big[ -\log p_\theta(m_c \mid \mathrm{feat}_t) - w(o_c) \log p_\theta(o_c \mid \mathrm{feat}_t) \Big],
+\end{equation}
+with $w(o_c)=4$ on cells that hold an object and 1 on empty cells, because almost every cell is empty.
+The field is a training target for the latent.
+It exists because the tile an action uses can be smaller than one cell of the encoder's final feature map, in which case reconstruction does not force the latent to say which material is on that tile (\cref{app:geometry}).
+
+\subsection{What the actor reads}
+\label{sec:method-actor}
+
+The actor and critic are MLPs on $u_t = [\mathrm{feat}_t, \phi_t]$, where $\phi_t \in \mathbb{R}^{C(M+O)}$ is a field.
+They are trained on imagined rollouts of horizon $H$ from every posterior state of a replay batch, with the DreamerV3 actor loss: REINFORCE on percentile-normalized $\lambda$-return advantages with an entropy bonus, and a two-hot critic with a slow target \citep{hafner2023dreamerv3}.
+Imagination has no environment, so there $\phi_t$ is the softmax of the field head on $[h_t, \zprior_t]$.
+We use the softmax rather than the argmax so that an uncertain cell reaches the actor as uncertain.
+An environment can add further symbolic heads that the actor reads in the same way, and an action mask computed from them; the benchmark model has both (\cref{sec:setup-crafter}), and the room model has neither.
+
+On a real step, $\phi_t$ can come from the same head on $[h_t, \zpost_t]$, or from the environment.
+In every run in this paper it comes from the environment, as one-hot labels.
+The policy that acts in the environment therefore sees the true field, while the policy gradient it learns from is computed on the predicted one.
+If the field head does not name a tile in imagination, the actor receives no imagined return for the action that tile enables, even though it would see that tile when acting.
+
+\subsection{Demonstrations in replay}
+\label{sec:method-demos}
+
+A scripted demonstrator produces episodes that are stored in the same replay as the actor's episodes, with a per-step demonstrator flag.
+A fraction $\rho_T$ of the sequences in every batch are drawn from demonstrator episodes; the rest are drawn uniformly from all of replay.
+The same batches train the world model and the actor-critic.
+
+The actor additionally minimizes a behavior-cloning term on the posterior states of the batch \citep{pomerleau1988alvinn}:
+\begin{equation}
+  \mathcal{L}_{\mathrm{bc}} = \frac{\sum_{t} w_t \, \big[-\log \pi(a_t \mid u_t)\big]}{\sum_t w_t},
+  \qquad
+  w_t = \mathbb{1}[\text{demonstrator step}] \cdot \big(\kappa \text{ if } a_t \in \rareset \text{ else } 1\big),
+\end{equation}
+added to the actor loss with weight 1, where $\rareset$ is a small set of rare actions and $\kappa=8$.
+The cloning term uses the same input $u_t$ the actor uses on real steps.
+
+\subsection{The two conditions}
+\label{sec:method-switches}
+
+\paragraph{Window anchoring.}
+A demonstrator episode is long, and the rare action occurs once or a few times near its end.
+A window of length $L$ drawn uniformly from such an episode rarely contains it, and the cloning loss can approach zero while the rare action is absent from nearly every window (\cref{app:window}).
+With probability $\rho_A$, a demonstrator draw is instead an \emph{anchored} window that ends on a step with $a_t\in\rareset$.
+The \emph{uniform} condition sets $\rho_A=0$.
+The weight $\kappa$ applies in both conditions whenever the rare action is in the window.
+
+\paragraph{Tile placement.}
+The demonstrator decides where the action-relevant tile is while it approaches and performs the rare action.
+In the \emph{inside} condition it keeps that tile within the field the head is trained to name.
+In the \emph{outside} condition the tile is outside the field for part of the demonstration.
+How much of the demonstration that is depends on the environment's rules, and we give it for each setting in \cref{sec:setup}.

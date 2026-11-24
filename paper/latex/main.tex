@@ -1,0 +1,64 @@
+\documentclass[10pt]{article}
+
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage{microtype}
+\usepackage{amsmath,bm}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.4em}
+
+\graphicspath{{figures/}}
+\input{generated/numbers.tex}
+
+\newcommand{\zpost}{z^{\mathrm{post}}}
+\newcommand{\zprior}{z^{\mathrm{prior}}}
+\newcommand{\method}{\textsc{Prospect}}
+\newcommand{\rareset}{\mathcal{R}}
+
+\title{\method{}: Does a World Model's Latent Name\\the Tile a Rare Action Needs?}
+
+\author{
+  Aarus\\
+  Independent researcher\\
+  \texttt{(contact e-mail)}
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/related}
+\input{sections/method}
+\input{sections/setup}
+\input{sections/latent}
+\input{sections/benchmark}
+\input{sections/room}
+\input{sections/discussion}
+
+\section*{Disclosure}
+An AI coding and writing assistant was used to implement parts of the training and analysis code and to draft the text of this paper. The author directed the work, ran every training run, and checked every number against the logs; all numbers are regenerated from those logs by the script described in \cref{app:repro}.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\clearpage
+\appendix
+\input{sections/appendix}
+
+\end{document}

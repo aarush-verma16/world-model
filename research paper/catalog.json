@@ -707,7 +707,7 @@
       "file": "findings/60-m24-100k-teacher-finish-halved.md",
       "title": "Walking the station home halved the teacher's finish rate and left two short actor crafts",
       "tags": ["eval"],
-      "one_liner": "M24 closed at 100k on 2026-11-14. Teacher iron pickaxe 23/114 handoffs, against 23/60 and 44/121 with the station in the crop. Untagged crafts at env 50,016 (length 100) and 75,024 (length 74). Held-out iron pickaxe 0/10 at every checkpoint. Last quarter stone pickaxe 30/107.",
+      "one_liner": "M24 closed at 100k on 2026-11-14. Teacher iron pickaxe 23/114 handoffs, against 23/60 and 44/121 with the station in the crop. Correction 2026-11-24: the station is outside the 9x7 during the walk home, not at the craft, since Crafter crafts only within one tile of the station. Untagged crafts at env 50,016 (length 100) and 75,024 (length 74). Held-out iron pickaxe 0/10 at every checkpoint. Last quarter stone pickaxe 30/107.",
       "paper_spin": "The crop switch cut the teacher's finish rate from about two handoffs in five to about one in five. The actor's unaided count stayed at two, both short, and held-out iron pickaxe stayed 0/10."
     },
     {

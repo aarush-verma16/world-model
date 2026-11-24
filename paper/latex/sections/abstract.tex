@@ -1,0 +1,11 @@
+\begin{abstract}
+A world model trained to reconstruct pixels has no reason to encode the one small tile that a rare action depends on: the reconstruction loss is dominated by large, frequent content, and at common encoder strides a single latent cell is larger than that tile.
+We study \method{}, a DreamerV3-style recurrent state-space model with a single decoder and a \emph{field head} that predicts a local symbolic map (a material and an object class for every cell around the agent) from the latent state.
+The actor reads that predicted field during imagination; in every run reported here, it reads the environment's field on real steps, including evaluation.
+We vary two training conditions that should matter if the field is the bottleneck: where the action-relevant tile sits relative to the field, and whether training windows over demonstrations are anchored on the rare action.
+On Crafter, probed on \FieldCells{} cells, the field head reaches 72\% cell accuracy against a \FieldBaseline\% all-grass baseline, but assigns the crafting station a mean probability of only 0.13--0.16.
+Across three matched 100k-step runs, the actor performs the rare craft unaided in exactly two training lives in each run and in none of 10 held-out lives at any checkpoint, while a demonstrator given control finishes it on 23/60, 44/121, and 23/114 handoffs.
+In a controlled room where the station occupies exactly one encoder cell, the field head names the station with probability above 0.98, and the actor learns the rare action in all four conditions, including when the station is behind the agent and when windows are not anchored; anchoring changes when the actor acts (median successful episode 36--38 vs.\ 42--46 steps), not whether it does.
+Each configuration is a single seed.
+The pattern is consistent with the benchmark failure lying in what the latent names, since imagination is where the actor is trained, rather than in where the demonstration places the tile. The room differs from the benchmark in more than that one respect, and we do not claim it isolates the cause.
+\end{abstract}

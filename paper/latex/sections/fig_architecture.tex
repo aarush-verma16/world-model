@@ -1,0 +1,34 @@
+\begin{tikzpicture}[
+    font=\footnotesize,
+    >={Stealth[length=1.6mm]},
+    box/.style={draw, rounded corners=1.5pt, minimum height=6mm, inner sep=3pt, align=center, fill=white},
+    state/.style={box, fill=blue!6},
+    head/.style={box, fill=orange!10, minimum width=27mm},
+    act/.style={box, fill=green!8},
+    lab/.style={font=\scriptsize, inner sep=1.5pt},
+  ]
+  \node[box]   (x)     at (0, 0)      {$x_t$ ($64{\times}64$)};
+  \node[box]   (enc)   at (2.2, 0)    {encoder};
+  \node[state] (post)  at (4.7, 0)    {posterior $q_\theta(z_t \mid h_t, e_t)$};
+  \node[state] (h)     at (4.7, 1.45) {$h_t = f_\theta(h_{t-1}, z_{t-1}, a_{t-1})$};
+  \node[state] (prior) at (8.6, 1.45) {prior $p_\theta(z_t \mid h_t)$};
+  \node[box, fill=blue!12] (feat) at (8.6, 0) {$\mathrm{feat}_t = [h_t, z_t]$};
+  \node[head]  (dec)   at (12.6, 0.85)  {decoder $\hat x_t$};
+  \node[head]  (rc)    at (12.6, 0)     {reward, continue};
+  \node[head]  (field) at (12.6, -0.85) {field head ($C$ cells)};
+  \node[act]   (actor) at (8.6, -1.9) {actor $\pi(a_t \mid \mathrm{feat}_t, \phi_t)$ and critic};
+  \node[box, dashed] (envf) at (2.2, -1.9) {environment field};
+
+  \draw[->] (x) -- (enc);
+  \draw[->] (enc) -- node[lab, above] {$e_t$} (post);
+  \draw[->] (h) -- (post);
+  \draw[->] (h) -- (prior);
+  \draw[->] (post) -- node[lab, below] {$\zpost_t$ (real)} (feat);
+  \draw[->] (prior) -- node[lab, left] {$\zprior_t$ (imagination)} (feat);
+  \draw[->] (feat.east) -- ++(0.55,0) coordinate (fork) |- (dec.west);
+  \draw[->] (fork) -- (rc.west);
+  \draw[->] (fork) |- (field.west);
+  \draw[->] (feat) -- (actor);
+  \draw[->] (field.south) |- node[lab, pos=0.25, right] {$\phi_t$: softmax (imagination)} (actor.east);
+  \draw[->, dashed] (envf) -- node[lab, above] {$\phi_t$: one-hot (real steps)} (actor);
+\end{tikzpicture}

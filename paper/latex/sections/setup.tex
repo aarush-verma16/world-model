@@ -1,0 +1,91 @@
+\section{Experimental setup}
+\label{sec:setup}
+
+We use one model family in two settings of very different difficulty.
+\Cref{tab:hyper} in \cref{app:hyper} lists every hyperparameter.
+
+\subsection{Benchmark: Crafter}
+\label{sec:setup-crafter}
+
+Crafter \citep{hafner2022crafter} renders a $64\times64$ image of the $9\times7$ tiles around the agent plus an inventory strip.
+The field is that $9\times7$ grid ($C=63$), with $M=13$ material classes and $O=8$ object classes, read from the environment's semantic map.
+The agent has 17 actions.
+We use the reward version of the environment, \texttt{CrafterReward-v1}.
+
+\paragraph{Rare action.}
+The rare-action set $\rareset$ is the three actions that build or use a furnace: placing it, and crafting the iron pickaxe and the iron sword.
+We report the iron pickaxe.
+It needs wood, coal, and iron in the inventory and both a crafting table and a furnace (together, the \emph{station}) within one tile of the agent.
+Under Crafter's rules, that three-by-three neighborhood always lies inside the $9\times7$ field, so at the moment of the craft the station is inside the field in every run.
+
+\paragraph{Model and schedule.}
+The world model is the DreamerV3 XL configuration as we implemented it: convolutional channels (96, 192, 384, 768) with two residual blocks per stage, a 4096-unit deterministic state, and a $32\times32$ categorical stochastic state.
+Its final feature map is $4\times4$, so one latent cell covers $16\times16$ pixels, while a Crafter tile is 7 pixels wide (\cref{app:geometry}).
+Each run trains for 100k environment steps with batch 8, sequence length 64, train ratio 512, and imagination horizon 15, in bf16 on one 16\,GB GPU.
+
+\paragraph{Additional inputs and action masking.}
+The benchmark model has two heads that the room model does not: an inventory head and a head for the faced material and the set of materials in the three-by-three neighborhood.
+The actor reads their outputs alongside the field, and, like the field, they come from the environment on real steps and from the heads in imagination.
+The placing and crafting actions are masked by Crafter's legality rules, computed from the true inventory and neighborhood on real steps and from the predicted ones in imagination.
+In imagination, the rare craft is therefore selectable only when the model predicts the station in the agent's neighborhood.
+We did not probe the neighborhood head separately; \cref{sec:discussion} returns to this.
+
+\paragraph{Starting checkpoint.}
+All three runs start from the same checkpoint, an earlier 200k-step run of the same architecture with a demonstrator that played whole lives.
+That run made the iron pickaxe in \StartRare{} of its \StartLives{} lives.
+Each run starts with fresh replay, 32 demonstrator episodes of at most 800 steps, and 8 more every 25k steps.
+Half of each batch is drawn from demonstrator episodes ($\rho_T=0.5$).
+
+\paragraph{Handoff.}
+Once an actor's life has a stone pickaxe and no iron pickaxe, the demonstrator takes over for the rest of that life, which ends 32 steps after the craft.
+The life is flagged \emph{assisted}, stored as a demonstrator episode, and excluded from every count of the actor's own crafts (\cref{app:accounting}).
+The fraction of handoffs on which the demonstrator finishes the iron pickaxe measures how often the demonstrations that enter replay actually contain the rare action.
+
+\paragraph{Runs.}
+The three runs differ in one condition each.
+\emph{Beside resource, anchored}: the demonstrator carries materials, places a table and a furnace next to the iron it has found, and crafts there, so the station is in the field for the whole final approach; anchored windows ($\rho_A=0.5$).
+\emph{Beside resource, uniform}: the same demonstrator with $\rho_A=0$.
+\emph{At home, anchored}: the demonstrator crafts at the station it built earlier in the life and walks back to it from the ore, so the station is outside the field during that walk and enters it only in the last steps before the craft; $\rho_A=0.5$.
+
+\paragraph{Evaluation.}
+Every 25k steps, ten lives are played by the actor alone, from fixed seeds, with no demonstrator and no handoff.
+We report, for each run, the number of actor lives (no assisted flag) with the iron pickaxe, the demonstrator's finishes out of handoffs, and the held-out count out of ten.
+
+\subsection{Second setting: a room}
+\label{sec:setup-room}
+
+The room is a fixed $9\times9$ grid with walls on the border and one station cell.
+The agent starts four cells south of the station, facing it.
+The observation is the $4\times4$ tiles in front of the agent, from one column to its left to two to its right and from one to four cells ahead, each tile drawn as a flat $16\times16$ color, so the frame is $64\times64$ (\cref{fig:room-crops}).
+With a stride-16 encoder the station occupies exactly one cell of the final feature map.
+The field is the same $4\times4$ crop ($C=16$), with $M=4$ materials (outside, floor, wall, station) and $O=2$ objects (none, station).
+There are five actions: no-op, turn left, turn right, forward, and \texttt{use}.
+
+\texttt{use} succeeds from the cell directly south of the station, whichever way the agent faces, and ends the episode with reward 1; episodes otherwise end after 160 steps.
+Facing north puts the station in the nearest row of the crop.
+Facing south puts it one cell behind the agent, outside the image.
+Each run constrains which pose scores: in the \emph{in crop} condition \texttt{use} succeeds only with the station in view, and in the \emph{behind agent} condition only with it out of view, so neither run can score in the other's pose.
+$\rareset = \{\texttt{use}\}$.
+
+Both demonstrators walk the same three steps to the cell south of the station.
+The behind-agent demonstrator then turns around.
+Both hold their pose for 48 no-ops and then press \texttt{use}, for episodes of 52 and 54 steps.
+The hold is longer than the window length $L=32$, so an anchored window contains the held pose and the action and never the walk; in the behind-agent condition it never contains the station.
+A uniform window of the same length usually does not end on \texttt{use}.
+The shortest successful episode is 4 steps in crop and 6 behind the agent.
+
+The world model is a small configuration: channels (32, 64, 128, 256) with one residual block per stage, a 512-unit deterministic state, and the same $32\times32$ categorical stochastic state.
+It has no checkpoint from the benchmark.
+Each of the four runs trains for 8,000 environment steps with batch 8, sequence length 32, train ratio 256, and horizon 8, after collecting eight demonstrator episodes; $\rho_T=0.5$ and $\rho_A\in\{0.5, 0\}$.
+There is no handoff.
+Every 2,000 steps, eight episodes are played by the actor alone.
+
+\subsection{Field probes}
+\label{sec:setup-probe}
+
+For each checkpoint we run the RSSM over demonstrator episodes and take the mode of each of the 32 categorical variables of $\zpost_t$, rather than a sample.
+We report cell accuracy, per-class recall, and the mean probability the field head assigns to the true class.
+On the benchmark the probe set is eight lives of at most 400 steps, four from each demonstrator, on eight fixed world seeds (training worlds are drawn at random), giving \FieldCells{} cells.
+We also roll the prior forward 15 steps from the posterior mode at every 32nd step, feeding the demonstrator's actions, and score the field decoded from the mode of $\zprior$ at steps 1, 5, and 15.
+In the room the probe set is one demonstrator episode per pose, and the prior rollout starts at the first frame of the hold.
+The room and its demonstrators are deterministic, so these are the same trajectories the models were trained on; the room probe measures what the latent encodes, not generalization.

@@ -1,0 +1,42 @@
+\section{The two conditions on the benchmark}
+\label{sec:benchmark}
+
+\Cref{tab:switches} gives the three matched runs.
+The actor's own count of the iron pickaxe was two lives in every run.
+None of the 15 held-out evaluations (five checkpoints in each of three runs, ten lives each) contained one.
+
+\begin{table}[t]
+  \centering
+  \caption{The two conditions on the benchmark, 100k environment steps each, one seed each, all from the same starting checkpoint. \emph{Teacher finishes}: lives in which the demonstrator, given control after the actor crafted a stone pickaxe, went on to craft the iron pickaxe, out of all such handoffs. \emph{Actor, unaided}: lives with no handoff in which the actor crafted the iron pickaxe. \emph{Held-out}: iron pickaxes in ten actor-only lives at 0, 25k, 50k, 75k, and 100k steps.}
+  \label{tab:switches}
+  \small
+  \input{generated/table_switches.tex}
+\end{table}
+
+\paragraph{Anchoring the window did not change the actor's count.}
+The anchored and uniform runs share a demonstrator and differ only in $\rho_A$.
+Both ended with two unaided iron pickaxes, out of \BenchMTwoTwoFieldCraftActor{} and \BenchMTwoThreeUniformWindowActor{} actor lives.
+Anchoring was introduced because, in an earlier short run with uniform windows only, the cloning loss had fallen from 0.247 to $7\times10^{-5}$ while the actor had made no iron pickaxe, and most demonstrator windows did not contain the craft (\cref{app:window}).
+Forcing the craft into half of the demonstrator windows for a full run did not move the count.
+The demonstrator's finish rate was similar in the two runs, 38\% and 36\%, so the two runs saw comparable demonstrations of the rare action.
+
+\paragraph{Station placement changed the demonstrations, not the actor's count.}
+With the station walked back to rather than placed beside the resource, the demonstrator finished 23 of 114 handoffs (20\%), against 23 of 60 and 44 of 121 (about 37\%) when it placed the station beside the resource.
+Replay therefore held roughly half as many completed demonstrations per handoff.
+The actor's count stayed at two.
+
+\paragraph{The held-out lives are the clean measurement.}
+During training, a handoff begins as soon as an actor life has a stone pickaxe, so most lives in which the actor could have gone on to the iron pickaxe were given to the demonstrator.
+The training-time unaided count is therefore censored by design, and we do not read two lives in several hundred as a difference between conditions in either direction.
+The six that did occur came in lives of 48 to 300 steps, at irregular points in training.
+Held-out lives have no handoff.
+At 100k steps the actor crafted the stone pickaxe in \BenchMTwoTwoFieldCraftHeldstonefinal{}, \BenchMTwoThreeUniformWindowHeldstonefinal{}, and \BenchMTwoFourWalkHomeHeldstonefinal{} of its ten held-out lives in the three runs, and the iron pickaxe in none.
+So the actor reached the precondition on its own, and with no demonstrator to take over, it still did not perform the rare action.
+
+\paragraph{What the benchmark runs show.}
+Both conditions changed something upstream of the actor.
+Anchoring changed which demonstration steps the cloning loss saw; station placement changed how often demonstrations contained the craft at all.
+Neither changed the field head, which named the station with probability below 0.16 in every run (\cref{sec:latent}), and neither changed the actor's count.
+Because the actor is trained on imagined rollouts in which the predicted field does not contain the station, it receives no imagined return for crafting beside it, whatever the demonstrations show; the cloning term, which does see the true field, is the only signal that does.
+The benchmark runs cannot separate this explanation from others, such as the length and survival demands of a Crafter life before the craft is reachable.
+The room removes those demands.

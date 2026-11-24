@@ -1,8 +1,8 @@
-# Fieldcraft paper source
+﻿# PROSPECT paper source
 
 This folder is the only input to the arXiv LaTeX draft. When that draft is written, read the files here and do not reconstruct the claim from the chat or from `research paper/`.
 
-`research paper/` is the lab archive: 64 findings, including dead ends, workstation notes, and one room run whose teacher file was half no-ops. Its README still carries an older working title. That title is not the paper.
+`research paper/` is the lab archive: 64 findings, including dead ends, workstation notes, and one room run whose teacher file was half no-ops. Its README still says Fieldcraft, an earlier name. The method is PROSPECT.
 
 | Path | What the draft pulls |
 | --- | --- |
@@ -13,15 +13,25 @@ This folder is the only input to the arXiv LaTeX draft. When that draft is writt
 | `figures/` | The images that go in the paper, with captions. |
 | `data/` | The logs and probe summaries the tables were scored from. Checkpoints and replay buffers stay in `checkpoints/` and `results/`. |
 
+## LaTeX draft
+
+`latex/main.tex` is the arXiv draft; `latex/sections/` holds one file per section. Every number, table, and plot comes from `data/`:
+
+1. `c:\Users\Aarus\miniforge3\envs\worldmodel\python.exe paper\scripts\build_assets.py` writes `latex/generated/` (macros, tables) and `latex/figures/*.pdf`.
+2. From `paper\latex`: `c:\Users\Aarus\miniforge3\envs\paper\Library\bin\tectonic.exe -X compile main.tex --keep-intermediates` builds `main.pdf` and `main.bbl`.
+3. `c:\Users\Aarus\miniforge3\envs\paper\python.exe paper\scripts\make_arxiv_tarball.py` packs `paper/arxiv_submission.tar.gz`.
+
+`latex/refs.bib` holds only entries verified against arXiv and proceedings pages; the per-entry notes are in `citations/`. `scripts/render_pages.py` renders the PDF to `latex/build_preview/` for a visual check.
+
 No citation in a later draft is invented here. Page numbers and DOIs are taken from the papers while the LaTeX is written.
 
-# Fieldcraft paper spine
+# PROSPECT paper spine
 
 This file locks the object of the paper and the order of the sections. It is not the draft.
 
 ## Object
 
-Fieldcraft is a Dreamer world model. Its latent state is trained to carry a local symbolic field, and its imagined rollouts read that field. On the benchmark the field names the terrain and does not name the station, and the actor's rare action stays at two lives whether or not the loss window is anchored. On the room the station is one encoder cell, the field head names it, and `use` is learned in every cell of that same 2×2, including when the station is behind the agent and when the window is an ordinary slice. Real steps still give the actor the environment's field.
+PROSPECT is a Dreamer world model. Its latent state is trained to carry a local symbolic field, and its imagined rollouts read that field. On the benchmark the field names the terrain and does not name the station, and the actor's rare action stays at two lives whether or not the loss window is anchored. On the room the station is one encoder cell, the field head names it, and `use` is learned in every cell of that same 2×2, including when the station is behind the agent and when the window is an ordinary slice. Real steps still give the actor the environment's field.
 
 The survival game used so far is one benchmark. The method section does not depend on that game's items. The score of a run is an experiment, not the subject.
 
@@ -40,7 +50,7 @@ About nine pages. References sit after the nine.
 2. **Related work.** World models and imagination. Privileged information used as a training target. Demonstrations inside an on-policy loop. Local maps as a representation the latent has to carry.
 3. **Method.** The RSSM, the single decoder, the field head, the loss window, and demonstrations used to put the relevant tile inside the field. No item from the benchmark in this section.
 4. **What the latent contains.** Reconstruction through `z_posterior`. The bypass result. Per-cell accuracy of the field head. Open-loop rollouts from `z_prior`, including whether the relevant tile is still named across the imagination horizon.
-5. **The two switches.** One benchmark, three matched runs. The loss window on or off. The relevant tile inside the field, or walked outside the crop the field covers.
+5. **The two switches.** One benchmark, three matched runs. The loss window on or off. The relevant tile inside the field for the whole approach, or outside it for the walk back to it. The benchmark's craft rule needs the station within one tile, so it is inside the field at the craft in all three runs.
 6. **The same model in a second setting.** A small room. The station is inside the crop the field head represents, or outside it. The rare action is anchored in the loss window, or averaged over the episode.
 7. **Discussion.** What the latent has to contain. What the benchmark runs do and do not show.
 
@@ -49,7 +59,7 @@ About nine pages. References sit after the nine.
 - A reconstruction path that skips `z_posterior` drives pixel loss down while the latent stays empty.
 - At this encoder resolution, one latent cell covers more than the tile the action uses.
 - A uniform slice of a long demonstration can miss the rare action while the cloning loss falls. Forcing that action into the window, over a full run, left the unaided count unchanged.
-- With the tile inside the crop, the demonstrator finished the rare action on 23 of 60 handoffs and on 44 of 121. With the tile walked outside the crop, it finished on 23 of 114. The actor's own count was two lives in every cell. A held-out execution of that action was 0 of 10 in every cell.
+- With the tile inside the crop, the demonstrator finished the rare action on 23 of 60 handoffs and on 44 of 121. With the station left at home and walked back to, outside the crop until the last steps, it finished on 23 of 114. The actor's own count was two lives in every cell. A held-out execution of that action was 0 of 10 in every cell.
 - The field head, read from the mode of `z_posterior` on eight teacher lives (116,235 cells), names materials at 72% of cells. The grass baseline is 54%. Grass probability is 0.93. Stone and path are about 0.52. Table is 0.13–0.16. Coal, iron, and furnace are about 0.03, 0.01, and 0.01–0.06. The three 100k checkpoints agree. A mode rollout of `z_prior` is about 70% at step 1 and 56–60% at step 15, against the 54% grass floor. The logged field loss near 0.02 is that average, and most cells are grass. Objects are 98% empty, so object accuracy 97.6% is the empty class.
 - The room, rerun on 2026-11-23 with 8/8 real teacher episodes in every cell. Actor `use` is 124/147, 85/110, 185/190, and 130/138. Eval at about 2k, 4k, 6k, and 8k is 7/8, 7/8, 8/8, 8/8; then 5/8, 4/8, 6/8, 8/8; then 8/8 four times; then 7/8, 8/8, 8/8, 8/8. Every success has the pose that cell requires. The posterior names the station cell on both poses (recall 1, false station 0). A 15-step `z_prior` rollout matches the pose the run trained. Anchored success lengths cluster near 36 and 38 steps. Uniform lengths spread from the teens to past the teacher's 52. The 2026-11-17 counts are not this comparison.
 
@@ -66,3 +76,4 @@ The field-head measurements are in, on the benchmark and on the room, and the ro
 ## Claims the draft will not make
 
 The acting policy in the current runs reads the environment's field on real steps. The unaided count on the benchmark was two with the tile inside the crop and two with it outside. A held-out execution of that action was absent in every benchmark cell. The room's 8/8 is a different, short action, and it is not that benchmark result. Those sentences stay in the experiments section.
+

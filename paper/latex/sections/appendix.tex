@@ -1,0 +1,132 @@
+\section{Hyperparameters}
+\label{app:hyper}
+
+\begin{table}[h]
+  \centering
+  \caption{Hyperparameters. Both settings use one seed per run.}
+  \label{tab:hyper}
+  \small
+  \begin{tabular}{l l l}
+    \toprule
+    & Benchmark (Crafter) & Room \\
+    \midrule
+    Encoder channels, residual blocks per stage & (96, 192, 384, 768), 2 & (32, 64, 128, 256), 1 \\
+    Embedding size & 12{,}288 & 4{,}096 \\
+    Deterministic state $h$; RSSM MLP width & 4{,}096; 1{,}024 & 512; 512 \\
+    Stochastic state & $32\times32$ categorical & $32\times32$ categorical \\
+    Decoder & mirrored, linear output & mirrored, linear output \\
+    Head MLPs & 5 layers $\times$ 1{,}024 & 2 layers $\times$ 512 \\
+    Field cells $C$, materials $M$, objects $O$ & 63, 13, 8 & 16, 4, 2 \\
+    Field object weight $w$ & 4 & 4 \\
+    Other heads & reward, continue, inventory, neighborhood & reward, continue \\
+    Actor, critic MLPs & 5 layers $\times$ 1{,}024 & 2 layers $\times$ 256 \\
+    Action unimix & 0.01 & 0.01 \\
+    \midrule
+    Environment steps & 100{,}000 & 8{,}000 \\
+    Batch $\times$ sequence length $L$ & $8\times64$ & $8\times32$ \\
+    Train ratio & 512 & 256 \\
+    Imagination horizon $H$ & 15 & 8 \\
+    Discount, $\lambda$ & 0.997, 0.95 & 0.997, 0.95 \\
+    Entropy scale & $3\times10^{-4}$ & $3\times10^{-4}$ \\
+    Learning rates (world model; actor, critic) & $10^{-4}$; $3\times10^{-5}$ & $10^{-4}$; $10^{-4}$ \\
+    $\beta_{\mathrm{dyn}}$, $\beta_{\mathrm{rep}}$ & 0.5, 0.1 & 1.0, 0.5 \\
+    Free nats (dynamics; representation) & 1; 1 & 0; 1 \\
+    Precision & bf16 & bf16 \\
+    \midrule
+    Demonstrator fraction $\rho_T$ & 0.5 & 0.5 \\
+    Anchored fraction $\rho_A$ & 0.5 or 0 & 0.5 or 0 \\
+    Rare-action weight $\kappa$, cloning weight & 8, 1 & 8, 1 \\
+    Rare-action set $\rareset$ & place furnace, iron pickaxe, iron sword & \texttt{use} \\
+    Demonstrator episodes & 32 at start ($\le$800 steps), 8 per 25k & 8 at start \\
+    Handoff & after stone pickaxe, ends 32 steps after craft & none \\
+    Evaluation & 10 lives every 25k & 8 episodes every 2k \\
+    Episode cap & 10{,}000 & 160 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The benchmark run's KL scales follow the DreamerV3 paper; the room's size configuration used the larger scales listed and no floor on the dynamics term.
+We did not tune either setting's world-model hyperparameters for this paper.
+
+\section{Identifiability notes}
+\label{app:identifiability}
+
+\subsection{A reconstruction path that skips the posterior}
+\label{app:bypass}
+
+An earlier version of our world model had a second decoder that reconstructed the frame from the encoder embedding $e_t$, alongside the decoder on $[h_t,\zpost_t]$, and the decoder on $[h_t, \zpost_t]$ was trained through a frozen copy of its weights.
+The two paths share the encoder and the optimizer.
+The embedding decoder became a plain autoencoder: its reconstructions showed terrain and parts of the inventory, while reconstructions from $[h_t,\zpost_t]$ stayed close to a mean grass frame.
+At 12k steps the reconstruction error was about 0.032 (mean absolute) through the posterior and 0.027 through the bypass, and the summed loss looked healthy.
+Several fixes that targeted the posterior path (more decoder capacity, a spatial posterior, extra reconstruction terms on small regions) were each locally plausible given that graph and did not help.
+We removed the second path and trained the single decoder with live weights; at 50k steps the posterior reconstruction error was 0.0095, and the agent, trees, and inventory appeared in posterior reconstructions.
+The general point is that any reconstruction path that does not pass through $\zpost_t$ lets the optimizer pay the pixel loss without putting information into the latent, so a latent probe is only meaningful on a graph without one.
+
+\subsection{Tile size and latent cell size}
+\label{app:geometry}
+
+Crafter draws its $9\times7$ local view in 7-pixel tiles above a two-row inventory strip.
+A four-stage stride-2 encoder reduces the $64\times64$ frame to a $4\times4$ map, so one latent cell covers $16\times16$ pixels, more than two tiles in each direction.
+A decoder that upsamples with nearest-neighbor interpolation cannot place content within a cell: in a capacity test overfitting eight frames, a sub-pixel convolution decoder \citep{shi2016subpixel} reached 0.0076 mean absolute error on the inventory strip, against 0.0487 for nearest-neighbor upsampling.
+Even with a capable decoder, a reconstruction that is sharp on average does not imply that the latent states which material occupies a particular tile, because the per-pixel loss is dominated by large uniform regions.
+The field head makes that statement explicit and measurable.
+The room's tiles are 16 pixels, so each tile is exactly one latent cell.
+
+\subsection{A cloning loss that never sees the rare action}
+\label{app:window}
+
+In an earlier short run with uniform windows only, the cloning loss fell from 0.247 at 256 training steps to $7\times10^{-5}$ by 20,224 environment steps, while the actor made no iron pickaxe in 94 lives.
+Of the 32 demonstrator lives in replay, 22 contained the craft, around steps 170--245 of lives that were often 200--800 steps long.
+A 64-step window ends on the craft for about 64 of several hundred possible start positions, so a uniform draw contains it only a few percent of the time, and the averaged loss is indifferent to it.
+This motivated anchored windows and the weight $\kappa$.
+Over a full 100k-step run, anchoring did not change the actor's count (\cref{sec:benchmark}).
+
+\section{Accounting for demonstrator lives}
+\label{app:accounting}
+
+On the benchmark, the training log records every life with the achievements it unlocked and, for lives the demonstrator took over, an \emph{assisted} flag.
+A life's stone pickaxe is always crafted by the actor, because the handoff begins only after it.
+Everything after the handoff is the demonstrator's.
+We count a life as the actor's only if it has no assisted flag.
+A Crafter score computed over all lives would include achievements the demonstrator unlocked after handoffs, and we therefore do not report one as the method's score.
+
+In the beside-resource anchored run, \BenchMTwoTwoFieldCraftLives{} lives contain 84 assisted lives, of which 60 are stone-pickaxe handoffs.
+The other 24 form one block between 61,472 and 66,768 environment steps, when a rule that handed over lives at low health was briefly enabled; none has a stone pickaxe, they are excluded from both the handoff denominator and the actor's lives, and the rule was disabled for the other two runs.
+In the other two runs every assisted life is a stone-pickaxe handoff.
+Several lives can end within one logging interval and share an environment-step stamp; each log row is a distinct life.
+
+In the room there is no handoff.
+Demonstrator episodes are the eight collected before training, all of which scored, and every other episode is the actor's.
+
+\section{Additional results}
+\label{app:extra}
+
+\begin{table}[h]
+  \centering
+  \caption{Benchmark field under imagination. The posterior row repeats \cref{tab:field} as recall. Prior rows decode the field from the mode of $\zprior$ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace.}
+  \label{tab:prior}
+  \small
+  \input{generated/table_prior.tex}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \caption{Room field head from the mode of $\zpost$, one correct demonstrator episode per pose (52 station cells when facing, 4 when facing away, from the walk before the turn). \emph{False}: fraction of non-station cells predicted as station.}
+  \label{tab:room-probe}
+  \small
+  \input{generated/table_room_probe.tex}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{field-open-loop-station-inside.png}
+  \caption{Open-loop prediction from the beside-resource anchored run at 100k steps. Rows: environment frames, model frames (the first eight columns reconstruct from the posterior, the rest are imagined from the prior given the recorded actions), and absolute error. The segment is the probe window with the most station cells; the environment frames themselves are dark, as at night in Crafter's day cycle. The other two runs give visually similar strips. We report the field head, not these images.}
+  \label{fig:openloop}
+\end{figure}
+
+\section{Reproducibility}
+\label{app:repro}
+
+Every number, table, and plot in this paper is produced from the training logs and probe summaries by one script, which reads the per-life and per-episode logs, recounts the actor's and demonstrator's lives, and writes the tables and figures.
+The repository contains the world model, the field head, the room environment and demonstrator, the training loops for both settings, the probe scripts, and the configuration files for all seven runs.
+At the logged rate of 0.65--1.05 environment steps per second, a benchmark run took one to two days on one 16\,GB GPU; a room run took under an hour.

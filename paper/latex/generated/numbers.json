@@ -1,0 +1,372 @@
+{
+  "start_checkpoint": {
+    "lives": 944,
+    "rare": 3,
+    "last_env": 199936
+  },
+  "benchmark": {
+    "m22_field_craft": {
+      "lives": 444,
+      "actor_lives": 360,
+      "assisted_lives": 84,
+      "handoffs": 60,
+      "assisted_without_handoff": 24,
+      "assisted_without_handoff_env": [
+        61472,
+        66768
+      ],
+      "teacher_rare": 23,
+      "actor_rare": 2,
+      "actor_rare_lives": [
+        [
+          25024,
+          196
+        ],
+        [
+          75024,
+          300
+        ]
+      ],
+      "stone_all": 80,
+      "held_rare": [
+        [
+          0,
+          0
+        ],
+        [
+          25008,
+          0
+        ],
+        [
+          50000,
+          0
+        ],
+        [
+          75008,
+          0
+        ],
+        [
+          100000,
+          0
+        ]
+      ],
+      "held_stone": [
+        [
+          0,
+          3
+        ],
+        [
+          25008,
+          2
+        ],
+        [
+          50000,
+          2
+        ],
+        [
+          75008,
+          3
+        ],
+        [
+          100000,
+          4
+        ]
+      ],
+      "last_env": 99840
+    },
+    "m23_uniform_window": {
+      "lives": 443,
+      "actor_lives": 322,
+      "assisted_lives": 121,
+      "handoffs": 121,
+      "assisted_without_handoff": 0,
+      "assisted_without_handoff_env": [],
+      "teacher_rare": 44,
+      "actor_rare": 2,
+      "actor_rare_lives": [
+        [
+          25136,
+          268
+        ],
+        [
+          75024,
+          48
+        ]
+      ],
+      "stone_all": 124,
+      "held_rare": [
+        [
+          0,
+          0
+        ],
+        [
+          25008,
+          0
+        ],
+        [
+          50000,
+          0
+        ],
+        [
+          75008,
+          0
+        ],
+        [
+          100000,
+          0
+        ]
+      ],
+      "held_stone": [
+        [
+          0,
+          1
+        ],
+        [
+          25008,
+          2
+        ],
+        [
+          50000,
+          3
+        ],
+        [
+          75008,
+          3
+        ],
+        [
+          100000,
+          6
+        ]
+      ],
+      "last_env": 99728
+    },
+    "m24_walk_home": {
+      "lives": 463,
+      "actor_lives": 349,
+      "assisted_lives": 114,
+      "handoffs": 114,
+      "assisted_without_handoff": 0,
+      "assisted_without_handoff_env": [],
+      "teacher_rare": 23,
+      "actor_rare": 2,
+      "actor_rare_lives": [
+        [
+          50016,
+          100
+        ],
+        [
+          75024,
+          74
+        ]
+      ],
+      "stone_all": 118,
+      "held_rare": [
+        [
+          0,
+          0
+        ],
+        [
+          25008,
+          0
+        ],
+        [
+          50000,
+          0
+        ],
+        [
+          75008,
+          0
+        ],
+        [
+          100000,
+          0
+        ]
+      ],
+      "held_stone": [
+        [
+          0,
+          1
+        ],
+        [
+          25008,
+          4
+        ],
+        [
+          50000,
+          2
+        ],
+        [
+          75008,
+          3
+        ],
+        [
+          100000,
+          2
+        ]
+      ],
+      "last_env": 99968
+    }
+  },
+  "room": {
+    "room_in_anchored": {
+      "teacher": 8,
+      "teacher_success": 8,
+      "teacher_len": [
+        52
+      ],
+      "actor": 147,
+      "success": 124,
+      "timeouts": 23,
+      "len_p10": 31.0,
+      "len_p50": 36.0,
+      "len_p90": 38.0,
+      "evals": [
+        [
+          2045,
+          0.875,
+          8.0
+        ],
+        [
+          4180,
+          0.875,
+          8.0
+        ],
+        [
+          6241,
+          1.0,
+          8.0
+        ],
+        [
+          8010,
+          1.0,
+          8.0
+        ]
+      ],
+      "late": 37,
+      "late_success": 30,
+      "pose_ok": true,
+      "first_success": 332,
+      "last_env": 8010
+    },
+    "room_in_uniform": {
+      "teacher": 8,
+      "teacher_success": 8,
+      "teacher_len": [
+        52
+      ],
+      "actor": 110,
+      "success": 85,
+      "timeouts": 25,
+      "len_p10": 19.0,
+      "len_p50": 42.0,
+      "len_p90": 82.60000000000001,
+      "evals": [
+        [
+          2024,
+          0.625,
+          8.0
+        ],
+        [
+          4061,
+          0.5,
+          8.0
+        ],
+        [
+          6006,
+          0.75,
+          8.0
+        ],
+        [
+          8150,
+          1.0,
+          8.0
+        ]
+      ],
+      "late": 28,
+      "late_success": 25,
+      "pose_ok": true,
+      "first_success": 188,
+      "last_env": 8150
+    },
+    "room_out_anchored": {
+      "teacher": 8,
+      "teacher_success": 8,
+      "teacher_len": [
+        54
+      ],
+      "actor": 190,
+      "success": 185,
+      "timeouts": 5,
+      "len_p10": 34.0,
+      "len_p50": 38.0,
+      "len_p90": 45.599999999999994,
+      "evals": [
+        [
+          2060,
+          1.0,
+          8.0
+        ],
+        [
+          4033,
+          1.0,
+          8.0
+        ],
+        [
+          6087,
+          1.0,
+          8.0
+        ],
+        [
+          8080,
+          1.0,
+          8.0
+        ]
+      ],
+      "late": 48,
+      "late_success": 48,
+      "pose_ok": true,
+      "first_success": 355,
+      "last_env": 8080
+    },
+    "room_out_uniform": {
+      "teacher": 8,
+      "teacher_success": 8,
+      "teacher_len": [
+        54
+      ],
+      "actor": 138,
+      "success": 130,
+      "timeouts": 8,
+      "len_p10": 27.8,
+      "len_p50": 46.5,
+      "len_p90": 84.40000000000003,
+      "evals": [
+        [
+          2133,
+          0.875,
+          8.0
+        ],
+        [
+          4166,
+          1.0,
+          8.0
+        ],
+        [
+          6067,
+          1.0,
+          8.0
+        ],
+        [
+          8215,
+          1.0,
+          8.0
+        ]
+      ],
+      "late": 35,
+      "late_success": 35,
+      "pose_ok": true,
+      "first_success": 411,
+      "last_env": 8215
+    }
+  }
+}

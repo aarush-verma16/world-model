@@ -1,10 +1,10 @@
-# Method notes for the draft
+﻿# Method notes for the draft
 
 The method section names the model and the two conditions it was trained under. It does not name items from the benchmark. The experiment section may name the benchmark, the room, the runs, and the counts in `evidence.md`.
 
 ## Model
 
-Fieldcraft is a DreamerV3 RSSM with one decoder and a field head.
+PROSPECT is a DreamerV3 RSSM with one decoder and a field head.
 
 - The image is 64×64 RGB.
 - `z_posterior` is sampled from the deterministic state `h` and the encoder embedding of the current frame. `h` itself is computed from the previous posterior and the previous action, so it does not see the current frame.
@@ -17,14 +17,16 @@ Fieldcraft is a DreamerV3 RSSM with one decoder and a field head.
 - The actor and critic train on imagined rollouts of horizon 15 on the benchmark and horizon 8 in the room. Imagination has no environment state, so the field columns it reads are the softmax of the field head on `z_prior`.
 - On every run in this paper, a real step gives the actor the environment's field (`actor_input_source: truth`). Evaluation never calls the teacher. Real execution is not "pixels in, field guessed by the model, action out."
 
+- Benchmark only: the actor also reads inventory counts and the faced and nearby-material columns (truth on real steps, heads in imagination), and `place_*`/`make_*` are masked by legality, exact from `info` on real steps and from the predicted inventory and nearby materials in imagination (`legal_mask_from_facts_torch`). So in imagination the iron pickaxe is selectable only if the nearby head predicts table and furnace. That head was not probed. The room has no extra heads and no mask.
+
 ## The two training switches
 
 Both settings use the same two switches.
 
-1. Where the relevant tile sits relative to the crop the field head is trained to name. Inside that crop, or outside it at the moment of the rare action.
+1. Where the relevant tile sits relative to the crop the field head is trained to name. On the benchmark, inside the crop for the whole approach (placed beside the resource), or outside it for the walk back to it and inside only for the last steps, because the benchmark's craft rule needs the station within one tile, which is always inside the 9×7. In the room, inside the image at `use`, or behind the agent and absent from the image at `use`. Only the room puts the tile outside the crop at the action itself.
 2. Whether the loss window is anchored so that the rare action is the last step of the sampled sequence, or the window is an ordinary slice of a teacher episode.
 
-Teacher episodes are half the replay batch (`teacher_fraction` 0.5). Behavior cloning is action cross-entropy on steps flagged as teacher, weight 1, with the rare action up-weighted by 8 inside an anchored window. Entropy weight is `3e-4`. Cloning weight is 1. Evaluation does not use the teacher, and a life finished by the teacher is not counted as the actor's rare action.
+Teacher episodes are half the replay batch (`teacher_fraction` 0.5). Behavior cloning is action cross-entropy on steps flagged as teacher, weight 1, with the rare action up-weighted by 8 wherever it appears in the window. Entropy weight is `3e-4`. Cloning weight is 1. Evaluation does not use the teacher, and a life finished by the teacher is not counted as the actor's rare action.
 
 ## Benchmark protocol
 
@@ -33,7 +35,8 @@ Names in this subsection belong in the experiments, not the method.
 - Environment `CrafterReward-v1`, 17 actions, local map 9×7 (63 cells), 13 material classes, 8 object classes.
 - World model size XL, from `configs/sizes/dreamer_xl_paper_local.yaml`: embed 12288, channels `[96, 192, 384, 768]`, 2 residual blocks, deterministic size 4096, stochastic 32×32.
 - Batch 8, sequence 64, train ratio 512, 100k environment steps, one seed.
-- Three runs from the same M20 checkpoint, fresh replay: M22 anchors the craft window and the teacher places the station inside the crop; M23 is the same with the craft window off; M24 keeps the craft window and the teacher walks home, so the station is outside the 9×7 at the craft.
+- Three runs from the same M20 checkpoint, fresh replay: M22 anchors the craft window and the teacher places the station inside the crop; M23 is the same with the craft window off; M24 keeps the craft window and the teacher walks home, so the station is outside the 9×7 during the walk back from the ore. At the craft itself it is inside: Crafter's `make_*` checks `world.nearby(pos, 1)`, a 3×3 around the player.
+- Rare-action weight: the three station crafts (`place_furnace`, `make_iron_pickaxe`, `make_iron_sword`) weigh 8 in the cloning loss wherever they appear in a teacher window, anchored or not. The anchored draw (`craft_window_fraction` 0.5) is half of the teacher rows, and it applies to world-model and actor-critic batches alike.
 - The logged score on a teacher-finished life is not the actor's. `actor` counts are lives whose log has no assisted flag. Held-out eval is 10 lives and is reported as such.
 - Official score, if shown at all, is the geometric mean of the 22 achievement percents. It is not the claim. Do not put it next to DreamerV3's 14.5.
 
@@ -49,3 +52,4 @@ Names in this subsection belong in the experiments, not the method.
 ## What the method section must say in one paragraph
 
 The latent is trained to name a local field. Imagination reads the predicted field. The runs in the paper give the actor the true field on real steps, including evaluation. The two switches are the position of the relevant tile relative to that field, and whether the rare action is forced into the loss window.
+
