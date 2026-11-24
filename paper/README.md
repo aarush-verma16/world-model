@@ -1,6 +1,23 @@
+# Fieldcraft paper source
+
+This folder is the only input to the arXiv LaTeX draft. When that draft is written, read the files here and do not reconstruct the claim from the chat or from `research paper/`.
+
+`research paper/` is the lab archive: 64 findings, including dead ends, workstation notes, and one room run whose teacher file was half no-ops. Its README still carries an older working title. That title is not the paper.
+
+| Path | What the draft pulls |
+| --- | --- |
+| `README.md` | The locked claim, the seven sections, the measured evidence, and the sentences the draft will not write. |
+| `method.md` | The model, the two settings, and the training and eval protocol, split into what the method section may name and what only the experiments may name. |
+| `evidence.md` | The tables and the rounded numbers. Exact floats live in `data/`. |
+| `sources.md` | Which archive finding, log, checkpoint, and figure backs each section. |
+| `figures/` | The images that go in the paper, with captions. |
+| `data/` | The logs and probe summaries the tables were scored from. Checkpoints and replay buffers stay in `checkpoints/` and `results/`. |
+
+No citation in a later draft is invented here. Page numbers and DOIs are taken from the papers while the LaTeX is written.
+
 # Fieldcraft paper spine
 
-This file locks the object of the paper and the order of the sections. It is not the draft. No citation in a later draft is invented here.
+This file locks the object of the paper and the order of the sections. It is not the draft.
 
 ## Object
 

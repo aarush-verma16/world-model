@@ -1,5 +1,7 @@
 # PROSPECT — problem, method, and what counts
 
+Superseded on 2026-11-24. The draft is written from `paper/`, not from this file. The name PROSPECT and the policy-only claim below are the October 2026 problem statement. They are not the paper.
+
 This is the claim the draft has to be able to say. It is not the draft.
 
 ## Problem
