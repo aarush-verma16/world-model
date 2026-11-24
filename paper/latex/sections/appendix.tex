@@ -71,6 +71,7 @@ A decoder that upsamples with nearest-neighbor interpolation cannot place conten
 Even with a capable decoder, a reconstruction that is sharp on average does not imply that the latent states which material occupies a particular tile, because the per-pixel loss is dominated by large uniform regions.
 The field head makes that statement explicit and measurable.
 The room's tiles are 16 pixels, so each tile is exactly one latent cell.
+Transformer world models that tokenize Craftax-Classic frames as one token per 7-pixel tile avoid the mismatch by construction \citep{dedieu2025improving}.
 
 \subsection{A cloning loss that never sees the rare action}
 \label{app:window}

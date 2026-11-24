@@ -3,10 +3,11 @@
 
 An agent that plans or learns inside a model of its environment can only use what that model represents.
 World models compress observations into a latent state from which future observations, rewards, and episode ends can be predicted. They then train a policy on imagined rollouts of that state rather than on the environment \citep{ha2018worldmodels,hafner2019planet,hafner2020dreamer}.
-DreamerV3 \citep{hafner2023dreamerv3,hafner2025dreamerv3nature} made this recipe work across domains with fixed hyperparameters.
-What the latent state represents, however, is decided mostly by a pixel reconstruction loss.
-That loss weighs every pixel equally and is dominated by large, frequent regions of the frame.
+DreamerV3 \citep{hafner2023dreamerv3,hafner2025dreamerv3nature} made this recipe work across domains with fixed hyperparameters, and world models now range from interactive video simulators \citep{bruce2024genie,hafner2025dreamer4} to theory arguing that general agents must contain one \citep{richens2025general}.
+What the latent state of a reconstruction-trained world model represents, however, is decided mostly by a pixel loss.
+That loss weighs every pixel equally and is dominated by large, frequent regions of the frame; small task-critical elements can drop out of the reconstruction entirely \citep{burchi2024mudreamer}.
 A decision that depends on one small tile, such as crafting next to a workstation, gives the reconstruction loss almost nothing to pay for.
+Recent probing work shows that a model can predict well while encoding an incoherent picture of the world \citep{vafa2024evaluating,gonzalezlaiz2026limits}.
 This raises a representation question that a return curve cannot answer: \emph{does the agent's learned state contain the fact its rare decision depends on?}
 
 We study this question with \method{}, a recurrent state-space model (RSSM) in the DreamerV3 family with one addition: a \emph{field head}.

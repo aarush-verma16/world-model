@@ -30,7 +30,7 @@ They do not show that either condition is irrelevant in general: each is a singl
 Four experiments follow directly.
 Probing the benchmark's neighborhood head, with the same protocol as the field head, would show whether the action mask removed the rare craft from imagined rollouts.
 Running the actor on the predicted field at real steps would remove the privileged input and test the model alone.
-Weighting the field loss toward rare classes, or raising the encoder's spatial resolution so a tile is no smaller than a latent cell, would test whether naming the station on the benchmark lets the actor learn the rare craft.
+Weighting the field loss toward rare classes, or raising the encoder's spatial resolution so a tile is no smaller than a latent cell, as a tile-aligned tokenizer does for a transformer world model \citep{dedieu2025improving}, would test whether naming the station on the benchmark lets the actor learn the rare craft.
 Repeating the benchmark comparison over several seeds would turn the absence of an effect into an estimate of its size.
 Beyond these, the field head is one instance of a general diagnostic: any agent that acts on a learned state can be given a decoder for the symbolic facts its decisions depend on, and that decoder can be read under imagination, where the policy is trained.
 

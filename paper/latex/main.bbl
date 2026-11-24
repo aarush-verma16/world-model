@@ -1,4 +1,4 @@
-\begin{thebibliography}{65}
+\begin{thebibliography}{60}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -28,16 +28,13 @@ Ankesh Anand, Evan Racah, Sherjil Ozair, Yoshua Bengio, Marc-Alexandre
 \newblock In \emph{Advances in Neural Information Processing Systems},
   volume~32, 2019.
 
-\bibitem[Andrychowicz et~al.(2017)]{andrychowicz2017her}
-Marcin Andrychowicz et~al.
-\newblock Hindsight experience replay.
-\newblock In \emph{Advances in Neural Information Processing Systems}, 2017.
-
-\bibitem[Argall et~al.(2009)Argall, Chernova, Veloso, and
-  Browning]{argall2009survey}
-Brenna~D. Argall, Sonia Chernova, Manuela Veloso, and Brett Browning.
-\newblock A survey of robot learning from demonstration.
-\newblock \emph{Robotics and Autonomous Systems}, 57:\penalty0 469--483, 2009.
+\bibitem[Assran et~al.(2025)Assran, Bardes, Fan, Garrido, Howes, Komeili,
+  Muckley, Rizvi, et~al.]{assran2025vjepa2}
+Mahmoud Assran, Adrien Bardes, David Fan, Quentin Garrido, Russell Howes,
+  Mojtaba Komeili, Matthew Muckley, Ammar Rizvi, et~al.
+\newblock {V-JEPA} 2: Self-supervised video models enable understanding,
+  prediction and planning, 2025.
+\newblock URL \url{https://arxiv.org/abs/2506.09985}.
 
 \bibitem[Baker et~al.(2022)]{baker2022vpt}
 Bowen Baker et~al.
@@ -51,19 +48,27 @@ Yoshua Bengio, Nicholas L{\'e}onard, and Aaron Courville.
 \newblock Estimating or propagating gradients through stochastic neurons for
   conditional computation, 2013.
 
-\bibitem[Brittain et~al.(2019)Brittain, Bertram, Yang, and
-  Wei]{brittain2019pser}
-Marc Brittain, Josh Bertram, Xuxi Yang, and Peng Wei.
-\newblock Prioritized sequence experience replay, 2019.
-\newblock NeurIPS 2019 Deep Reinforcement Learning Workshop.
+\bibitem[Bruce et~al.(2024)Bruce, Dennis, Edwards, Parker-Holder, Shi,
+  et~al.]{bruce2024genie}
+Jake Bruce, Michael Dennis, Ashley Edwards, Jack Parker-Holder, Yuge Shi,
+  et~al.
+\newblock Genie: Generative interactive environments.
+\newblock In \emph{Proceedings of the 41st International Conference on Machine
+  Learning}, volume 235 of \emph{Proceedings of Machine Learning Research},
+  pages 4603--4623. PMLR, 2024.
+\newblock URL \url{https://proceedings.mlr.press/v235/bruce24a.html}.
 
-\bibitem[Chen et~al.(2020)Chen, Zhou, Koltun, and
-  Kr{\"a}henb{\"u}hl]{chen2019lbc}
-Dian Chen, Brady Zhou, Vladlen Koltun, and Philipp Kr{\"a}henb{\"u}hl.
-\newblock Learning by cheating.
-\newblock In \emph{Proceedings of the Conference on Robot Learning}, volume 100
-  of \emph{Proceedings of Machine Learning Research}, pages 66--75. PMLR, 2020.
-\newblock URL \url{https://proceedings.mlr.press/v100/chen20a.html}.
+\bibitem[Burchi and Timofte(2024)]{burchi2024mudreamer}
+Maxime Burchi and Radu Timofte.
+\newblock {MuDreamer}: Learning predictive world models without reconstruction,
+  2024.
+\newblock URL \url{https://arxiv.org/abs/2405.15083}.
+
+\bibitem[Burchi and Timofte(2025)]{burchi2025twister}
+Maxime Burchi and Radu Timofte.
+\newblock Learning transformer-based world models with contrastive predictive
+  coding.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
 
 \bibitem[Cho et~al.(2014)Cho, van Merri{\"e}nboer, Gulcehre, Bahdanau,
   Bougares, Schwenk, and Bengio]{cho2014gru}
@@ -76,6 +81,16 @@ Kyunghyun Cho, Bart van Merri{\"e}nboer, Caglar Gulcehre, Dzmitry Bahdanau,
   Computational Linguistics, 2014.
 \newblock \doi{10.3115/v1/D14-1179}.
 
+\bibitem[Dedieu et~al.(2025)Dedieu, Ortiz, Lou, Wendelken, Lehrach, Guntupalli,
+  L{\'a}zaro-Gredilla, and Murphy]{dedieu2025improving}
+Antoine Dedieu, Joseph Ortiz, Xinghua Lou, Carter Wendelken, Wolfgang Lehrach,
+  J.~Swaroop Guntupalli, Miguel L{\'a}zaro-Gredilla, and Kevin~Patrick Murphy.
+\newblock Improving transformer world models for data-efficient {RL}.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine
+  Learning}, volume 267 of \emph{Proceedings of Machine Learning Research}.
+  PMLR, 2025.
+\newblock URL \url{https://proceedings.mlr.press/v267/dedieu25a.html}.
+
 \bibitem[Deng et~al.(2022)Deng, Jang, and Ahn]{deng2022dreamerpro}
 Fei Deng, Ingook Jang, and Sungjin Ahn.
 \newblock {DreamerPro}: Reconstruction-free model-based reinforcement learning
@@ -85,29 +100,25 @@ Fei Deng, Ingook Jang, and Sungjin Ahn.
   pages 4956--4975. PMLR, 2022.
 \newblock URL \url{https://proceedings.mlr.press/v162/deng22a.html}.
 
-\bibitem[Dosovitskiy and Koltun(2017)]{dosovitskiy2017dfp}
-Alexey Dosovitskiy and Vladlen Koltun.
-\newblock Learning to act by predicting the future.
-\newblock In \emph{International Conference on Learning Representations}, 2017.
+\bibitem[Ding et~al.(2025)Ding, Zhang, Shang, Zhang, Zong, Feng, Yuan, Su, Li,
+  Sukiennik, Xu, and Li]{ding2025survey}
+Jingtao Ding, Yunke Zhang, Yu~Shang, Yuheng Zhang, Zefang Zong, Jie Feng, Yuan
+  Yuan, Hongyuan Su, Nian Li, Nicholas Sukiennik, Fengli Xu, and Yong Li.
+\newblock Understanding world or predicting future? {A} comprehensive survey of
+  world models.
+\newblock \emph{ACM Computing Surveys}, 58, 2025.
+\newblock \doi{10.1145/3746449}.
 
-\bibitem[Du et~al.(2023)Du, Watkins, Wang, Colas, Darrell, Abbeel, Gupta, and
-  Andreas]{du2023ellm}
-Yuqing Du, Olivia Watkins, Zihan Wang, C{\'e}dric Colas, Trevor Darrell, Pieter
-  Abbeel, Abhishek Gupta, and Jacob Andreas.
-\newblock Guiding pretraining in reinforcement learning with large language
-  models.
-\newblock In \emph{Proceedings of the 40th International Conference on Machine
-  Learning}, volume 202 of \emph{Proceedings of Machine Learning Research},
-  pages 8657--8677. PMLR, 2023.
-\newblock URL \url{https://proceedings.mlr.press/v202/du23f.html}.
-
-\bibitem[Ecoffet et~al.(2021)Ecoffet, Huizinga, Lehman, Stanley, and
-  Clune]{ecoffet2021firstreturn}
-Adrien Ecoffet, Joost Huizinga, Joel Lehman, Kenneth~O. Stanley, and Jeff
-  Clune.
-\newblock First return, then explore.
-\newblock \emph{Nature}, 590:\penalty0 580--586, 2021.
-\newblock \doi{10.1038/s41586-020-03157-9}.
+\bibitem[Escoriza et~al.(2025)Escoriza, Hansen, Tao, Mu, and
+  Su]{escoriza2025demo3}
+Adri{\`a}~L{\'o}pez Escoriza, Nicklas Hansen, Stone Tao, Tongzhou Mu, and Hao
+  Su.
+\newblock Multi-stage manipulation with demonstration-augmented reward, policy,
+  and world model learning.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine
+  Learning}, volume 267 of \emph{Proceedings of Machine Learning Research}.
+  PMLR, 2025.
+\newblock URL \url{https://proceedings.mlr.press/v267/escoriza25a.html}.
 
 \bibitem[Fu et~al.(2021)Fu, Yang, Agrawal, and Jaakkola]{fu2021tia}
 Xiang Fu, Ge~Yang, Pulkit Agrawal, and Tommi Jaakkola.
@@ -120,14 +131,6 @@ Xiang Fu, Ge~Yang, Pulkit Agrawal, and Tommi Jaakkola.
 \bibitem[Gonzalez~Laiz and Schneider(2026)]{gonzalezlaiz2026limits}
 Rodrigo Gonzalez~Laiz and Steffen Schneider.
 \newblock Understanding the limits of latent world models, 2026.
-
-\bibitem[Gupta et~al.(2017)Gupta, Davidson, Levine, Sukthankar, and
-  Malik]{gupta2017cmp}
-Saurabh Gupta, James Davidson, Sergey Levine, Rahul Sukthankar, and Jitendra
-  Malik.
-\newblock Cognitive mapping and planning for visual navigation.
-\newblock In \emph{Proceedings of the IEEE Conference on Computer Vision and
-  Pattern Recognition (CVPR)}, pages 2616--2625, 2017.
 
 \bibitem[Ha and Schmidhuber(2018)]{ha2018worldmodels}
 David Ha and J{\"u}rgen Schmidhuber.
@@ -163,12 +166,6 @@ Danijar Hafner, Timothy Lillicrap, Mohammad Norouzi, and Jimmy Ba.
 \newblock In \emph{International Conference on Learning Representations}, 2021.
 \newblock URL \url{https://openreview.net/forum?id=0oabwyZbOu}.
 
-\bibitem[Hafner et~al.(2022)Hafner, Lee, Fischer, and
-  Abbeel]{hafner2022director}
-Danijar Hafner, Kuang-Huei Lee, Ian Fischer, and Pieter Abbeel.
-\newblock Deep hierarchical planning from pixels.
-\newblock In \emph{Advances in Neural Information Processing Systems}, 2022.
-
 \bibitem[Hafner et~al.(2023)Hafner, Pasukonis, Ba, and
   Lillicrap]{hafner2023dreamerv3}
 Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timothy Lillicrap.
@@ -203,13 +200,6 @@ Nicklas Hansen, Hao Su, and Xiaolong Wang.
 \newblock In \emph{International Conference on Learning Representations}, 2024.
 \newblock URL \url{https://openreview.net/forum?id=Oxh5CstDJU}.
 
-\bibitem[Hester et~al.(2018)]{hester2018dqfd}
-Todd Hester et~al.
-\newblock Deep {Q}-learning from demonstrations.
-\newblock In \emph{Proceedings of the AAAI Conference on Artificial
-  Intelligence}, volume~32, 2018.
-\newblock \doi{10.1609/aaai.v32i1.11757}.
-
 \bibitem[Hewitt and Liang(2019)]{hewitt2019control}
 John Hewitt and Percy Liang.
 \newblock Designing and interpreting probes with control tasks.
@@ -219,36 +209,31 @@ John Hewitt and Percy Liang.
   for Computational Linguistics, 2019.
 \newblock URL \url{https://aclanthology.org/D19-1275/}.
 
-\bibitem[Hu et~al.(2022)]{hu2022mile}
-Anthony Hu et~al.
-\newblock Model-based imitation learning for urban driving.
-\newblock In \emph{Advances in Neural Information Processing Systems}, 2022.
-
 \bibitem[Hu et~al.(2024)Hu, Springer, Rybkin, and Jayaraman]{hu2024scaffolder}
 Edward~S. Hu, James Springer, Oleh Rybkin, and Dinesh Jayaraman.
 \newblock Privileged sensing scaffolds reinforcement learning.
 \newblock In \emph{International Conference on Learning Representations}, 2024.
 \newblock URL \url{https://openreview.net/forum?id=EpVe8jAjdx}.
 
-\bibitem[Jaderberg et~al.(2017)Jaderberg, Mnih, Czarnecki, Schaul, Leibo,
-  Silver, and Kavukcuoglu]{jaderberg2017unreal}
-Max Jaderberg, Volodymyr Mnih, Wojciech~Marian Czarnecki, Tom Schaul, Joel~Z.
-  Leibo, David Silver, and Koray Kavukcuoglu.
-\newblock Reinforcement learning with unsupervised auxiliary tasks.
-\newblock In \emph{International Conference on Learning Representations}, 2017.
+\bibitem[Huang et~al.(2025)Huang, Wang, Li, Xia, Zhang, and
+  Zhang]{huang2025pigdreamer}
+Dongchi Huang, Jiaqi Wang, Yang Li, Chunhe Xia, Tianle Zhang, and Kaige Zhang.
+\newblock {PIGDreamer}: Privileged information guided world models for safe
+  partially observable reinforcement learning.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine
+  Learning}, volume 267 of \emph{Proceedings of Machine Learning Research},
+  2025.
+\newblock URL \url{https://proceedings.mlr.press/v267/huang25ai.html}.
 
-\bibitem[Kaiser et~al.(2020)]{kaiser2020simple}
-{\L}ukasz Kaiser et~al.
-\newblock Model based reinforcement learning for {Atari}.
-\newblock In \emph{International Conference on Learning Representations}, 2020.
-\newblock URL \url{https://openreview.net/forum?id=S1xCPJHtDB}.
-
-\bibitem[Kapturowski et~al.(2019)Kapturowski, Ostrovski, Quan, Munos, and
-  Dabney]{kapturowski2019r2d2}
-Steven Kapturowski, Georg Ostrovski, John Quan, R{\'e}mi Munos, and Will
-  Dabney.
-\newblock Recurrent experience replay in distributed reinforcement learning.
-\newblock In \emph{International Conference on Learning Representations}, 2019.
+\bibitem[Joseph et~al.(2026)Joseph, Garrido, Balestriero, Kowal, Fel,
+  Bakhtiari, Richards, and Rabbat]{joseph2026physics}
+Sonia Joseph, Quentin Garrido, Randall Balestriero, Matthew Kowal, Thomas Fel,
+  Shahab Bakhtiari, Blake~Aaron Richards, and Michael Rabbat.
+\newblock Interpreting physics in video world models.
+\newblock In \emph{Proceedings of the 43rd International Conference on Machine
+  Learning}, volume 306 of \emph{Proceedings of Machine Learning Research},
+  pages 54687--54724. PMLR, 2026.
+\newblock URL \url{https://proceedings.mlr.press/v306/joseph26a.html}.
 
 \bibitem[Kauvar et~al.(2023)Kauvar, Doyle, Zhou, and Haber]{kauvar2023curious}
 Isaac Kauvar, Chris Doyle, Linqi Zhou, and Nick Haber.
@@ -263,6 +248,8 @@ Isaac Kauvar, Chris Doyle, Linqi Zhou, and Nick Haber.
 Maria Krinner, Elie Aljalbout, Angel Romero, and Davide Scaramuzza.
 \newblock Accelerating model-based reinforcement learning with state-space
   world models, 2025.
+\newblock ICLR 2025 Workshop on World Models: Understanding, Modelling and
+  Scaling.
 
 \bibitem[Lambrechts et~al.(2024)Lambrechts, Bolland, and
   Ernst]{lambrechts2024informed}
@@ -279,13 +266,6 @@ Gaspard Lambrechts, Adrien Bolland, Daniel Ebi, and Damien Ernst.
   through latent guidance, 2026.
 \newblock URL \url{https://arxiv.org/abs/2607.26040}.
 
-\bibitem[Lample and Chaplot(2017)]{lample2017fps}
-Guillaume Lample and Devendra~Singh Chaplot.
-\newblock Playing {FPS} games with deep reinforcement learning.
-\newblock In \emph{Proceedings of the AAAI Conference on Artificial
-  Intelligence}, volume~31, 2017.
-\newblock \doi{10.1609/aaai.v31i1.10827}.
-
 \bibitem[Li et~al.(2023)Li, Hopkins, Bau, Vi{\'e}gas, Pfister, and
   Wattenberg]{li2023othello}
 Kenneth Li, Aspen~K. Hopkins, David Bau, Fernanda Vi{\'e}gas, Hanspeter
@@ -294,6 +274,12 @@ Kenneth Li, Aspen~K. Hopkins, David Bau, Fernanda Vi{\'e}gas, Hanspeter
   a synthetic task.
 \newblock In \emph{International Conference on Learning Representations}, 2023.
 \newblock URL \url{https://openreview.net/forum?id=DeG07_TcZvT}.
+
+\bibitem[Li et~al.(2025)Li, Vi{\'e}gas, and Wattenberg]{li2025worldmodeldef}
+Kenneth Li, Fernanda Vi{\'e}gas, and Martin Wattenberg.
+\newblock What does it mean for a neural network to learn a ``world model''?,
+  2025.
+\newblock URL \url{https://arxiv.org/abs/2507.21513}.
 
 \bibitem[Ma et~al.(2024)Ma, Wu, Feng, Xiao, Li, Hao, Wang, and
   Long]{ma2024harmonydream}
@@ -322,36 +308,27 @@ Vincent Micheli, Eloi Alonso, and Fran{\c{c}}ois Fleuret.
 \newblock In \emph{International Conference on Learning Representations}, 2023.
 \newblock URL \url{https://openreview.net/forum?id=vhFu1Acb0xb}.
 
-\bibitem[Mirowski et~al.(2017)]{mirowski2017navigate}
-Piotr Mirowski et~al.
-\newblock Learning to navigate in complex environments.
-\newblock In \emph{International Conference on Learning Representations}, 2017.
+\bibitem[Motamed et~al.(2026)Motamed, Culp, Swersky, Jaini, and
+  Geirhos]{motamed2026physicsiq}
+Saman Motamed, Laura Culp, Kevin Swersky, Priyank Jaini, and Robert Geirhos.
+\newblock Do generative video models understand physical principles?
+\newblock In \emph{Proceedings of the IEEE/CVF Winter Conference on
+  Applications of Computer Vision (WACV)}, pages 948--958, 2026.
 
-\bibitem[Moon et~al.(2023)Moon, Yeom, Park, and Song]{moon2023achievement}
-Seungyong Moon, Junyoung Yeom, Bumsoo Park, and Hyun~Oh Song.
-\newblock Discovering hierarchical achievements in reinforcement learning via
-  contrastive learning.
-\newblock In \emph{Advances in Neural Information Processing Systems}, 2023.
+\bibitem[Paglieri et~al.(2025)Paglieri, Cupia{\l}, Coward, Piterbarg,
+  et~al.]{paglieri2025balrog}
+Davide Paglieri, Bart{\l}omiej Cupia{\l}, Samuel Coward, Ulyana Piterbarg,
+  et~al.
+\newblock {BALROG}: Benchmarking agentic {LLM} and {VLM} reasoning on games.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
+\newblock URL
+  \url{https://proceedings.iclr.cc/paper_files/paper/2025/hash/f0b1515be276f6ba82b4f2b25e50bef0-Abstract-Conference.html}.
 
-\bibitem[Nair et~al.(2018)Nair, McGrew, Andrychowicz, Zaremba, and
-  Abbeel]{nair2018overcoming}
-Ashvin Nair, Bob McGrew, Marcin Andrychowicz, Wojciech Zaremba, and Pieter
-  Abbeel.
-\newblock Overcoming exploration in reinforcement learning with demonstrations.
-\newblock In \emph{IEEE International Conference on Robotics and Automation
-  (ICRA)}, 2018.
-
-\bibitem[Okada and Taniguchi(2021)]{okada2021dreaming}
-Masashi Okada and Tadahiro Taniguchi.
-\newblock Dreaming: Model-based reinforcement learning by latent imagination
-  without reconstruction.
-\newblock In \emph{IEEE International Conference on Robotics and Automation
-  (ICRA)}, 2021.
-
-\bibitem[Parisotto and Salakhutdinov(2018)]{parisotto2018neuralmap}
-Emilio Parisotto and Ruslan Salakhutdinov.
-\newblock Neural map: Structured memory for deep reinforcement learning.
-\newblock In \emph{International Conference on Learning Representations}, 2018.
+\bibitem[Park et~al.(2025)Park, Cho, and Ahn]{park2025crafterdojo}
+Junyeong Park, Hyeonseo Cho, and Sungjin Ahn.
+\newblock {CrafterDojo}: A suite of foundation models for building open-ended
+  embodied agents in {Crafter}, 2025.
+\newblock URL \url{https://arxiv.org/abs/2508.13530}.
 
 \bibitem[Pinto et~al.(2018)Pinto, Andrychowicz, Welinder, Zaremba, and
   Abbeel]{pinto2018asymmetric}
@@ -367,30 +344,19 @@ Dean~A. Pomerleau.
 \newblock In D.~S. Touretzky, editor, \emph{Advances in Neural Information
   Processing Systems 1}, pages 305--313, 1988.
 
-\bibitem[Rafailov et~al.(2021)Rafailov, Yu, Rajeswaran, and
-  Finn]{rafailov2021vmail}
-Rafael Rafailov, Tianhe Yu, Aravind Rajeswaran, and Chelsea Finn.
-\newblock Visual adversarial imitation learning using variational models.
-\newblock In \emph{Advances in Neural Information Processing Systems},
-  volume~34, 2021.
+\bibitem[Richens et~al.(2025)Richens, Everitt, and Abel]{richens2025general}
+Jonathan Richens, Tom Everitt, and David Abel.
+\newblock General agents need world models.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine
+  Learning}, volume 267 of \emph{Proceedings of Machine Learning Research},
+  pages 51659--51687. PMLR, 2025.
+\newblock URL \url{https://proceedings.mlr.press/v267/richens25a.html}.
 
-\bibitem[Rajeswaran et~al.(2018)Rajeswaran, Kumar, Gupta, Vezzani, Schulman,
-  Todorov, and Levine]{rajeswaran2018dapg}
-Aravind Rajeswaran, Vikash Kumar, Abhishek Gupta, Giulia Vezzani, John
-  Schulman, Emanuel Todorov, and Sergey Levine.
-\newblock Learning complex dexterous manipulation with deep reinforcement
-  learning and demonstrations.
-\newblock In \emph{Proceedings of Robotics: Science and Systems (RSS)}, 2018.
-\newblock \doi{10.15607/RSS.2018.XIV.049}.
-
-\bibitem[Ross et~al.(2011)Ross, Gordon, and Bagnell]{ross2011dagger}
-St{\'e}phane Ross, Geoffrey~J. Gordon, and J.~Andrew Bagnell.
-\newblock A reduction of imitation learning and structured prediction to
-  no-regret online learning.
-\newblock In \emph{Proceedings of the 14th International Conference on
-  Artificial Intelligence and Statistics}, volume~15 of \emph{Proceedings of
-  Machine Learning Research}, 2011.
-\newblock URL \url{https://proceedings.mlr.press/v15/ross11a.html}.
+\bibitem[Samsami et~al.(2024)Samsami, Zholus, Rajendran, and
+  Chandar]{samsami2024r2i}
+Mohammad~Reza Samsami, Artem Zholus, Janarthanan Rajendran, and Sarath Chandar.
+\newblock Mastering memory tasks with world models.
+\newblock In \emph{International Conference on Learning Representations}, 2024.
 
 \bibitem[Schrittwieser et~al.(2020)Schrittwieser, Antonoglou, Hubert, Simonyan,
   Sifre, Schmitt, Guez, Lockhart, Hassabis, Graepel, Lillicrap, and
@@ -403,15 +369,14 @@ Julian Schrittwieser, Ioannis Antonoglou, Thomas Hubert, Karen Simonyan,
 \newblock \emph{Nature}, 588\penalty0 (7839):\penalty0 604--609, 2020.
 \newblock \doi{10.1038/s41586-020-03051-4}.
 
-\bibitem[Seo et~al.(2023)Seo, Hafner, Liu, Liu, James, Lee, and
-  Abbeel]{seo2023mwm}
-Younggyo Seo, Danijar Hafner, Hao Liu, Fangchen Liu, Stephen James, Kimin Lee,
-  and Pieter Abbeel.
-\newblock Masked world models for visual control.
-\newblock In \emph{Proceedings of The 6th Conference on Robot Learning}, volume
-  205 of \emph{Proceedings of Machine Learning Research}, pages 1332--1344.
-  PMLR, 2023.
-\newblock URL \url{https://proceedings.mlr.press/v205/seo23a.html}.
+\bibitem[Seo et~al.(2026)Seo, Veer, Tian, Ding, Sharma, Leung, Schmerling,
+  Pavone, and Bajcsy]{seo2026stressdream}
+Junwon Seo, Sushant Veer, Ran Tian, Wenhao Ding, Apoorva Sharma, Karen Leung,
+  Edward Schmerling, Marco Pavone, and Andrea Bajcsy.
+\newblock {StressDream}: Steering video world models for robust policy
+  evaluation and improvement.
+\newblock In \emph{Conference on Robot Learning (CoRL)}, 2026.
+\newblock URL \url{https://arxiv.org/abs/2606.00267}.
 
 \bibitem[Shi et~al.(2016)Shi, Caballero, Husz{\'a}r, Totz, Aitken, Bishop,
   Rueckert, and Wang]{shi2016subpixel}
@@ -442,30 +407,39 @@ Richard~S. Sutton.
 \newblock \emph{ACM SIGART Bulletin}, 2\penalty0 (4), 1991.
 \newblock \doi{10.1145/122344.122377}.
 
+\bibitem[Vafa et~al.(2024)Vafa, Chen, Rambachan, Kleinberg, and
+  Mullainathan]{vafa2024evaluating}
+Keyon Vafa, Justin~Y. Chen, Ashesh Rambachan, Jon Kleinberg, and Sendhil
+  Mullainathan.
+\newblock Evaluating the world model implicit in a generative model.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37, 2024.
+
+\bibitem[Valevski et~al.(2025)Valevski, Leviathan, Arar, and
+  Fruchter]{valevski2025gamengen}
+Dani Valevski, Yaniv Leviathan, Moab Arar, and Shlomi Fruchter.
+\newblock Diffusion models are real-time game engines.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
+
 \bibitem[Vapnik and Vashist(2009)]{vapnik2009lupi}
 Vladimir Vapnik and Akshay Vashist.
 \newblock A new learning paradigm: Learning using privileged information.
 \newblock \emph{Neural Networks}, 22:\penalty0 544--557, 2009.
 
-\bibitem[Walker et~al.(2023)Walker, V{\'e}rtes, Li, Dulac-Arnold, Anand, Weber,
-  and Hamrick]{walker2023modelbased}
-Jacob~C Walker, Eszter V{\'e}rtes, Yazhe Li, Gabriel Dulac-Arnold, Ankesh
-  Anand, Theophane Weber, and Jessica~B Hamrick.
-\newblock Investigating the role of model-based learning in exploration and
-  transfer.
-\newblock In \emph{Proceedings of the 40th International Conference on Machine
-  Learning}, volume 202 of \emph{Proceedings of Machine Learning Research},
-  pages 35368--35383. PMLR, 2023.
-\newblock URL \url{https://proceedings.mlr.press/v202/walker23a.html}.
+\bibitem[Verraest et~al.(2025)Verraest, Bahnam, Ferede, de~Croon, and
+  De~Wagter]{verraest2025skydreamer}
+Aderik Verraest, Stavrow Bahnam, Robin Ferede, Guido de~Croon, and Christophe
+  De~Wagter.
+\newblock {SkyDreamer}: Interpretable end-to-end vision-based drone racing with
+  model-based reinforcement learning, 2025.
+\newblock URL \url{https://arxiv.org/abs/2510.14783}.
 
-\bibitem[Wu et~al.(2023)Wu, Min, Prabhumoye, Bisk, Salakhutdinov, Azaria,
-  Mitchell, and Li]{wu2023spring}
-Yue Wu, So~Yeon Min, Shrimai Prabhumoye, Yonatan Bisk, Ruslan Salakhutdinov,
-  Amos Azaria, Tom~M. Mitchell, and Yuanzhi Li.
-\newblock {SPRING}: Studying papers and reasoning to play games.
-\newblock In \emph{Advances in Neural Information Processing Systems},
-  volume~36, 2023.
-\newblock \doi{10.52202/075280-0983}.
+\bibitem[Zahorodnii(2025)]{zahorodnii2025probes}
+Andrii Zahorodnii.
+\newblock Improving world models using deep supervision with linear probes,
+  2025.
+\newblock URL \url{https://arxiv.org/abs/2504.03861}.
+\newblock ICLR 2025 Workshop on World Models.
 
 \bibitem[Zhang et~al.(2023)Zhang, Wang, Sun, Yuan, and Huang]{zhang2023storm}
 Weipu Zhang, Gang Wang, Jian Sun, Yetian Yuan, and Gao Huang.
@@ -480,5 +454,14 @@ Xinyu Zhang.
 \newblock What do world models learn in {RL}? probing latent representations in
   learned environment simulators, 2026.
 \newblock ICLR 2026 Workshop on World Models.
+
+\bibitem[Zhou et~al.(2025)Zhou, Pan, LeCun, and Pinto]{zhou2025dinowm}
+Gaoyue Zhou, Hengkai Pan, Yann LeCun, and Lerrel Pinto.
+\newblock {DINO-WM}: World models on pre-trained visual features enable
+  zero-shot planning.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine
+  Learning}, volume 267 of \emph{Proceedings of Machine Learning Research}.
+  PMLR, 2025.
+\newblock URL \url{https://proceedings.mlr.press/v267/zhou25t.html}.
 
 \end{thebibliography}

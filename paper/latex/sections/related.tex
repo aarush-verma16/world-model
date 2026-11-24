@@ -2,52 +2,54 @@
 \label{sec:related}
 
 Our question sits between three lines of work: model-based agents that act on a learned state, methods for asking what such a state represents, and the use of privileged information and demonstrations to shape it.
+\citet{ding2025survey} survey world models along a similar divide, between models that build an internal representation of the world and models that predict its future to guide decisions; \method{} probes the first in service of the second.
 
 \paragraph{World models and imagination.}
-Learning a model of the environment and training behavior inside it goes back to Dyna \citep{sutton1991dyna}.
-\citet{ha2018worldmodels} trained a controller inside a learned latent model of pixels, and SimPLe trained policies inside a video-prediction model on Atari \citep{kaiser2020simple}.
-PlaNet introduced the recurrent state-space model with deterministic and stochastic paths and planned in its latent space \citep{hafner2019planet}.
-Dreamer learned an actor and critic from imagined latent rollouts \citep{hafner2020dreamer}, DreamerV2 replaced Gaussian latents with categorical ones \citep{hafner2021dreamerv2}, DreamerV3 made the recipe robust across domains with fixed hyperparameters \citep{hafner2023dreamerv3,hafner2025dreamerv3nature}, and Dreamer~4 trains agents inside a scalable video world model \citep{hafner2025dreamer4}.
-Other lines build world models from discrete tokens and transformers \citep{micheli2023iris,zhang2023storm}, from diffusion \citep{alonso2024diamond}, or without reconstructing observations at all \citep{schrittwieser2020muzero,hansen2024tdmpc2}.
-\method{} keeps the DreamerV3 graph and adds a supervised head; the question we ask is what that graph's latent names, not how to raise its returns.
+Learning a model of the environment and training behavior inside it goes back to Dyna \citep{sutton1991dyna} and was carried to pixels by \citet{ha2018worldmodels}.
+PlaNet introduced the recurrent state-space model \citep{hafner2019planet}; Dreamer learned an actor and critic from imagined latent rollouts \citep{hafner2020dreamer}; DreamerV2 introduced categorical latents \citep{hafner2021dreamerv2}; and DreamerV3 made the recipe robust across domains with fixed hyperparameters \citep{hafner2023dreamerv3,hafner2025dreamerv3nature}.
+Recent work extends the backbone with structured state-space memory \citep{samsami2024r2i}, transformers \citep{micheli2023iris,zhang2023storm}, and contrastive objectives over future latents \citep{burchi2025twister}.
+It also scales world models toward interactive simulators: diffusion models of Atari and of a full first-person game \citep{alonso2024diamond,valevski2025gamengen}, foundation models of controllable environments learned from unlabeled video \citep{bruce2024genie}, and Dreamer~4, which trains a Minecraft agent entirely inside a video world model \citep{hafner2025dreamer4}.
+A parallel line predicts in a learned or pretrained feature space without reconstructing pixels and plans there \citep{schrittwieser2020muzero,hansen2024tdmpc2,zhou2025dinowm,assran2025vjepa2}.
+On the theory side, \citet{richens2025general} prove that any agent capable of generalizing across multi-step goal-directed tasks must have learned a predictive model of its environment.
+\method{} keeps the DreamerV3 graph and adds a supervised head. The question we ask is what that graph's latent names, not how to raise its returns.
 
 \paragraph{What reconstruction does and does not encode.}
-Several works observe that pixel reconstruction spends capacity on visually dominant but task-irrelevant content and propose alternatives: separating task-relevant from irrelevant latent factors \citep{fu2021tia}, replacing reconstruction with contrastive or prototype objectives \citep{okada2021dreaming,deng2022dreamerpro}, decoupling visual representation learning from dynamics \citep{seo2023mwm}, or rebalancing the observation and reward losses \citep{ma2024harmonydream}.
+Pixel reconstruction spends capacity on visually dominant but task-irrelevant content.
+Proposed remedies include separating task-relevant from irrelevant factors \citep{fu2021tia}, replacing reconstruction with prototype or predictive objectives \citep{deng2022dreamerpro,burchi2024mudreamer}, and rebalancing the observation and reward losses \citep{ma2024harmonydream}.
+\citet{burchi2024mudreamer} report that DreamerV3's reconstructions can drop task-critical elements when those elements are small.
 DIAMOND argues the opposite direction, that compressing away visual detail can drop information that matters for control \citep{alonso2024diamond}.
+On Craftax-Classic, a transformer world model improves markedly when its tokenizer encodes each 7-pixel tile separately rather than the frame as a whole \citep{dedieu2025improving}, which indicates that the alignment between tiles and model units matters for performance.
 Our observation is narrower and complementary: at common encoder strides, the tile an action depends on can be smaller than one latent cell, and a supervised field head shows directly whether the latent states that tile's content.
 
-\paragraph{Probing world-model latents.}
+\paragraph{Probing world models.}
 Classifier probes are a standard way to ask whether a representation contains a variable \citep{alain2017probes}, with the caveat that an expressive probe can learn the task itself \citep{hewitt2019control}.
-In reinforcement learning, probes on Atari state variables have been used to evaluate representations \citep{anand2019atariari}, and a sequence model trained only on game transcripts was found to carry a probe-decodable board state \citep{li2023othello}.
-Recent work probes world models directly: object positions and scores are linearly decodable from IRIS and DIAMOND on Atari \citep{zhang2026probing}, while probes of DreamerV3, TD-MPC2, and a JEPA-style model on simple control tasks find that none faithfully models the underlying dynamics \citep{gonzalezlaiz2026limits}.
-Our field head differs in two ways: it is trained jointly with the world model, so it measures what the latent is pushed to carry, and it is the same quantity the actor consumes in imagination, so its failures bear directly on the policy.
+Probes on Atari state variables have been used to evaluate reinforcement-learning representations \citep{anand2019atariari}, and a sequence model trained only on game transcripts carries a probe-decodable board state \citep{li2023othello}.
+\citet{li2025worldmodeldef} give operational criteria for saying that a network has learned a world model, based on a simple (e.g.\ linear) map from its internal state to a nontrivial image of the data-generating process.
+Recent empirical work asks whether such representations are coherent: generative models that pass next-token and probe diagnostics can still recover incoherent world models \citep{vafa2024evaluating}; video generators that look realistic fail physical-reasoning tests \citep{motamed2026physicsiq}; and large video encoders represent physical variables in a distributed rather than factorized form \citep{joseph2026physics}.
+For reinforcement-learning world models specifically, object positions and scores are linearly decodable from IRIS and DIAMOND on Atari \citep{zhang2026probing}, while DreamerV3, TD-MPC2, and a JEPA-style model can earn reward on simple control tasks without faithfully modeling the dynamics \citep{gonzalezlaiz2026limits}.
+Our field head differs in two ways. It is trained jointly with the world model, so it measures what the latent is pushed to carry. It is also the quantity the actor consumes in imagination, so its failures bear directly on the policy.
 
 \paragraph{Privileged information as a target or an input.}
-Using information available only at training time goes back to learning using privileged information \citep{vapnik2009lupi}.
-In control, privileged state can train a critic while the actor sees observations \citep{pinto2018asymmetric}, train a teacher that a vision-only student imitates \citep{chen2019lbc}, or serve as a prediction target.
-The closest prior work is the Informed POMDP, which trains a Dreamer world model to predict training-time information rather than observations and finds that this speeds learning \citep{lambrechts2024informed}; its follow-up identifies a limitation in the privileged-information representations that this Informed Dreamer learns and replaces the prediction target with latent guidance \citep{lambrechts2026reinformed}.
-Scaffolder uses privileged sensors to scaffold the world model, critic, and other training components of a policy that is deployed on target observations \citep{hu2024scaffolder}; a DreamerV3-style model has been trained to reconstruct privileged simulator state in place of images \citep{krinner2025ssmwm}; and a driving world model's latent has been decoded to bird's-eye-view semantic segmentation \citep{hu2022mile}.
-Auxiliary prediction of game features and other signals is an established way to shape representations in reinforcement learning \citep{jaderberg2017unreal,lample2017fps,mirowski2017navigate,dosovitskiy2017dfp}.
-\method{} predicts a discrete egocentric map of the kind these works use as a training signal, and asks a question they do not: whether the latent names the specific tile a rare action needs, before and during imagination.
+Using information available only at training time goes back to learning using privileged information \citep{vapnik2009lupi}; in control, privileged state can train a critic while the actor sees observations \citep{pinto2018asymmetric}.
+The closest prior work is the Informed POMDP, which trains a Dreamer world model to predict training-time information rather than observations and finds that this speeds learning \citep{lambrechts2024informed}. Its follow-up identifies a limitation in the privileged-information representations that this Informed Dreamer learns and replaces the prediction target with latent guidance \citep{lambrechts2026reinformed}.
+Scaffolder uses privileged sensors to scaffold the world model, critic, and other training components of a policy deployed on target observations \citep{hu2024scaffolder}.
+PIGDreamer aligns a DreamerV3 observation model with a privileged-state model and gives critics privileged access while the actor stays observation-only \citep{huang2025pigdreamer}; a related line reconstructs privileged simulator state in place of images \citep{krinner2025ssmwm}, and SkyDreamer uses an Informed-Dreamer decoder of privileged flight state for interpretability in vision-based drone racing \citep{verraest2025skydreamer}.
+Training with a linear probe that decodes true world features into the recurrent state improves prediction and reduces open-loop drift \citep{zahorodnii2025probes}, which is the closest training recipe to our field head, though that probe is not consumed by a policy.
+\method{} predicts a discrete egocentric map of the kind these works use as a training signal, and asks a question they do not: whether the latent names the specific tile a rare action needs, both in the posterior and during imagination.
 On real steps in our runs the actor also receives the true field, which we treat as a limitation of the evaluation rather than a feature of the method.
 
-\paragraph{Spatial maps as representation.}
-Agents that build explicit or learned maps include cognitive mapping and planning \citep{gupta2017cmp} and neural maps \citep{parisotto2018neuralmap}.
-Our field is local and egocentric, and the question is whether the latent can predict it, not how to aggregate it over time.
-
 \paragraph{Demonstrations inside an online loop.}
-Behavior cloning \citep{pomerleau1988alvinn} suffers from compounding errors that interactive imitation addresses \citep{ross2011dagger}; \citet{argall2009survey} survey learning from demonstration more broadly.
-Demonstrations have been combined with reinforcement learning through replay \citep{hester2018dqfd} and auxiliary cloning losses \citep{nair2018overcoming,rajeswaran2018dapg}, and large-scale video pretraining has produced agents for long-horizon crafting in Minecraft \citep{baker2022vpt}.
-With learned world models, demonstrations have been used to pretrain and seed a TD-MPC agent \citep{hansen2023modem}, to train a DreamerV3 world model while the actor still learns only in imagination \citep{staley2024wmhd}, and to define adversarial imitation rewards inside a latent model \citep{rafailov2021vmail}.
+Large-scale video pretraining has produced agents for long-horizon crafting in Minecraft \citep{baker2022vpt}.
+With learned world models, demonstrations have been used to pretrain and seed a TD-MPC agent \citep{hansen2023modem}, to learn stage-wise rewards, a policy, and a world model jointly for long-horizon manipulation \citep{escoriza2025demo3}, and to train a DreamerV3 world model while the actor still learns only in imagination \citep{staley2024wmhd}.
 We did not find prior work that adds a cloning loss on scripted demonstrations to a Dreamer actor trained in imagination, which is what \method{} does.
 
-\paragraph{Rare events in replay.}
-Sampling replay to emphasize important sequences is common: R2D2 prioritizes sequences by a mix of their maximum and mean error \citep{kapturowski2019r2d2}, prioritized sequence replay propagates priority back to the transitions before an important event \citep{brittain2019pser}, UNREAL rebalances rewarding and non-rewarding sequences for its reward-prediction task \citep{jaderberg2017unreal}, and Curious Replay prioritizes Dreamer's replay by novelty \citep{kauvar2023curious}.
-Hindsight relabeling \citep{andrychowicz2017her} and returning to promising states \citep{ecoffet2021firstreturn} address related sparsity in rewards and exploration.
-Our anchored window is the simplest member of this family, applied to demonstrations; on the benchmark it did not change the actor's behavior.
+\paragraph{Rare events in imagination and replay.}
+Sampling replay to emphasize important sequences is common; Curious Replay prioritizes Dreamer's replay by novelty \citep{kauvar2023curious}.
+Recent work instead steers the world model's imaginations themselves toward rare but high-impact outcomes, such as task failures, so that policies can be evaluated and improved against futures that nominal rollouts miss \citep{seo2026stressdream}.
+Our anchored window is a simpler member of this family, applied to demonstrations rather than to imagined futures; on the benchmark it did not change the actor's behavior.
 
 \paragraph{Crafter.}
 Crafter evaluates 22 achievements in a procedurally generated survival world \citep{hafner2022crafter}, and Craftax reimplements and extends it for fast experimentation \citep{matthews2024craftax}.
-Agents on Crafter include model-based methods \citep{hafner2023dreamerv3,hafner2022director,walker2023modelbased}, achievement-structured methods \citep{moon2023achievement}, object-centric agents \citep{stanic2023crafterood}, and methods with language-model priors \citep{du2023ellm,wu2023spring}.
+Recent agents include a transformer world model that exceeds DreamerV3 and human performance on Craftax-Classic \citep{dedieu2025improving}, object-centric agents \citep{stanic2023crafterood}, and a suite of foundation models for behavior priors and instruction following in Crafter \citep{park2025crafterdojo}; Crafter is also part of a benchmark of agentic reasoning for large language and vision-language models \citep{paglieri2025balrog}.
 \citet{stanic2023crafterood} found that strong baselines partly rely on reading the inventory display, a reminder that what a Crafter agent encodes is not obvious from its score.
 We use Crafter as one benchmark for a measurement, not to compete on its score.
