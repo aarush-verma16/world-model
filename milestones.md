@@ -1,6 +1,6 @@
-# Fieldcraft — Milestone Plan
+# PROSPECT — Milestone Plan
 
-The method this plan is building is **Fieldcraft**: a Dreamer agent whose actor reads a 9×7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles. M20–M22 are the Fieldcraft runs. M6–M19 are the Dreamer baseline.
+The method this plan is building is **PROSPECT** (Policy Readout of Observed Spatial Patches Executes Crafts on Tiles): a Dreamer agent whose actor reads a 9×7 symbolic map and is behavior-cloned from a teacher that places the crafting station on those tiles. M20–M22 are the PROSPECT runs. M6–M19 are the Dreamer baseline.
 
 This is the master plan. The 3-week day-by-day guide covers *daily* mechanics; this document
 covers the project at the *milestone* level — what must be true before you're allowed to move

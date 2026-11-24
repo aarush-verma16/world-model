@@ -1,4 +1,4 @@
-# Fieldcraft — problem, method, and what counts
+# PROSPECT — problem, method, and what counts
 
 This is the claim the draft has to be able to say. It is not the draft.
 
@@ -12,7 +12,7 @@ The problem is that gap. A craft the actor cannot see, or a craft that is not in
 
 ## Method
 
-Fieldcraft keeps the DreamerV3 world model: discrete RSSM, imagination actor-critic, horizon 15, `train_ratio` 512. The RSSM is not the change.
+PROSPECT (Policy Readout of Observed Spatial Patches Executes Crafts on Tiles) keeps the DreamerV3 world model: discrete RSSM, imagination actor-critic, horizon 15, `train_ratio` 512. The RSSM is not the change.
 
 Three additions, all on the policy side:
 
@@ -49,7 +49,7 @@ Held-out M20 (`eval_metrics.json`, 10 lives): 2.8, 14.1, 13.2, 19.8, 20.7, 10.5,
 
 ## What is not a result
 
-Teacher counts are eight lives, and Crafter names each map with `hash((seed, episode))`, which is a different world in each process. Finding 50's 2/8 to 4/8 and finding 51's 5, 6, 6 versus 3, 5, 4 are separate processes. One fresh-world draw in finding 51 has teacher v4 at 3/8 and v3 at 4/8. Those counts are why M22 exists. They are not a Fieldcraft score.
+Teacher counts are eight lives, and Crafter names each map with `hash((seed, episode))`, which is a different world in each process. Finding 50's 2/8 to 4/8 and finding 51's 5, 6, 6 versus 3, 5, 4 are separate processes. One fresh-world draw in finding 51 has teacher v4 at 3/8 and v3 at 4/8. Those counts are why M22 exists. They are not a PROSPECT score.
 
 M22 has no `collect_episodes.jsonl`. There is nothing to report until that run finishes.
 
