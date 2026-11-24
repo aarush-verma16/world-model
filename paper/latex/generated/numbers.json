@@ -1,13 +1,27 @@
 {
+  "field_example": {
+    "post_table": 2.4678270165168215e-06,
+    "prior_table": 1.472485138265256e-07,
+    "post_acc": 0.6349206349206349,
+    "prior_acc": 0.12698412698412698
+  },
   "start_checkpoint": {
-    "lives": 944,
-    "rare": 3,
+    "lives": 937,
+    "rare": 0,
+    "spanning": 7,
+    "spanning_rare": 3,
     "last_env": 199936
   },
   "benchmark": {
     "m22_field_craft": {
-      "lives": 444,
-      "actor_lives": 360,
+      "lives": 441,
+      "spanning": 3,
+      "spanning_rare": 2,
+      "spanning_short": 196,
+      "first_handoff": 20704,
+      "early_stone": 17,
+      "early_rare": 0,
+      "actor_lives": 357,
       "assisted_lives": 84,
       "handoffs": 60,
       "assisted_without_handoff": 24,
@@ -16,18 +30,9 @@
         66768
       ],
       "teacher_rare": 23,
-      "actor_rare": 2,
-      "actor_rare_lives": [
-        [
-          25024,
-          196
-        ],
-        [
-          75024,
-          300
-        ]
-      ],
-      "stone_all": 80,
+      "actor_rare": 0,
+      "actor_rare_lives": [],
+      "stone_all": 77,
       "held_rare": [
         [
           0,
@@ -75,25 +80,22 @@
       "last_env": 99840
     },
     "m23_uniform_window": {
-      "lives": 443,
-      "actor_lives": 322,
+      "lives": 440,
+      "spanning": 3,
+      "spanning_rare": 2,
+      "spanning_short": 48,
+      "first_handoff": 2992,
+      "early_stone": 0,
+      "early_rare": 0,
+      "actor_lives": 319,
       "assisted_lives": 121,
       "handoffs": 121,
       "assisted_without_handoff": 0,
       "assisted_without_handoff_env": [],
       "teacher_rare": 44,
-      "actor_rare": 2,
-      "actor_rare_lives": [
-        [
-          25136,
-          268
-        ],
-        [
-          75024,
-          48
-        ]
-      ],
-      "stone_all": 124,
+      "actor_rare": 0,
+      "actor_rare_lives": [],
+      "stone_all": 121,
       "held_rare": [
         [
           0,
@@ -141,25 +143,22 @@
       "last_env": 99728
     },
     "m24_walk_home": {
-      "lives": 463,
-      "actor_lives": 349,
-      "assisted_lives": 114,
-      "handoffs": 114,
+      "lives": 460,
+      "spanning": 3,
+      "spanning_rare": 2,
+      "spanning_short": 74,
+      "first_handoff": 1616,
+      "early_stone": 0,
+      "early_rare": 0,
+      "actor_lives": 347,
+      "assisted_lives": 113,
+      "handoffs": 113,
       "assisted_without_handoff": 0,
       "assisted_without_handoff_env": [],
       "teacher_rare": 23,
-      "actor_rare": 2,
-      "actor_rare_lives": [
-        [
-          50016,
-          100
-        ],
-        [
-          75024,
-          74
-        ]
-      ],
-      "stone_all": 118,
+      "actor_rare": 0,
+      "actor_rare_lives": [],
+      "stone_all": 115,
       "held_rare": [
         [
           0,

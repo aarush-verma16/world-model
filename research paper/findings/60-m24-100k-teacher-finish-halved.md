@@ -4,6 +4,8 @@
 
 **Correction (2026-11-24).** "Outside the 9×7 crop" holds for the walk home, not for the craft. Crafter's `make_*` checks `world.nearby(pos, 1)`, the 3×3 around the player, and that is always inside the 9×7. In M24 the station is out of the field while the teacher walks back from the ore and in the field for the last steps before the craft. Only the room (finding 64) puts the station outside the image at the action.
 
+**Correction 2 (2026-11-24).** The two "actor" iron pickaxes (50,016 and 75,024) both span a teacher injection and inherited the demonstrator's world (finding 65). The actor's own count is 0. The spanning life at 25,024 was a handoff, so the teacher figure is 23/113.
+
 ## Why this is not the paper
 
 Two unaided lives is the same count as both field-station runs, and the held-out iron pickaxe is zero in all three. The crop switch separated the teacher's finish rate. It did not separate the actor's iron pickaxe into a zero.

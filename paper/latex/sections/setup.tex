@@ -31,8 +31,8 @@ In imagination, the rare craft is therefore selectable only when the model predi
 We did not probe the neighborhood head separately; \cref{sec:discussion} returns to this.
 
 \paragraph{Starting checkpoint.}
-All three runs start from the same checkpoint, an earlier 200k-step run of the same architecture with a demonstrator that played whole lives.
-That run made the iron pickaxe in \StartRare{} of its \StartLives{} lives.
+All three runs start from the same checkpoint, an earlier 200k-step run of the same architecture with a demonstrator that played whole lives in replay and no handoff.
+Its actor made the iron pickaxe in \StartRare{} of its \StartLives{} training lives (\cref{app:accounting} explains why \StartSpanning{} further lives are excluded).
 Each run starts with fresh replay, 32 demonstrator episodes of at most 800 steps, and 8 more every 25k steps.
 Half of each batch is drawn from demonstrator episodes ($\rho_T=0.5$).
 
@@ -40,6 +40,7 @@ Half of each batch is drawn from demonstrator episodes ($\rho_T=0.5$).
 Once an actor's life has a stone pickaxe and no iron pickaxe, the demonstrator takes over for the rest of that life, which ends 32 steps after the craft.
 The life is flagged \emph{assisted}, stored as a demonstrator episode, and excluded from every count of the actor's own crafts (\cref{app:accounting}).
 The fraction of handoffs on which the demonstrator finishes the iron pickaxe measures how often the demonstrations that enter replay actually contain the rare action.
+In the beside-resource anchored run, the handoff was switched on when the run was resumed, and the first handoff came at \FirstHandoffBeside{} environment steps; the other two runs used it from the start.
 
 \paragraph{Runs.}
 The three runs differ in one condition each.
@@ -48,8 +49,9 @@ The three runs differ in one condition each.
 \emph{At home, anchored}: the demonstrator crafts at the station it built earlier in the life and walks back to it from the ore, so the station is outside the field during that walk and enters it only in the last steps before the craft; $\rho_A=0.5$.
 
 \paragraph{Evaluation.}
-Every 25k steps, ten lives are played by the actor alone, from fixed seeds, with no demonstrator and no handoff.
+Every 25k steps, ten lives are played by the actor alone on a separate environment instance, from fixed seeds, with no demonstrator and no handoff.
 We report, for each run, the number of actor lives (no assisted flag) with the iron pickaxe, the demonstrator's finishes out of handoffs, and the held-out count out of ten.
+Training lives that were open when demonstrator episodes were injected are excluded from every count (\cref{app:inject}).
 
 \subsection{Second setting: a room}
 \label{sec:setup-room}

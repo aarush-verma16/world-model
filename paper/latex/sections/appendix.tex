@@ -79,7 +79,27 @@ In an earlier short run with uniform windows only, the cloning loss fell from 0.
 Of the 32 demonstrator lives in replay, 22 contained the craft, around steps 170--245 of lives that were often 200--800 steps long.
 A 64-step window ends on the craft for about 64 of several hundred possible start positions, so a uniform draw contains it only a few percent of the time, and the averaged loss is indifferent to it.
 This motivated anchored windows and the weight $\kappa$.
-Over a full 100k-step run, anchoring did not change the actor's count (\cref{sec:benchmark}).
+Over a full 100k-step run, anchoring did not change the actor's behavior (\cref{sec:benchmark}).
+
+\subsection{Demonstrations injected on the collection environment}
+\label{app:inject}
+
+Every 25k environment steps, the benchmark loop adds eight new demonstrator episodes to replay.
+In our implementation the demonstrator played them on the same environment instance that the actor's collector was using, while the actor's current life was still open.
+When the injection returned, the actor's open life resumed inside the last demonstrator episode's world, with that episode's inventory and achievement counters.
+If that demonstrator had already crafted the iron pickaxe, the handoff rule (stone pickaxe and no iron pickaxe) never fired, and the life was logged as an unassisted iron pickaxe.
+
+The logs show the signature exactly.
+Before we found the leak, the three runs appeared to contain two unassisted iron pickaxes each, and the starting checkpoint's run appeared to contain \StartSpanningRare{}.
+Every one of these lives started before an injection and ended within 136 environment steps after it, and they include lives of \BenchSpanningShortest{} and 19 steps that are credited with coal, a furnace, iron, and the iron pickaxe.
+The only iron swords and diamonds in the three runs' training logs also sit on these lives, although the handoff demonstrator never made either.
+We reproduced the mechanism with the environment alone: a random life with no achievements, followed by an injection on the same instance and a single further step, reports the iron pickaxe and eighteen other achievements.
+
+We therefore exclude, from every benchmark count, the training lives that span an injection: three per run (one per injection) and \StartSpanning{} in the starting checkpoint's run.
+With them excluded, the actor's unaided iron-pickaxe count is zero in all four runs.
+One excluded life in the at-home run had been handed off after it inherited a stone pickaxe, which is why that run's handoff count is 113.
+Held-out evaluations use a separate environment instance and are unaffected.
+The general point is that, when demonstrations and agent experience share an environment object, an episode boundary on one side need not be an episode boundary on the other, and success counts can silently absorb the demonstrator's achievements.
 
 \section{Accounting for demonstrator lives}
 \label{app:accounting}
@@ -87,15 +107,15 @@ Over a full 100k-step run, anchoring did not change the actor's count (\cref{sec
 On the benchmark, the training log records every life with the achievements it unlocked and, for lives the demonstrator took over, an \emph{assisted} flag.
 A life's stone pickaxe is always crafted by the actor, because the handoff begins only after it.
 Everything after the handoff is the demonstrator's.
-We count a life as the actor's only if it has no assisted flag.
+We count a life as the actor's only if it has no assisted flag and was not open during a demonstrator injection (\cref{app:inject}).
 A Crafter score computed over all lives would include achievements the demonstrator unlocked after handoffs, and we therefore do not report one as the method's score.
 
-In the beside-resource anchored run, \BenchMTwoTwoFieldCraftLives{} lives contain 84 assisted lives, of which 60 are stone-pickaxe handoffs.
+In the beside-resource anchored run, the \BenchMTwoTwoFieldCraftLives{} counted lives contain 84 assisted lives, of which 60 are stone-pickaxe handoffs.
 The other 24 form one block between 61,472 and 66,768 environment steps, when a rule that handed over lives at low health was briefly enabled; none has a stone pickaxe, they are excluded from both the handoff denominator and the actor's lives, and the rule was disabled for the other two runs.
 In the other two runs every assisted life is a stone-pickaxe handoff.
 Several lives can end within one logging interval and share an environment-step stamp; each log row is a distinct life.
 
-In the room there is no handoff.
+In the room there is no handoff and no injection.
 Demonstrator episodes are the eight collected before training, all of which scored, and every other episode is the actor's.
 
 \section{Additional results}
@@ -127,6 +147,7 @@ Demonstrator episodes are the eight collected before training, all of which scor
 \section{Reproducibility}
 \label{app:repro}
 
-Every number, table, and plot in this paper is produced from the training logs and probe summaries by one script, which reads the per-life and per-episode logs, recounts the actor's and demonstrator's lives, and writes the tables and figures.
+Every number, table, and plot in this paper is produced from the training logs and probe summaries by one script, which reads the per-life and per-episode logs, applies the exclusion rule of \cref{app:inject}, recounts the actor's and demonstrator's lives, and writes the tables and figures.
+\Cref{fig:example} comes from a separate inference-only script that runs one benchmark checkpoint over a stored probe episode, and the injection leak is reproduced by a script that uses the environment alone.
 The repository contains the world model, the field head, the room environment and demonstrator, the training loops for both settings, the probe scripts, and the configuration files for all seven runs.
 At the logged rate of 0.65--1.05 environment steps per second, a benchmark run took one to two days on one 16\,GB GPU; a room run took under an hour.

@@ -565,7 +565,10 @@ flowchart LR
         body:"On a correct teacher episode the mode of z_posterior names the station cell, probability about 1 on the trained pose, and it does not paint the station onto other cells. A 15-step z_prior rollout keeps that field. Actor use is 14/56, 5/53, 12/56, and 6/54. The last evals are 3/8, 2/8, 2/8, and 2/8. Half the teacher episodes are 160 no-ops, so the window gap is not identified. The rerun is finding 64." },
       { id:"64", tags:["eval","qualitative"], title:"In the room, use is learned with the station behind the agent and with the window off",
         file:"findings/64-room-use-learned-in-every-cell.md",
-        body:"The 2026-11-23 rerun stores 8/8 real teacher episodes. Actor use is 124/147, 85/110, 185/190, and 130/138. Final eval is 8/8 in every cell. The field head names the station cell and does not paint it elsewhere. Anchored successes cluster near 36–38 steps; uniform lengths spread out." }
+        body:"The 2026-11-23 rerun stores 8/8 real teacher episodes. Actor use is 124/147, 85/110, 185/190, and 130/138. Final eval is 8/8 in every cell. The field head names the station cell and does not paint it elsewhere. Anchored successes cluster near 36–38 steps; uniform lengths spread out." },
+      { id:"65", tags:["eval","negative-result"], title:"Every \"unaided\" iron pickaxe came from a demonstrator world the actor inherited",
+        file:"findings/65-teacher-inject-leaks-into-actor-life.md",
+        body:"Teacher injection runs on the collect env every 25k steps, and the open actor life resumes inside the last demonstrator world. All six unaided iron pickaxes in M22–M24 and all three in M20 span an injection. Excluding those lives, the actor's unaided count is 0 in every run. Reproduced with the env alone." }
     ];
     const TAGS = ["all","graph","loss-scale","kl","geometry","qualitative","eval","compute","negative-result"];
     const REVIVE = [

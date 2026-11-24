@@ -1,6 +1,8 @@
-# At 100k the actor reaches the stone pickaxe more often, and the field teacher finishes about 4 in 10
+﻿# At 100k the actor reaches the stone pickaxe more often, and the field teacher finishes about 4 in 10
 
-**Claim.** M22 finished at env 100,000 on 2026-10-28. In the last quarter, 24 of 112 lives crafted a stone pickaxe (21%), up from 20 of 112 in the first quarter and from 13.5% in M20's last 200. The teacher, taking over only after that pickaxe, made an iron pickaxe on 10 of those 23 handoffs. One more iron pickaxe, at env 75,024, has no `assisted` flag. Held-out iron pickaxe is 0/10 at 100k.
+**Claim.** M22 finished at env 100,000 on 2026-10-28. In the last quarter, 24 of 112 lives crafted a stone pickaxe (21%), up from 20 of 112 in the first quarter and from 13.5% in M20's last 200. The teacher, taking over only after that pickaxe, made an iron pickaxe on 10 of those 23 handoffs. One more iron pickaxe, at env 75,024, has no `assisted` flag. Held-out iron pickaxe is 0/10 at 100k.
+
+**Correction (2026-11-24).** The untagged iron-pickaxe lives in this finding span a teacher injection and inherited the demonstrator's world; the actor's own count is 0 (finding 65).
 
 ## Why this is not the paper
 

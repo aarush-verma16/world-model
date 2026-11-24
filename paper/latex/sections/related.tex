@@ -1,6 +1,8 @@
 \section{Related work}
 \label{sec:related}
 
+Our question sits between three lines of work: model-based agents that act on a learned state, methods for asking what such a state represents, and the use of privileged information and demonstrations to shape it.
+
 \paragraph{World models and imagination.}
 Learning a model of the environment and training behavior inside it goes back to Dyna \citep{sutton1991dyna}.
 \citet{ha2018worldmodels} trained a controller inside a learned latent model of pixels, and SimPLe trained policies inside a video-prediction model on Atari \citep{kaiser2020simple}.
@@ -23,7 +25,7 @@ Our field head differs in two ways: it is trained jointly with the world model, 
 \paragraph{Privileged information as a target or an input.}
 Using information available only at training time goes back to learning using privileged information \citep{vapnik2009lupi}.
 In control, privileged state can train a critic while the actor sees observations \citep{pinto2018asymmetric}, train a teacher that a vision-only student imitates \citep{chen2019lbc}, or serve as a prediction target.
-The closest prior work is the Informed POMDP, which trains a Dreamer world model to predict training-time information rather than observations and finds that this speeds learning \citep{lambrechts2024informed}.
+The closest prior work is the Informed POMDP, which trains a Dreamer world model to predict training-time information rather than observations and finds that this speeds learning \citep{lambrechts2024informed}; its follow-up identifies a limitation in the privileged-information representations that this Informed Dreamer learns and replaces the prediction target with latent guidance \citep{lambrechts2026reinformed}.
 Scaffolder uses privileged sensors to scaffold the world model, critic, and other training components of a policy that is deployed on target observations \citep{hu2024scaffolder}; a DreamerV3-style model has been trained to reconstruct privileged simulator state in place of images \citep{krinner2025ssmwm}; and a driving world model's latent has been decoded to bird's-eye-view semantic segmentation \citep{hu2022mile}.
 Auxiliary prediction of game features and other signals is an established way to shape representations in reinforcement learning \citep{jaderberg2017unreal,lample2017fps,mirowski2017navigate,dosovitskiy2017dfp}.
 \method{} predicts a discrete egocentric map of the kind these works use as a training signal, and asks a question they do not: whether the latent names the specific tile a rare action needs, before and during imagination.
@@ -42,7 +44,7 @@ We did not find prior work that adds a cloning loss on scripted demonstrations t
 \paragraph{Rare events in replay.}
 Sampling replay to emphasize important sequences is common: R2D2 prioritizes sequences by a mix of their maximum and mean error \citep{kapturowski2019r2d2}, prioritized sequence replay propagates priority back to the transitions before an important event \citep{brittain2019pser}, UNREAL rebalances rewarding and non-rewarding sequences for its reward-prediction task \citep{jaderberg2017unreal}, and Curious Replay prioritizes Dreamer's replay by novelty \citep{kauvar2023curious}.
 Hindsight relabeling \citep{andrychowicz2017her} and returning to promising states \citep{ecoffet2021firstreturn} address related sparsity in rewards and exploration.
-Our anchored window is the simplest member of this family, applied to demonstrations, and on the benchmark it did not change the actor's count by itself.
+Our anchored window is the simplest member of this family, applied to demonstrations; on the benchmark it did not change the actor's behavior.
 
 \paragraph{Crafter.}
 Crafter evaluates 22 achievements in a procedurally generated survival world \citep{hafner2022crafter}, and Craftax reimplements and extends it for fast experimentation \citep{matthews2024craftax}.

@@ -1,6 +1,8 @@
-# By 70k the walk-home actor has one unaided iron pickaxe
+﻿# By 70k the walk-home actor has one unaided iron pickaxe
 
 **Claim.** M24 is at env 69,888 on 2026-11-13 and still stepping. The station is walked home. One untagged life made an iron pickaxe, at env 50,016 (length 100, return 7.0, with coal, a furnace, and iron). Held-out iron pickaxe is 0/10 at env 0, 25,008, and 50,000. In the latest window the teacher finished iron on 6 of 16 handoffs.
+
+**Correction (2026-11-24).** The untagged iron-pickaxe lives in this finding span a teacher injection and inherited the demonstrator's world; the actor's own count is 0 (finding 65).
 
 ## Why this is not the paper
 

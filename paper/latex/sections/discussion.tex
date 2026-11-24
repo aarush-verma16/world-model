@@ -11,7 +11,7 @@ That co-occurrence is the paper's main observation.
 It is consistent with the latent being the bottleneck, but two settings that differ in many ways cannot establish it.
 
 \paragraph{What the benchmark runs do and do not show.}
-They show that, at 100k steps from a shared checkpoint, neither anchoring the cloning window on the rare action nor placing the station beside the resource changed what the latent names or how often the actor performs the rare action.
+They show that, at 100k steps from a shared checkpoint, neither anchoring the cloning window on the rare action nor placing the station beside the resource changed what the latent names, and that the actor did not perform the rare action under either.
 They show that placement changed how often the demonstrations that enter replay contain the rare action.
 They do not show that either condition is irrelevant in general: each is a single seed, the training-time unaided count is censored by the handoff, held-out evaluation is ten lives, and the benchmark's rare craft comes only after a long sequence of earlier achievements and survival.
 
@@ -23,19 +23,22 @@ They do not show that either condition is irrelevant in general: each is a singl
   \item \emph{Small held-out sets.} Ten lives per benchmark checkpoint and eight episodes per room evaluation bound the resolution of every success rate we report.
   \item \emph{The room is easy.} It has a fixed layout and a single action. It isolates the station's visibility and the window, and nothing else from the benchmark.
   \item \emph{Model scale differs between settings.} The benchmark uses the XL configuration and the room a small one, chosen for the size of each observation's content; we do not vary scale within a setting.
+  \item \emph{Post-hoc exclusion.} The benchmark counts exclude training lives that were open during a demonstrator injection, a rule we adopted after finding that those lives inherit the demonstrator's achievements (\cref{app:inject}). The exclusion removes three lives per run; the held-out evaluations, which run on a separate environment instance, are unaffected.
 \end{itemize}
 
 \paragraph{Directions.}
 Four experiments follow directly.
 Probing the benchmark's neighborhood head, with the same protocol as the field head, would show whether the action mask removed the rare craft from imagined rollouts.
 Running the actor on the predicted field at real steps would remove the privileged input and test the model alone.
-Weighting the field loss toward rare classes, or raising the encoder's spatial resolution so a tile is no smaller than a latent cell, would test whether naming the station on the benchmark changes the actor's count.
+Weighting the field loss toward rare classes, or raising the encoder's spatial resolution so a tile is no smaller than a latent cell, would test whether naming the station on the benchmark lets the actor learn the rare craft.
 Repeating the benchmark comparison over several seeds would turn the absence of an effect into an estimate of its size.
+Beyond these, the field head is one instance of a general diagnostic: any agent that acts on a learned state can be given a decoder for the symbolic facts its decisions depend on, and that decoder can be read under imagination, where the policy is trained.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
 \method{} adds a local symbolic field head to a Dreamer world model, lets the actor read that field, and uses it to ask what the latent names.
-On Crafter, the latent names terrain and not the crafting station, and neither anchoring demonstrations on the rare action nor placing the station beside the resource changed that or the actor's unaided count.
+On Crafter, the latent names terrain and not the crafting station. The actor never performed the rare craft on its own, and neither anchoring demonstrations on the rare action nor placing the station beside the resource changed either result.
 In a room where the station fills one encoder cell, the latent names it and the same recipe learns the rare action in every condition, including with the station behind the agent.
 Probing the field a policy is trained on, rather than its reconstructions, is a direct way to see which of these two situations a world model is in.
+Along the way we found three ways in which such a study can mislead without any visible error: a reconstruction path that bypasses the latent, a cloning loss that never sees the rare action, and demonstrations injected on the collection environment that credit the agent with the demonstrator's achievements.

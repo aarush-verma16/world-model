@@ -1,6 +1,8 @@
-# At 51k the takeover crafts iron; the actor has done it once
+﻿# At 51k the takeover crafts iron; the actor has done it once
 
-**Claim.** At the 2026-10-23 interrupt (env 51,312) teacher v4, taking over after a stone pickaxe, made an iron pickaxe in 7 of 18 assisted lives. One unassisted collect life, env 25,024, length 196, made an iron pickaxe, an iron sword, and a diamond. The 50k held-out bag of 10 did not. By env 60,928 the takeover was 11/24, including 5/7 since 51k, and the actor still had no second iron-pickaxe life.
+**Claim.** At the 2026-10-23 interrupt (env 51,312) teacher v4, taking over after a stone pickaxe, made an iron pickaxe in 7 of 18 assisted lives. One unassisted collect life, env 25,024, length 196, made an iron pickaxe, an iron sword, and a diamond. The 50k held-out bag of 10 did not. By env 60,928 the takeover was 11/24, including 5/7 since 51k, and the actor still had no second iron-pickaxe life.
+
+**Correction (2026-11-24).** The untagged iron-pickaxe lives in this finding span a teacher injection and inherited the demonstrator's world; the actor's own count is 0 (finding 65).
 
 ## Why this is not the paper
 

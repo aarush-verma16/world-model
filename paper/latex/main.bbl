@@ -1,4 +1,4 @@
-\begin{thebibliography}{64}
+\begin{thebibliography}{65}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -271,6 +271,13 @@ Gaspard Lambrechts, Adrien Bolland, and Damien Ernst.
   {RL}.
 \newblock \emph{Reinforcement Learning Journal}, 2:\penalty0 763--784, 2024.
 \newblock URL \url{https://rlj.org/papers/lambrechts2024informed}.
+
+\bibitem[Lambrechts et~al.(2026)Lambrechts, Bolland, Ebi, and
+  Ernst]{lambrechts2026reinformed}
+Gaspard Lambrechts, Adrien Bolland, Daniel Ebi, and Damien Ernst.
+\newblock Reinformed {Dreamer}: An asymmetric world model efficiently trained
+  through latent guidance, 2026.
+\newblock URL \url{https://arxiv.org/abs/2607.26040}.
 
 \bibitem[Lample and Chaplot(2017)]{lample2017fps}
 Guillaume Lample and Devendra~Singh Chaplot.

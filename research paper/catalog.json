@@ -741,6 +741,14 @@
       "tags": ["eval", "qualitative"],
       "one_liner": "The 2026-11-23 rerun has 8/8 real teacher episodes in every cell. Actor use is 124/147, 85/110, 185/190, and 130/138. Final eval is 8/8 in all four. Posterior station recall is 1 and false station is 0. Anchored successes cluster near 36–38 steps; uniform lengths spread out. Real eval still reads the environment field.",
       "paper_spin": "Once the station fills an encoder cell and the episode is short, use is learned with the station behind the agent and with an ordinary window. The window changes the length of the successful episode. The benchmark sentence stays findings 57, 60, and 61."
+    },
+    {
+      "id": 65,
+      "file": "findings/65-teacher-inject-leaks-into-actor-life.md",
+      "title": "Every \"unaided\" iron pickaxe came from a demonstrator world the actor inherited",
+      "tags": ["eval", "negative-result"],
+      "one_liner": "seed_teacher_episodes runs on the collect env every 25k steps; the open actor life resumes inside the last demonstrator world. All six unaided iron pickaxes in M22-M24 and all three in M20 span an injection (a 48-step and a 19-step life among them). Excluding spanning lives, the actor's unaided iron pickaxe is 0 in every run. Reproduced env-only.",
+      "paper_spin": "The actor never made the rare craft on its own, in training or held out. Appendix: exclusion rule for lives that span an injection."
     }
   ],
   "do_not_revive": [

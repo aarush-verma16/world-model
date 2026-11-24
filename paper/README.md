@@ -21,6 +21,8 @@ This folder is the only input to the arXiv LaTeX draft. When that draft is writt
 2. From `paper\latex`: `c:\Users\Aarus\miniforge3\envs\paper\Library\bin\tectonic.exe -X compile main.tex --keep-intermediates` builds `main.pdf` and `main.bbl`.
 3. `c:\Users\Aarus\miniforge3\envs\paper\python.exe paper\scripts\make_arxiv_tarball.py` packs `paper/arxiv_submission.tar.gz`.
 
+`build_assets.py` drops every benchmark life that was open during a teacher injection (finding 65). `paper\scripts\dump_field_example.py` (inference only, needs CUDA) writes `data/probes/field_example.npz` for Figure 1. `paper\scripts\check_inject_contamination.py` reproduces the injection leak with the environment alone. `arxiv_metadata.txt` holds the title, abstract, and category to paste into the arXiv form.
+
 `latex/refs.bib` holds only entries verified against arXiv and proceedings pages; the per-entry notes are in `citations/`. `scripts/render_pages.py` renders the PDF to `latex/build_preview/` for a visual check.
 
 No citation in a later draft is invented here. Page numbers and DOIs are taken from the papers while the LaTeX is written.

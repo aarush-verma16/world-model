@@ -86,9 +86,25 @@ def fmt_int(value: int) -> str:
 # --------------------------------------------------------------------------- benchmark
 
 
+INJECT_EVERY = 25_000
+
+
+def spans_injection(row: dict) -> bool:
+    """Teacher injection replays demonstrator lives on the collect env, so the actor life open at
+    that moment resumes inside the demonstrator's last world and inherits its achievements."""
+    end = int(row["env_steps"])
+    start = end - int(row["length"])
+    return end // INJECT_EVERY > start // INJECT_EVERY
+
+
+def load_lives(slug: str) -> tuple[list[dict], list[dict]]:
+    """Returns `(kept, spanning)`. Every log row is a distinct life, even when rows share `env_steps`."""
+    rows = load_jsonl(DATA / "benchmark" / slug / "collect_episodes.jsonl")
+    return [r for r in rows if not spans_injection(r)], [r for r in rows if spans_injection(r)]
+
+
 def benchmark_counts(slug: str) -> dict:
-    # Several lives can end in the same logged chunk and share `env_steps`; every row is a distinct life.
-    unique = load_jsonl(DATA / "benchmark" / slug / "collect_episodes.jsonl")
+    unique, spanning = load_lives(slug)
     assisted = [r for r in unique if r.get("assisted")]
     actor = [r for r in unique if not r.get("assisted")]
     handoff = [r for r in assisted if r.get("achievement_make_stone_pickaxe", 0) > 0]
@@ -98,8 +114,19 @@ def benchmark_counts(slug: str) -> dict:
     evals = json.loads((DATA / "benchmark" / slug / "eval_metrics.json").read_text(encoding="utf-8"))
     held = [(int(e["env_steps"]), int(round(e["eval_pct_make_iron_pickaxe"] / 10.0))) for e in evals]
     held_stone = [(int(e["env_steps"]), int(round(e["eval_pct_make_stone_pickaxe"] / 10.0))) for e in evals]
+    first_handoff = min(int(r["env_steps"]) for r in handoff)
+    early_stone = [r for r in actor if int(r["env_steps"]) < first_handoff
+                   and r.get("achievement_make_stone_pickaxe", 0) > 0]
     return {
         "lives": len(unique),
+        "spanning": len(spanning),
+        "spanning_rare": sum(1 for r in spanning if r.get("achievement_make_iron_pickaxe", 0) > 0),
+        "spanning_short": min(int(r["length"]) for r in spanning
+                              if r.get("achievement_make_iron_pickaxe", 0) > 0) if any(
+            r.get("achievement_make_iron_pickaxe", 0) > 0 for r in spanning) else None,
+        "first_handoff": first_handoff,
+        "early_stone": len(early_stone),
+        "early_rare": sum(1 for r in early_stone if r.get("achievement_make_iron_pickaxe", 0) > 0),
         "actor_lives": len(actor),
         "assisted_lives": len(assisted),
         "handoffs": len(handoff),
@@ -117,9 +144,15 @@ def benchmark_counts(slug: str) -> dict:
 
 
 def start_checkpoint_counts() -> dict:
-    rows = load_jsonl(DATA / "benchmark" / "m20_local_map" / "collect_episodes.jsonl")
+    rows, spanning = load_lives("m20_local_map")
     rare = [r for r in rows if r.get("achievement_make_iron_pickaxe", 0) > 0]
-    return {"lives": len(rows), "rare": len(rare), "last_env": max(int(r["env_steps"]) for r in rows)}
+    return {
+        "lives": len(rows),
+        "rare": len(rare),
+        "spanning": len(spanning),
+        "spanning_rare": sum(1 for r in spanning if r.get("achievement_make_iron_pickaxe", 0) > 0),
+        "last_env": max(int(r["env_steps"]) for r in rows + spanning),
+    }
 
 
 # --------------------------------------------------------------------------- room
@@ -272,6 +305,149 @@ def fig_room(room: dict) -> None:
     plt.close(fig)
 
 
+CRAFTER_MATERIALS = ("outside", "water", "grass", "stone", "path", "sand", "tree", "lava",
+                     "coal", "iron", "diamond", "table", "furnace")
+MATERIAL_COLORS = {
+    "outside": "#000000", "water": "#3a7bd5", "grass": "#7cc35a", "stone": "#9a9a9a",
+    "path": "#d9c49a", "sand": "#efe2a2", "tree": "#2f6b2a", "lava": "#e2541b",
+    "coal": "#333333", "iron": "#c98d6b", "diamond": "#bff3f5", "table": "#8b5a2b",
+    "furnace": "#5b2c2c",
+}
+
+
+def _field_image(codes: np.ndarray) -> np.ndarray:
+    """`codes` `[63]` x-major material codes -> RGB `[7, 9, 3]`."""
+    from matplotlib.colors import to_rgb
+
+    grid = codes.reshape(9, 7).T
+    return np.asarray([[to_rgb(MATERIAL_COLORS[CRAFTER_MATERIALS[c]]) for c in row] for row in grid])
+
+
+def fig_field_example() -> dict:
+    data = np.load(DATA / "probes" / "field_example.npz")
+    frame = data["frame"]
+    true = data["true_mat"].astype(int)
+    post, prior = data["post_probs"], data["prior_probs"]
+    horizon = int(data["horizon"][0])
+    station = np.isin(true, [CRAFTER_MATERIALS.index("table"), CRAFTER_MATERIALS.index("furnace")])
+    station_xy = [(i // 7, i % 7) for i in np.flatnonzero(station)]
+
+    fig, axes = plt.subplots(1, 5, figsize=(6.9, 1.75), gridspec_kw={"width_ratios": [1.0, 1.25, 1.25, 1.25, 1.45]})
+    ax = axes[0]
+    ax.imshow(frame, interpolation="nearest", extent=(0, 64, 64, 0))
+    for k in range(10):
+        ax.plot([7 * k, 7 * k], [0, 49], color="white", lw=0.35, alpha=0.8)
+    for k in range(8):
+        ax.plot([0, 63], [7 * k, 7 * k], color="white", lw=0.35, alpha=0.8)
+    for k in range(5):
+        ax.axvline(16 * k, color="#D55E00", lw=1.1)
+        ax.axhline(16 * k, color="#D55E00", lw=1.1)
+    ax.set_xlim(0, 64)
+    ax.set_ylim(64, 0)
+    ax.set_title("(a) Observation", pad=3)
+
+    def panel(ax, codes, title):
+        ax.imshow(_field_image(codes), interpolation="nearest", extent=(-0.5, 8.5, 6.5, -0.5))
+        for x, y in station_xy:
+            ax.add_patch(plt.Rectangle((x - 0.5, y - 0.5), 1, 1, fill=False, ec="#E69F00", lw=1.6))
+        ax.plot(4, 3, marker="o", ms=2.5, color="white", mec="black", mew=0.4)
+        ax.set_title(title, pad=3)
+
+    panel(axes[1], true, "(b) True field")
+    panel(axes[2], post.argmax(-1), "(c) Field head, $z^{\\mathrm{post}}$")
+    panel(axes[3], prior.argmax(-1), f"(d) After {horizon} steps, $z^{{\\mathrm{{prior}}}}$")
+
+    ax = axes[4]
+    p_true = post[np.arange(true.size), true].reshape(9, 7).T
+    im = ax.imshow(p_true, cmap="viridis", vmin=0, vmax=1, interpolation="nearest", extent=(-0.5, 8.5, 6.5, -0.5))
+    for x, y in station_xy:
+        ax.add_patch(plt.Rectangle((x - 0.5, y - 0.5), 1, 1, fill=False, ec="#E69F00", lw=1.6))
+    ax.set_title("(e) $P$(true class), $z^{\\mathrm{post}}$", pad=3)
+    cbar = fig.colorbar(im, ax=ax, fraction=0.06, pad=0.03)
+    cbar.ax.tick_params(labelsize=6, length=2)
+
+    for ax in axes:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_linewidth(0.5)
+
+    shown = sorted(set(true.tolist()) | set(post.argmax(-1).tolist()) | set(prior.argmax(-1).tolist()))
+    handles = [plt.Rectangle((0, 0), 1, 1, fc=MATERIAL_COLORS[CRAFTER_MATERIALS[c]], ec="0.3", lw=0.3)
+               for c in shown]
+    fig.legend(handles, [CRAFTER_MATERIALS[c] for c in shown], loc="lower center", ncol=len(shown),
+               frameon=False, fontsize=6.5, handlelength=1.0, columnspacing=1.0, bbox_to_anchor=(0.5, -0.02))
+    fig.tight_layout(w_pad=0.6, rect=(0, 0.1, 1, 1))
+    fig.savefig(OUT_FIG / "field_example.pdf")
+    plt.close(fig)
+    table = CRAFTER_MATERIALS.index("table")
+    cells = true == table
+    return {
+        "post_table": float(post[cells, table].mean()) if cells.any() else float("nan"),
+        "prior_table": float(prior[cells, table].mean()) if cells.any() else float("nan"),
+        "post_acc": float((post.argmax(-1) == true).mean()),
+        "prior_acc": float((prior.argmax(-1) == true).mean()),
+    }
+
+
+def fig_benchmark(bench: dict) -> None:
+    fig, axes = plt.subplots(1, 3, figsize=(6.9, 2.0), gridspec_kw={"width_ratios": [1.0, 1.15, 1.35]})
+
+    ax = axes[0]
+    for i, (slug, _pose, _win) in enumerate(BENCH):
+        c = bench[slug]
+        k, n = c["teacher_rare"], c["handoffs"]
+        lo, hi = wilson(k, n)
+        ax.bar(i, k / n, color=COLORS[i], width=0.65)
+        ax.errorbar(i, k / n, yerr=[[k / n - lo], [hi - k / n]], color="black", capsize=2, lw=0.8)
+        ax.text(i, hi + 0.02, f"{k}/{n}", ha="center", va="bottom", fontsize=6.5)
+    ax.set_xticks(range(3), ["beside\nanch.", "beside\nunif.", "home\nanch."], fontsize=6.5)
+    ax.set_ylim(0, 0.62)
+    ax.set_ylabel("finish rate (95% CI)")
+    ax.set_title("(a) Demonstrator after handoff")
+
+    ax = axes[1]
+    for i, (slug, _pose, _win) in enumerate(BENCH):
+        c = bench[slug]
+        xs = [s / 1000 for s, _k in c["held_stone"]]
+        ax.plot(xs, [k for _s, k in c["held_stone"]], marker="o", ms=3, lw=1.1, color=COLORS[i],
+                label=BENCH_LABEL[slug])
+        ax.plot(xs, [k for _s, k in c["held_rare"]], marker="x", ms=4, lw=0, color=COLORS[i])
+    ax.text(50, 8.6, "iron pickaxe (x): 0 at every checkpoint", ha="center", va="bottom", fontsize=6.2,
+            color="0.3")
+    ax.set_ylim(-0.4, 10)
+    ax.set_xticks([0, 25, 50, 75, 100])
+    ax.set_xlabel("environment steps (thousands)")
+    ax.set_ylabel("held-out lives / 10")
+    ax.set_title("(b) Actor alone: stone pickaxe (o)")
+
+    ax = axes[2]
+    for i, (slug, _pose, _win) in enumerate(BENCH):
+        rows, _spanning = load_lives(slug)
+        stone = sorted(int(r["env_steps"]) for r in rows if r.get("achievement_make_stone_pickaxe", 0) > 0)
+        ax.step([0] + [s / 1000 for s in stone], np.arange(0, len(stone) + 1), where="post", color=COLORS[i],
+                lw=1.1, label=BENCH_LABEL[slug])
+        rare = sorted(int(r["env_steps"]) for r in rows
+                      if not r.get("assisted") and r.get("achievement_make_iron_pickaxe", 0) > 0)
+        ax.step([0] + [s / 1000 for s in rare] + [100], [0] + list(range(1, len(rare) + 1)) + [len(rare)],
+                where="post", color=COLORS[i], lw=1.1, ls=":")
+    for k in (25, 50, 75):
+        ax.axvline(k, color="0.85", lw=0.6, zorder=0)
+    ax.text(99, 4, "dotted: actor-only rare craft (0 in every run)", fontsize=6, color="0.3", ha="right",
+            va="bottom")
+    ax.set_xlim(0, 100)
+    ax.set_ylim(-3, 135)
+    ax.set_xlabel("environment steps (thousands)")
+    ax.set_ylabel("cumulative training lives")
+    ax.set_title("(c) Training: stone pickaxe (solid)")
+    ax.legend(frameon=False, loc="upper left", fontsize=6.2)
+
+    fig.tight_layout(w_pad=1.0)
+    fig.savefig(OUT_FIG / "benchmark_runs.pdf")
+    plt.close(fig)
+
+
 # --------------------------------------------------------------------------- tex
 
 
@@ -284,6 +460,15 @@ def write_tables(bench: dict, room: dict, field: dict, room_probe: dict, start: 
     m("\\StartLives", fmt_int(start["lives"]))
     m("\\StartRare", start["rare"])
     m("\\StartSteps", fmt_int(start["last_env"]))
+    m("\\StartSpanning", start["spanning"])
+    m("\\StartSpanningRare", start["spanning_rare"])
+    m("\\BenchSpanning", sum(bench[s]["spanning"] for s, _p, _w in BENCH))
+    m("\\BenchSpanningRare", sum(bench[s]["spanning_rare"] for s, _p, _w in BENCH))
+    m("\\BenchSpanningShortest", min(bench[s]["spanning_short"] for s, _p, _w in BENCH
+                                     if bench[s]["spanning_short"] is not None))
+    m("\\FirstHandoffBeside", fmt_int(bench["m22_field_craft"]["first_handoff"]))
+    m("\\EarlyStoneBeside", bench["m22_field_craft"]["early_stone"])
+    m("\\EarlyRareBeside", bench["m22_field_craft"]["early_rare"])
 
     for slug, _pose, _win in BENCH:
         c = bench[slug]
@@ -433,7 +618,14 @@ def main() -> None:
     write_tables(bench, room, field, room_probe, start)
     fig_field(field, room_probe)
     fig_room(room)
+    fig_benchmark(bench)
+    example = fig_field_example()
+    with open(OUT_GEN / "numbers.tex", "a", encoding="utf-8") as handle:
+        handle.write(f"\\newcommand{{\\ExamplePostAcc}}{{{100 * example['post_acc']:.0f}}}\n")
+        handle.write(f"\\newcommand{{\\ExamplePriorAcc}}{{{100 * example['prior_acc']:.0f}}}\n")
+        handle.write(f"\\newcommand{{\\ExamplePostTable}}{{{example['post_table']:.2f}}}\n")
     summary = {
+        "field_example": example,
         "start_checkpoint": start,
         "benchmark": {k: {kk: vv for kk, vv in v.items()} for k, v in bench.items()},
         "room": {k: {kk: vv for kk, vv in v.items() if kk != "lengths"} for k, v in room.items()},

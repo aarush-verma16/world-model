@@ -1,6 +1,8 @@
-# With the craft window off, the unaided iron craft is still two lives
+﻿# With the craft window off, the unaided iron craft is still two lives
 
 **Claim.** M23 finished at env 100,000 on 2026-11-03. It is the M22 recipe with `craft_window_fraction` 0: teacher rows are ordinary slices, and the field teacher is unchanged. Last quarter, 37 of 111 lives crafted a stone pickaxe, and 14 of those 37 made an iron pickaxe. Two of the iron pickaxes are untagged, at env 25,136 and env 75,024. Held-out iron pickaxe is 0/10 at 100k. M22, with the craft button anchored, also ended at two unaided lives and 0/10.
+
+**Correction (2026-11-24).** The untagged iron-pickaxe lives in this finding span a teacher injection and inherited the demonstrator's world; the actor's own count is 0 (finding 65).
 
 ## Why this is not the paper
 

@@ -118,6 +118,7 @@ Open [`index.html`](index.html) in a browser for the interactive hub (filterable
 62. [The room station is one 16×16 tile](findings/62-room-crop-is-one-tile.md) — 4×4 crop, pose requirement matches the config. Shared three-step walk, 48-step hold, then `use`. The training read is finding 63.
 63. [The room field head names the station](findings/63-room-field-names-the-station.md) — 2026-11-17, teacher file half no-ops. Posterior names the station on the trained pose. Actor use 14/56, 5/53, 12/56, 6/54. Do not read that gap as the window, and do not resume those checkpoints.
 64. [Room use is learned in every cell](findings/64-room-use-learned-in-every-cell.md) — 2026-11-23 rerun, teacher 8/8. Actor use 124/147, 85/110, 185/190, 130/138. Final eval 8/8 in every cell. Station recall 1, false station 0. Anchored lengths cluster near 36–38; uniform lengths spread out. Real eval still reads the environment field. Not the benchmark's 0/10.
+65. [Every "unaided" iron pickaxe was an inherited demonstrator world](findings/65-teacher-inject-leaks-into-actor-life.md) — teacher injection runs on the collect env; the open actor life resumes in the demonstrator's world. All six M22–M24 crafts and all three M20 crafts span an injection. Corrected actor count: 0 everywhere. Supersedes the "two unaided lives" in findings 54–60.
 
 Catalog (machine-readable): [`catalog.json`](catalog.json).
 
