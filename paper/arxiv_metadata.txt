@@ -1,7 +1,7 @@
 arXiv submission form: paste these fields as-is.
 
 Title:
-Does a World Model Know Where the Station Is? Probing a Dreamer Agent's Latent State with a Symbolic Field Head
+What Do World Models Encode for Rare Actions? Probing Local Spatial Facts in Dreamer Latents
 
 Authors:
 Aarush Verma
@@ -13,7 +13,7 @@ Cross-lists:
 none
 
 Comments:
-19 pages, 7 figures, 6 tables
+20 pages, 7 figures
 
 License:
 CC BY 4.0 (or arXiv's default non-exclusive license)

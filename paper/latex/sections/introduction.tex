@@ -27,7 +27,7 @@ We run both conditions on Crafter \citep{hafner2022crafter} with a large model a
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{field_example.pdf}
-  \caption{What the latent names on one benchmark frame (beside-resource anchored run, 100k steps). (a)~The $64\times64$ observation with Crafter's 7-pixel tiles (white) and the $16\times16$-pixel cells of the encoder's final feature map (orange): one latent cell spans more than two tiles in each direction. (b)~The true $9\times7$ field; the station tiles are outlined. (c)~The field head's prediction from the posterior latent: terrain is largely right (\ExamplePostAcc\% of cells), but the station is replaced by path, with probability \ExamplePostTable{} on the table tile. (d)~The same field after 15 imagined steps from the prior, the horizon on which the actor is trained: the map has drifted toward grass (\ExamplePriorAcc\% of cells). (e)~Probability of the true class per cell under the posterior. The frame is the probe frame with the most station cells in daylight; \cref{sec:latent} gives statistics over all \FieldCells{} probed cells.}
+  \caption{What the latent names on one benchmark frame (100k-step beside-resource anchored run). (a)~Observation with 7-pixel tiles (white) and $16\times16$ encoder cells (orange). (b)~True $9\times7$ field; station tiles outlined. (c)~Field head from the posterior: terrain is mostly right (\ExamplePostAcc\% of cells); the station is replaced by path ($P=\ExamplePostTable{}$ on the table). (d)~After 15 imagined steps from the prior (\ExamplePriorAcc\% of cells). (e)~$P$(true class) under the posterior. Aggregate statistics are in \cref{sec:latent}.}
   \label{fig:example}
 \end{figure}
 
@@ -41,6 +41,3 @@ We run both conditions on Crafter \citep{hafner2022crafter} with a large model a
 
 \paragraph{Scope.}
 This is a study of what a world model's latent state represents and of when that limits a policy trained in imagination. It is not a benchmark result. We do not report a Crafter score as the method's score, because lives that the demonstrator finished would inflate it (\cref{app:accounting}). Every configuration is one seed, and held-out evaluations are ten lives. The room is deliberately easy, and its success is not evidence for the benchmark.
-
-\paragraph{Organization.}
-\Cref{sec:related} positions the work. \Cref{sec:method} defines \method{} without reference to either environment, and \cref{sec:setup} instantiates it. \Cref{sec:latent} reports what the latent names, \cref{sec:benchmark,sec:room} report the two conditions in each setting, and \cref{sec:discussion} states the limitations.

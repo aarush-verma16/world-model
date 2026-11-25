@@ -1,10 +1,7 @@
 \begin{abstract}
-\noindent
 An agent that learns its behavior inside a world model can only act on what the model's latent state represents. We ask whether that state represents the one fact a rare decision depends on: which material occupies the small tile where the action must be taken.
 We study \method{}, a DreamerV3-style recurrent state-space model with a \emph{field head} that decodes a symbolic map of the cells around the agent from the latent state. The actor reads this predicted map during imagination. On real steps, including evaluation, it reads the environment's map.
 On Crafter, the field head is correct on 72\% of \FieldCells{} probed cells (all-grass baseline: \FieldBaseline\%), but it assigns the crafting station a mean probability of only 0.13--0.16. In three matched 100k-step runs, the actor never performs the rare craft that needs the station, in training or in held-out lives. Two training conditions leave both results unchanged: anchoring demonstration windows on the rare action, and placing the station beside the resource. Placement does change how often a demonstrator finishes the craft (37\% vs.\ 20\% of handoffs).
 In a controlled room where the station fills exactly one encoder cell, the field head names it with probability above 0.98, and the same recipe learns the rare action in all four conditions. This includes when the station is behind the agent at the moment of acting. There, anchoring changes when the actor acts, not whether it does.
 Each configuration is one seed. The pattern is consistent with the benchmark failure lying in what the latent represents, not in how demonstrations present the tile. We also report three implementation pitfalls that can silently invalidate a latent probe, a cloning loss, and a success count.
 \end{abstract}
-
-\keywords{world models; model-based reinforcement learning; latent state representation; probing; imagination-based planning; learning from demonstration}
