@@ -41,7 +41,7 @@ Every run ended with eight of eight evaluation successes.
 Every successful episode, in training and evaluation, was in the pose its condition requires, which the environment enforces.
 Every failure was a 160-step timeout.
 The behind-agent condition, in which the station is never in the image during the anchored window, was the more reliable of the two: \RoomOutAnchoredSuccess{} of \RoomOutAnchoredActor{} and \RoomOutUniformSuccess{} of \RoomOutUniformActor{} actor episodes scored, against \RoomInAnchoredSuccess{} of \RoomInAnchoredActor{} and \RoomInUniformSuccess{} of \RoomInUniformActor{} in crop, and its evaluations were at least seven of eight from the first one onward.
-Removing the station from the image at the moment of the action did not prevent the action from being learned, in a setting where the latent names the station whenever the station is visible (\cref{sec:latent}).
+Removing the station from the image at the moment of the action did not prevent the action from being learned. That does not show the latent was supplying the station's location then. On real steps the field is the crop in front of the agent, so during the hold the station is in neither the image nor the field, and the facing-away probe's station cells are the four cells from the walk before the turn (\cref{tab:room-probe}). The latent does name the station on the frames where the station is visible (\cref{sec:latent}).
 
 \paragraph{Anchoring changes when the actor acts, not whether.}
 Uniform windows also learned the action in both poses.
@@ -52,6 +52,6 @@ The in-crop uniform run was also the slowest to become reliable: its evaluations
 In every condition the actor acts well before the demonstrator's step 52 or 54, so it has not simply copied the length of the hold.
 
 \paragraph{The room is not the benchmark.}
-The room's \texttt{use} is one action from one cell in a fixed layout; the actor's first success came within the first 411 environment steps in every condition.
-It shows that \method{}'s training recipe can produce the rare action when the latent names the relevant tile, including when that tile is out of view at the moment of acting.
+The room's \texttt{use} is one action from one cell in a fixed layout. The actor's first success came within the first 411 environment steps in every condition. Those steps count only the actor's interaction after training starts: the eight demonstrator episodes are collected before the loop and are not included.
+The room shows that the recipe can produce the rare action in a layout where the station fills one encoder cell whenever it is in view, including a condition in which the station is behind the agent at the moment of acting. It does not show that the latent named the station during that hold.
 It is not evidence that the recipe produces the benchmark's rare craft, which remained absent from every held-out life.

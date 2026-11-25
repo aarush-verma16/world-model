@@ -59,7 +59,7 @@ The two paths share the encoder and the optimizer.
 The embedding decoder became a plain autoencoder: its reconstructions showed terrain and parts of the inventory, while reconstructions from $[h_t,\zpost_t]$ stayed close to a mean grass frame.
 At 12k steps the reconstruction error was about 0.032 (mean absolute) through the posterior and 0.027 through the bypass, and the summed loss looked healthy.
 Several fixes that targeted the posterior path (more decoder capacity, a spatial posterior, extra reconstruction terms on small regions) were each locally plausible given that graph and did not help.
-We removed the second path and trained the single decoder with live weights; at 50k steps the posterior reconstruction error was 0.0095, and the agent, trees, and inventory appeared in posterior reconstructions.
+We removed the second path and trained the single decoder with live weights. At 50k steps the posterior reconstruction error was 0.0095, and the agent, trees, and inventory appeared in posterior reconstructions. That 50k figure is not a matched before-and-after against the 0.032 at 12k: the graph and the training length both changed, and we did not record the fixed graph at 12k steps. What the 12k checkpoint shows is that the bypass could pay the pixel loss about as well as the posterior path.
 The general point is that any reconstruction path that does not pass through $\zpost_t$ lets the optimizer pay the pixel loss without putting information into the latent, so a latent probe is only meaningful on a graph without one.
 
 \subsection{Tile size and latent cell size}
@@ -78,7 +78,7 @@ Transformer world models that tokenize Craftax-Classic frames as one token per 7
 
 In an earlier short run with uniform windows only, the cloning loss fell from 0.247 at 256 training steps to $7\times10^{-5}$ by 20,224 environment steps, while the actor made no iron pickaxe in 94 lives.
 Of the 32 demonstrator lives in replay, 22 contained the craft, around steps 170--245 of lives that were often 200--800 steps long.
-A 64-step window ends on the craft for about 64 of several hundred possible start positions, so a uniform draw contains it only a few percent of the time, and the averaged loss is indifferent to it.
+Exactly one start position makes a 64-step window end on the craft. About 64 of several hundred possible starts produce a window that contains it, so a uniform draw contains it only a few percent of the time, and the averaged loss is indifferent to it.
 This motivated anchored windows and the weight $\kappa$.
 Over a full 100k-step run, anchoring did not change the actor's behavior (\cref{sec:benchmark}).
 
@@ -124,7 +124,7 @@ Demonstrator episodes are the eight collected before training, all of which scor
 
 \begin{table}[h]
   \centering
-  \caption{Benchmark field under imagination. The posterior row repeats \cref{tab:field} as recall. Prior rows decode the field from the mode of $\zprior$ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace.}
+  \caption{Benchmark field under imagination. The posterior row repeats \cref{tab:field} as recall. Prior rows decode the field from the mode of $\zprior$ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace. The 0.33 furnace recall is two of six cells.}
   \label{tab:prior}
   \small
   \input{generated/table_prior.tex}

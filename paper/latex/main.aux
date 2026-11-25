@@ -83,7 +83,6 @@
 \@writefile{toc}{\contentsline {paragraph}{What reconstruction does and does not encode.}{3}{section*.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Probing world models.}{3}{section*.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Privileged information as a target or an input.}{3}{section*.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Demonstrations inside an online loop.}{3}{section*.8}\protected@file@percent }
 \citation{kauvar2023curious}
 \citation{seo2026stressdream}
 \citation{hafner2022crafter}
@@ -108,6 +107,7 @@
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces \textsc  {Prospect}{}. The encoder embedding $e_t$ enters only the posterior. One decoder and every head read $\mathrm  {feat}_t=[h_t, z_t]$. The field head predicts a material and an object class for each of $C$ cells around the agent. The actor reads $\mathrm  {feat}_t$ and a field $\phi _t$. In imagination, $\phi _t$ is the field head's softmax on $[h_t,z^{\mathrm  {prior}}_t]$. On real steps in every reported run, $\phi _t$ is the environment's field (dashed).\relax }}{4}{figure.caption.11}\protected@file@percent }
 \newlabel{fig:architecture}{{2}{4}{\method {}. The encoder embedding $e_t$ enters only the posterior. One decoder and every head read $\mathrm {feat}_t=[h_t, z_t]$. The field head predicts a material and an object class for each of $C$ cells around the agent. The actor reads $\mathrm {feat}_t$ and a field $\phi _t$. In imagination, $\phi _t$ is the field head's softmax on $[h_t,\zprior _t]$. On real steps in every reported run, $\phi _t$ is the environment's field (dashed).\relax }{figure.caption.11}{}}
 \newlabel{fig:architecture@cref}{{[figure][2][]2}{[1][4][]4}}
+\@writefile{toc}{\contentsline {paragraph}{Demonstrations inside an online loop.}{4}{section*.8}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Rare events in imagination and replay.}{4}{section*.9}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Crafter.}{4}{section*.10}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {3}\textsc  {Prospect}{}}{4}{section.3}\protected@file@percent }
@@ -175,37 +175,37 @@
 \newlabel{sec:benchmark}{{6}{9}{The two conditions on the benchmark}{section.6}{}}
 \newlabel{sec:benchmark@cref}{{[section][6][]6}{[1][9][]9}}
 \@writefile{toc}{\contentsline {paragraph}{Anchoring the window did not change the actor's behavior.}{9}{section*.26}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Station placement changed the demonstrations, not the actor.}{9}{section*.27}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces The $64\times 64$ observation from the cell south of the station. Each tile is $16\times 16$ pixels, one cell of the encoder's final feature map. (a) The station (orange) is in the nearest row. (b) The station is one cell behind the agent and absent from the image; \texttt  {use} succeeds from here only in the behind-agent condition. These are environment frames, not reconstructions.\relax }}{10}{figure.caption.30}\protected@file@percent }
 \newlabel{fig:room-crops}{{5}{10}{The $64\times 64$ observation from the cell south of the station. Each tile is $16\times 16$ pixels, one cell of the encoder's final feature map. (a) The station (orange) is in the nearest row. (b) The station is one cell behind the agent and absent from the image; \texttt {use} succeeds from here only in the behind-agent condition. These are environment frames, not reconstructions.\relax }{figure.caption.30}{}}
 \newlabel{fig:room-crops@cref}{{[figure][5][]5}{[1][10][]10}}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces The two conditions in the room, 8,000 environment steps each, one seed each. \emph  {Teacher}: demonstrator episodes that scored. \emph  {Actor \texttt  {use}}: actor training episodes that scored, out of all actor episodes; \emph  {last quarter} restricts this to the final quarter of training. \emph  {Eval}: actor-only successes out of eight at about 2k, 4k, 6k, and 8k steps. \emph  {Median length}: steps in a successful actor training episode; the demonstrator uses at step 52 (in crop) or 54 (behind agent).\relax }}{10}{table.caption.31}\protected@file@percent }
 \newlabel{tab:room}{{3}{10}{The two conditions in the room, 8,000 environment steps each, one seed each. \emph {Teacher}: demonstrator episodes that scored. \emph {Actor \texttt {use}}: actor training episodes that scored, out of all actor episodes; \emph {last quarter} restricts this to the final quarter of training. \emph {Eval}: actor-only successes out of eight at about 2k, 4k, 6k, and 8k steps. \emph {Median length}: steps in a successful actor training episode; the demonstrator uses at step 52 (in crop) or 54 (behind agent).\relax }{table.caption.31}{}}
 \newlabel{tab:room@cref}{{[table][3][]3}{[1][10][]10}}
+\@writefile{toc}{\contentsline {paragraph}{Station placement changed the demonstrations, not the actor.}{10}{section*.27}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Held-out lives are the uncensored measurement.}{10}{section*.28}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{What the benchmark runs show.}{10}{section*.29}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {7}The same model in a room}{10}{section.7}\protected@file@percent }
 \newlabel{sec:room}{{7}{10}{The same model in a room}{section.7}{}}
 \newlabel{sec:room@cref}{{[section][7][]7}{[1][10][]10}}
-\@writefile{toc}{\contentsline {paragraph}{The rare action is learned in every condition.}{10}{section*.33}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Room results, one seed per condition. (a) Actor-only evaluation successes out of eight. Solid lines are anchored windows, dashed lines uniform. (b) Length of every successful actor training episode. Dotted lines mark the demonstrator's \texttt  {use} at step 52 (in crop) and 54 (behind agent).\relax }}{11}{figure.caption.32}\protected@file@percent }
 \newlabel{fig:room}{{6}{11}{Room results, one seed per condition. (a) Actor-only evaluation successes out of eight. Solid lines are anchored windows, dashed lines uniform. (b) Length of every successful actor training episode. Dotted lines mark the demonstrator's \texttt {use} at step 52 (in crop) and 54 (behind agent).\relax }{figure.caption.32}{}}
 \newlabel{fig:room@cref}{{[figure][6][]6}{[1][10][]11}}
+\@writefile{toc}{\contentsline {paragraph}{The rare action is learned in every condition.}{11}{section*.33}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Anchoring changes when the actor acts, not whether.}{11}{section*.34}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{The room is not the benchmark.}{11}{section*.35}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {8}Discussion}{11}{section.8}\protected@file@percent }
 \newlabel{sec:discussion}{{8}{11}{Discussion}{section.8}{}}
 \newlabel{sec:discussion@cref}{{[section][8][]8}{[1][11][]11}}
 \@writefile{toc}{\contentsline {paragraph}{What the latent has to contain.}{11}{section*.36}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{What the benchmark runs do and do not show.}{11}{section*.37}\protected@file@percent }
 \citation{dedieu2025improving}
-\bibstyle{plainnat}
-\bibdata{refs}
+\@writefile{toc}{\contentsline {paragraph}{What the benchmark runs do and do not show.}{12}{section*.37}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Limitations.}{12}{section*.38}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Directions.}{12}{section*.39}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {9}Conclusion}{12}{section.9}\protected@file@percent }
 \newlabel{sec:conclusion}{{9}{12}{Conclusion}{section.9}{}}
 \newlabel{sec:conclusion@cref}{{[section][9][]9}{[1][12][]12}}
+\bibstyle{plainnat}
+\bibdata{refs}
 \bibcite{alain2017probes}{{1}{2017}{{Alain and Bengio}}{{}}}
 \bibcite{alonso2024diamond}{{2}{2024}{{Alonso et~al.}}{{Alonso, Jelley, Micheli, Kanervisto, Storkey, Pearce, and Fleuret}}}
 \bibcite{anand2019atariari}{{3}{2019}{{Anand et~al.}}{{Anand, Racah, Ozair, Bengio, C{\^o}t{\'e}, and Hjelm}}}
@@ -266,45 +266,45 @@
 \bibcite{zhang2023storm}{{58}{2023}{{Zhang et~al.}}{{Zhang, Wang, Sun, Yuan, and Huang}}}
 \bibcite{zhang2026probing}{{59}{2026}{{Zhang}}{{}}}
 \bibcite{zhou2025dinowm}{{60}{2025}{{Zhou et~al.}}{{Zhou, Pan, LeCun, and Pinto}}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Hyperparameters}{18}{appendix.A}\protected@file@percent }
+\newlabel{app:hyper}{{A}{18}{Hyperparameters}{appendix.A}{}}
+\newlabel{app:hyper@cref}{{[appendix][1][2147483647]A}{[1][18][]18}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Hyperparameters. Both settings use one seed per run.\relax }}{18}{table.caption.42}\protected@file@percent }
+\newlabel{tab:hyper}{{4}{18}{Hyperparameters. Both settings use one seed per run.\relax }{table.caption.42}{}}
+\newlabel{tab:hyper@cref}{{[table][4][2147483647]4}{[1][18][]18}}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Identifiability notes}{18}{appendix.B}\protected@file@percent }
+\newlabel{app:identifiability}{{B}{18}{Identifiability notes}{appendix.B}{}}
+\newlabel{app:identifiability@cref}{{[appendix][2][2147483647]B}{[1][18][]18}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.1}A reconstruction path that skips the posterior}{18}{subsection.B.1}\protected@file@percent }
+\newlabel{app:bypass}{{B.1}{18}{A reconstruction path that skips the posterior}{subsection.B.1}{}}
+\newlabel{app:bypass@cref}{{[subappendix][1][2147483647,2]B.1}{[1][18][]18}}
 \citation{shi2016subpixel}
 \citation{dedieu2025improving}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Hyperparameters}{17}{appendix.A}\protected@file@percent }
-\newlabel{app:hyper}{{A}{17}{Hyperparameters}{appendix.A}{}}
-\newlabel{app:hyper@cref}{{[appendix][1][2147483647]A}{[1][17][]17}}
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Hyperparameters. Both settings use one seed per run.\relax }}{17}{table.caption.42}\protected@file@percent }
-\newlabel{tab:hyper}{{4}{17}{Hyperparameters. Both settings use one seed per run.\relax }{table.caption.42}{}}
-\newlabel{tab:hyper@cref}{{[table][4][2147483647]4}{[1][17][]17}}
-\@writefile{toc}{\contentsline {section}{\numberline {B}Identifiability notes}{17}{appendix.B}\protected@file@percent }
-\newlabel{app:identifiability}{{B}{17}{Identifiability notes}{appendix.B}{}}
-\newlabel{app:identifiability@cref}{{[appendix][2][2147483647]B}{[1][17][]17}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.1}A reconstruction path that skips the posterior}{17}{subsection.B.1}\protected@file@percent }
-\newlabel{app:bypass}{{B.1}{17}{A reconstruction path that skips the posterior}{subsection.B.1}{}}
-\newlabel{app:bypass@cref}{{[subappendix][1][2147483647,2]B.1}{[1][17][]17}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.2}Tile size and latent cell size}{18}{subsection.B.2}\protected@file@percent }
-\newlabel{app:geometry}{{B.2}{18}{Tile size and latent cell size}{subsection.B.2}{}}
-\newlabel{app:geometry@cref}{{[subappendix][2][2147483647,2]B.2}{[1][17][]18}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.3}A cloning loss that never sees the rare action}{18}{subsection.B.3}\protected@file@percent }
-\newlabel{app:window}{{B.3}{18}{A cloning loss that never sees the rare action}{subsection.B.3}{}}
-\newlabel{app:window@cref}{{[subappendix][3][2147483647,2]B.3}{[1][18][]18}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {B.4}Demonstrations injected on the collection environment}{18}{subsection.B.4}\protected@file@percent }
-\newlabel{app:inject}{{B.4}{18}{Demonstrations injected on the collection environment}{subsection.B.4}{}}
-\newlabel{app:inject@cref}{{[subappendix][4][2147483647,2]B.4}{[1][18][]18}}
-\@writefile{toc}{\contentsline {section}{\numberline {C}Accounting for demonstrator lives}{18}{appendix.C}\protected@file@percent }
-\newlabel{app:accounting}{{C}{18}{Accounting for demonstrator lives}{appendix.C}{}}
-\newlabel{app:accounting@cref}{{[appendix][3][2147483647]C}{[1][18][]18}}
-\@writefile{toc}{\contentsline {section}{\numberline {D}Additional results}{19}{appendix.D}\protected@file@percent }
-\newlabel{app:extra}{{D}{19}{Additional results}{appendix.D}{}}
-\newlabel{app:extra@cref}{{[appendix][4][2147483647]D}{[1][19][]19}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Benchmark field under imagination. The posterior row repeats \cref  {tab:field} as recall. Prior rows decode the field from the mode of $z^{\mathrm  {prior}}$ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace.\relax }}{19}{table.caption.43}\protected@file@percent }
-\newlabel{tab:prior}{{5}{19}{Benchmark field under imagination. The posterior row repeats \cref {tab:field} as recall. Prior rows decode the field from the mode of $\zprior $ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace.\relax }{table.caption.43}{}}
-\newlabel{tab:prior@cref}{{[table][5][2147483647]5}{[1][19][]19}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Room field head from the mode of $z^{\mathrm  {post}}$, one correct demonstrator episode per pose (52 station cells when facing, 4 when facing away, from the walk before the turn). \emph  {False}: fraction of non-station cells predicted as station.\relax }}{19}{table.caption.44}\protected@file@percent }
-\newlabel{tab:room-probe}{{6}{19}{Room field head from the mode of $\zpost $, one correct demonstrator episode per pose (52 station cells when facing, 4 when facing away, from the walk before the turn). \emph {False}: fraction of non-station cells predicted as station.\relax }{table.caption.44}{}}
-\newlabel{tab:room-probe@cref}{{[table][6][2147483647]6}{[1][19][]19}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Open-loop prediction from the beside-resource anchored run at 100k steps. Rows: environment frames, model frames (the first eight columns reconstruct from the posterior, the rest are imagined from the prior given the recorded actions), and absolute error. The segment is the probe window with the most station cells; the environment frames themselves are dark, as at night in Crafter's day cycle. The other two runs give visually similar strips. We report the field head, not these images.\relax }}{19}{figure.caption.45}\protected@file@percent }
-\newlabel{fig:openloop}{{7}{19}{Open-loop prediction from the beside-resource anchored run at 100k steps. Rows: environment frames, model frames (the first eight columns reconstruct from the posterior, the rest are imagined from the prior given the recorded actions), and absolute error. The segment is the probe window with the most station cells; the environment frames themselves are dark, as at night in Crafter's day cycle. The other two runs give visually similar strips. We report the field head, not these images.\relax }{figure.caption.45}{}}
-\newlabel{fig:openloop@cref}{{[figure][7][2147483647]7}{[1][19][]19}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.2}Tile size and latent cell size}{19}{subsection.B.2}\protected@file@percent }
+\newlabel{app:geometry}{{B.2}{19}{Tile size and latent cell size}{subsection.B.2}{}}
+\newlabel{app:geometry@cref}{{[subappendix][2][2147483647,2]B.2}{[1][19][]19}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.3}A cloning loss that never sees the rare action}{19}{subsection.B.3}\protected@file@percent }
+\newlabel{app:window}{{B.3}{19}{A cloning loss that never sees the rare action}{subsection.B.3}{}}
+\newlabel{app:window@cref}{{[subappendix][3][2147483647,2]B.3}{[1][19][]19}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.4}Demonstrations injected on the collection environment}{19}{subsection.B.4}\protected@file@percent }
+\newlabel{app:inject}{{B.4}{19}{Demonstrations injected on the collection environment}{subsection.B.4}{}}
+\newlabel{app:inject@cref}{{[subappendix][4][2147483647,2]B.4}{[1][19][]19}}
+\@writefile{toc}{\contentsline {section}{\numberline {C}Accounting for demonstrator lives}{19}{appendix.C}\protected@file@percent }
+\newlabel{app:accounting}{{C}{19}{Accounting for demonstrator lives}{appendix.C}{}}
+\newlabel{app:accounting@cref}{{[appendix][3][2147483647]C}{[1][19][]19}}
+\@writefile{toc}{\contentsline {section}{\numberline {D}Additional results}{20}{appendix.D}\protected@file@percent }
+\newlabel{app:extra}{{D}{20}{Additional results}{appendix.D}{}}
+\newlabel{app:extra@cref}{{[appendix][4][2147483647]D}{[1][20][]20}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Benchmark field under imagination. The posterior row repeats \cref  {tab:field} as recall. Prior rows decode the field from the mode of $z^{\mathrm  {prior}}$ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace. The 0.33 furnace recall is two of six cells.\relax }}{20}{table.caption.43}\protected@file@percent }
+\newlabel{tab:prior}{{5}{20}{Benchmark field under imagination. The posterior row repeats \cref {tab:field} as recall. Prior rows decode the field from the mode of $\zprior $ after $k$ imagined steps from the posterior mode at every 32nd probe step, given the demonstrator's actions; each row scores 3,465 cells, of which 17--25 are table and 3--6 furnace. The 0.33 furnace recall is two of six cells.\relax }{table.caption.43}{}}
+\newlabel{tab:prior@cref}{{[table][5][2147483647]5}{[1][20][]20}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Room field head from the mode of $z^{\mathrm  {post}}$, one correct demonstrator episode per pose (52 station cells when facing, 4 when facing away, from the walk before the turn). \emph  {False}: fraction of non-station cells predicted as station.\relax }}{20}{table.caption.44}\protected@file@percent }
+\newlabel{tab:room-probe}{{6}{20}{Room field head from the mode of $\zpost $, one correct demonstrator episode per pose (52 station cells when facing, 4 when facing away, from the walk before the turn). \emph {False}: fraction of non-station cells predicted as station.\relax }{table.caption.44}{}}
+\newlabel{tab:room-probe@cref}{{[table][6][2147483647]6}{[1][20][]20}}
 \@writefile{toc}{\contentsline {section}{\numberline {E}Reproducibility}{20}{appendix.E}\protected@file@percent }
 \newlabel{app:repro}{{E}{20}{Reproducibility}{appendix.E}{}}
-\newlabel{app:repro@cref}{{[appendix][5][2147483647]E}{[1][19][]20}}
-\gdef \@abspage@last{20}
+\newlabel{app:repro@cref}{{[appendix][5][2147483647]E}{[1][20][]20}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Open-loop prediction from the beside-resource anchored run at 100k steps. Rows: environment frames, model frames (the first eight columns reconstruct from the posterior, the rest are imagined from the prior given the recorded actions), and absolute error. The segment is the probe window with the most station cells; the environment frames themselves are dark, as at night in Crafter's day cycle. The other two runs give visually similar strips. We report the field head, not these images.\relax }}{21}{figure.caption.45}\protected@file@percent }
+\newlabel{fig:openloop}{{7}{21}{Open-loop prediction from the beside-resource anchored run at 100k steps. Rows: environment frames, model frames (the first eight columns reconstruct from the posterior, the rest are imagined from the prior given the recorded actions), and absolute error. The segment is the probe window with the most station cells; the environment frames themselves are dark, as at night in Crafter's day cycle. The other two runs give visually similar strips. We report the field head, not these images.\relax }{figure.caption.45}{}}
+\newlabel{fig:openloop@cref}{{[figure][7][2147483647]7}{[1][20][]21}}
+\gdef \@abspage@last{21}

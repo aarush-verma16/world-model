@@ -131,6 +131,7 @@ Xiang Fu, Ge~Yang, Pulkit Agrawal, and Tommi Jaakkola.
 \bibitem[Gonzalez~Laiz and Schneider(2026)]{gonzalezlaiz2026limits}
 Rodrigo Gonzalez~Laiz and Steffen Schneider.
 \newblock Understanding the limits of latent world models, 2026.
+\newblock URL \url{https://arxiv.org/abs/2610.37588}.
 
 \bibitem[Ha and Schmidhuber(2018)]{ha2018worldmodels}
 David Ha and J{\"u}rgen Schmidhuber.
@@ -453,6 +454,7 @@ Weipu Zhang, Gang Wang, Jian Sun, Yetian Yuan, and Gao Huang.
 Xinyu Zhang.
 \newblock What do world models learn in {RL}? probing latent representations in
   learned environment simulators, 2026.
+\newblock URL \url{https://arxiv.org/abs/2603.21546}.
 \newblock ICLR 2026 Workshop on World Models.
 
 \bibitem[Zhou et~al.(2025)Zhou, Pan, LeCun, and Pinto]{zhou2025dinowm}

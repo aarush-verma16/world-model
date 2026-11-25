@@ -6,7 +6,7 @@
 Two implementation results shaped how we read every number in this section; \cref{app:identifiability} gives the evidence.
 First, an earlier version of our graph had a second decoder on the encoder embedding.
 That decoder reconstructed recognizable frames while reconstructions from $[h_t,\zpost_t]$ stayed close to the mean frame, and the summed pixel loss looked healthy.
-With the second path removed and one decoder on $[h_t, z_t]$, the mean absolute reconstruction error through the posterior was 0.0095 at 50k steps, against about 0.032 at 12k steps with the bypass in place, and the agent, trees, and inventory appeared in posterior reconstructions.
+With the second path removed and one decoder on $[h_t, z_t]$, posterior reconstructions at 50k steps showed the agent, trees, and inventory, at a mean absolute error of 0.0095. The bypass graph's posterior error was about 0.032, but that figure is from 12k steps, so the two numbers differ in both the graph and the amount of training. The matched comparison is at that same 12k-step checkpoint, where the bypass path's error was 0.027, close to the posterior path's 0.032 (\cref{app:bypass}). We do not have the fixed graph's error at 12k steps.
 A probe on a latent is only meaningful if no other path can pay the reconstruction loss.
 Second, at the benchmark's resolution, one $16\times16$ latent cell is larger than a 7-pixel tile, so a sharp reconstruction does not imply that the latent states which material sits on a given tile.
 That is why \method{} probes the field head rather than reconstructions.
